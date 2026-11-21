@@ -115,6 +115,8 @@ export default function MemberNav() {
         tit: '订单中心',
         list: [
           { name: '我的订单', url: '/member/order/list', show: true },
+          // 送礼物（我方新增）：领取人视角的礼物列表（无价格）
+          { name: '我收到的礼物', url: '/member/gift', show: systemMode !== 'giftcard' },
           // 系统模式 giftcard：拼团属普通商城营销玩法，入口收起（数据与直达链接不受影响）
           { name: '我的拼团', url: OVERSEAS ? '/member/group/list' : '/member/joining/list', show: systemMode !== 'giftcard' },
           // 拍卖（我方新增）：同拼团口径，giftcard 模式收起入口

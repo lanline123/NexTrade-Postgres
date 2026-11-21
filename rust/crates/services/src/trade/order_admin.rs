@@ -433,6 +433,9 @@ fn build_vo(input: VoInput<'_>) -> OrderVO {
         offline_payment_claim: offline_claim
             .as_ref()
             .map(crate::trade::order::to_offline_claim_vo),
+        // 送礼物标记由 list 在 build_vo 后回填（默认非礼物）
+        is_gift_order: false,
+        gift_status: None,
     }
 }
 
@@ -694,6 +697,12 @@ impl OrderAdminService {
             .latest_for_orders(&order_ids)
             .await?;
 
+        // 送礼物标记批量解析（我方新增；子单经父单命中）
+        let gift_svc = crate::trade::gift_order::GiftOrderService::new(self.repos.clone());
+        let gift_keys: Vec<(i32, Option<i32>)> =
+            orders.iter().map(|o| (o.order_id, o.parent_order_id)).collect();
+        let gift_map = gift_svc.resolve_map(&gift_keys).await.unwrap_or_default();
+
         let now = utils::now_seconds() as i32;
         let mut list = Vec::with_capacity(orders.len());
         for o in &orders {
@@ -718,6 +727,10 @@ impl OrderAdminService {
             vo.after_sales_ing = i32::from(aftersales_ing.contains(&o.order_id));
             vo.paid_cancel_refund_status =
                 buyer_cancel_map.get(&o.order_id).map(|a| a.refund_status);
+            if let Some(gift) = gift_map.get(&o.order_id) {
+                vo.is_gift_order = true;
+                vo.gift_status = Some(gift.gift_status);
+            }
             list.push(vo);
         }
         Ok(PageResult::new(total, list, &page))
@@ -785,6 +798,14 @@ impl OrderAdminService {
             now: utils::now_seconds() as i32,
             offline_claim,
         });
+        // 送礼物标记（我方新增，详情与列表同口径）
+        {
+            let gift_svc = crate::trade::gift_order::GiftOrderService::new(self.repos.clone());
+            if let Ok(Some(gift)) = gift_svc.resolve_for_order(order_id).await {
+                vo.is_gift_order = true;
+                vo.gift_status = Some(gift.gift_status);
+            }
+        }
 
         // 后台状态头文案覆盖：仅当当前状态名仍为标准文案时覆盖（Java 用字符串相等判断）
         if let Some(admin) = OrderStatus::of(order.order_status)
@@ -878,6 +899,9 @@ impl OrderAdminService {
         if groupon.is_some_and(|(_, _, js)| js == join_status::WAIT_GROUP) {
             return Err(Error::biz_msg("状态错误"));
         }
+
+        // 送礼物守卫（我方新增）：待领取时收货地址还是空快照，禁止发货
+        crate::trade::gift_order::ensure_deliverable(self.repos.clone(), order_id).await?;
 
         // 整单售后进行中禁止发货（Java `hasInProgressFullOrderAftersales`）
         let total_qty = self.repos.trade.order_admin.order_items_total_quantity(order_id).await?;

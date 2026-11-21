@@ -941,6 +941,31 @@ impl AftersalesClientService {
         Self { repos }
     }
 
+    /// 送礼物领取人判定（我方新增）：订单所属礼物已领取且领取人 =
+    /// 当前用户时为 true。查询失败按非领取人处理（严口径）。
+    async fn is_gift_claimer(&self, order: &Order, user_id: i32) -> bool {
+        let gift_svc = crate::trade::gift_order::GiftOrderService::new(self.repos.clone());
+        match gift_svc.resolve_for_order(order.order_id).await {
+            Ok(Some(gift)) => {
+                gift.gift_status
+                    == nextrade_core::models::trade::gift_order::gift_status::CLAIMED
+                    && gift.claim_user_id == user_id
+            }
+            _ => false,
+        }
+    }
+
+    /// 售后发起归属：订单归属人（买家）或已领取礼物的领取人可发起。
+    async fn ensure_apply_allowed(&self, order: &Order, user_id: i32) -> Result<()> {
+        if order.user_id == user_id {
+            return Ok(());
+        }
+        if self.is_gift_claimer(order, user_id).await {
+            return Ok(());
+        }
+        Err(Error::Forbidden("无权对该订单申请售后".into()))
+    }
+
     /// 读取本域需要的全部配置快照。
     async fn load_configs(&self) -> Result<Configs> {
         let review = self
@@ -1171,8 +1196,12 @@ impl AftersalesClientService {
         // `.eq(Order::getUserId, 当前用户)` 为条件查订单，他人订单
         // 等同不存在。此前我方未传 user_id，任意登录用户可按
         // orderId 拉取他人订单的售后申请数据（明细/金额）。
+        // 送礼物订单例外：已领取的领取人可看申请页数据（其为收货人）。
         if order.user_id != user_id {
-            return Err(Error::biz_msg(ERR_ORDER_NOT_EXIST));
+            let is_claimer = self.is_gift_claimer(&order, user_id).await;
+            if !is_claimer {
+                return Err(Error::biz_msg(ERR_ORDER_NOT_EXIST));
+            }
         }
 
         // 店铺「确认收货后 N 天不可申请」限制
@@ -1354,7 +1383,9 @@ impl AftersalesClientService {
 
         // 归属校验（我方新增，原版无）：只能对自己的订单申请售后。
         // 置于其余状态校验之前，非归属人不得借错误信息探测订单状态。
-        ensure_order_owner(order.user_id, user_id)?;
+        // 送礼物订单例外（我方新增）：已领取的领取人是收货人，可发起
+        // 售后；退款去向在 aftersales 域改写回买家，不随发起人走。
+        self.ensure_apply_allowed(&order, user_id).await?;
 
         // 电子礼品卡（虚拟）不支持售后
         if !item_ids.is_empty() {

@@ -134,6 +134,10 @@ impl OrderService {
         }
         // POS 收银：价格以购物车行（POS 改价后）为准，不叠加线上营销活动。
         let pos_mode = dto.order_source.as_deref() == Some("pos");
+        // 送礼物模式（我方新增，论坛帖 197742）：POS 收银不适用；
+        // 礼物订单不填收货地址、付款后待好友领取，细则见校验段与
+        // crate::trade::gift_order。
+        let gift_mode = !pos_mode && dto.is_gift_order.unwrap_or(false);
         // 价格门控购买拦截（第 2 期，用户决策 3）：未认证用户不能下单
         // （含门控开启前已留在购物车的行）。POS 收银是商家侧当面交易，
         // 不走前台看价门控口径，豁免。
@@ -531,8 +535,14 @@ impl OrderService {
         }
 
         // —— 收货地址快照（同时取地区用于运费模板匹配）——
+        // 送礼物模式刻意不取买家地址：订单先落空快照，领取时由领取人
+        // 地址覆盖（运费按无地区口径计算，与未选地址的普通单一致）。
         let effective_shipping_method = dto.shipping_method.or(dto.delivery_type).unwrap_or(1);
-        let addr = match dto.address_id.filter(|id| *id > 0) {
+        let addr = match if gift_mode {
+            None
+        } else {
+            dto.address_id.filter(|id| *id > 0)
+        } {
             Some(address_id) => {
                 self.repos
                     .member
@@ -768,6 +778,63 @@ impl OrderService {
             }
         }
 
+        // —— 送礼物模式拦截校验（我方新增）：只接实物普通订单 ——
+        // 活动订单（拼团/秒杀/预售）、礼品卡兑换、虚拟/卡券/付费内容
+        // 商品、满赠赠品行一律不纳入，提交时明确提示而非静默降级。
+        let gift_message: String = dto
+            .gift_message
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or_default()
+            .to_string();
+        if gift_mode {
+            if gift_message.chars().count() > 200 {
+                return Err(Error::Validation("赠言不能超过200字".into()));
+            }
+            if effective_shipping_method == 2 {
+                return Err(Error::biz(
+                    400,
+                    "送礼物订单需由好友填写收货地址，不支持到店自提".to_string(),
+                ));
+            }
+            if gift_exchange_card_id.is_some() {
+                return Err(Error::biz(
+                    400,
+                    "礼品卡兑换订单不能使用送礼物模式".to_string(),
+                ));
+            }
+            if !groupon_lines.is_empty() {
+                return Err(Error::biz(
+                    400,
+                    "拼团订单不能使用送礼物模式".to_string(),
+                ));
+            }
+            if !seckill_lines.is_empty() {
+                return Err(Error::biz(
+                    400,
+                    "秒杀订单不能使用送礼物模式".to_string(),
+                ));
+            }
+            if presale_row.is_some() {
+                return Err(Error::biz(
+                    400,
+                    "预售订单不能使用送礼物模式".to_string(),
+                ));
+            }
+            if items.iter().any(|it| it.is_gift == 1) {
+                return Err(Error::biz(
+                    400,
+                    "含活动赠品的订单不能使用送礼物模式".to_string(),
+                ));
+            }
+            if items.iter().any(|it| it.product_type != 1) {
+                return Err(Error::biz(
+                    400,
+                    "虚拟/卡券类商品不能使用送礼物模式，仅支持实物商品".to_string(),
+                ));
+            }
+        }
+
         let order = Order {
             is_presale: if presale_row.is_some() { 1 } else { 0 },
             presale_type: presale_row.as_ref().map(|_| 2),
@@ -823,6 +890,8 @@ impl OrderService {
         // 「扣库存 + 写订单」同一事务：任一行库存不足或订单写入失败，
         // 事务整体回滚，不残留已扣库存（原 Java 由 @Transactional 保证）。
         let mut groupon_record_id: Option<i64> = None;
+        // 送礼物领取 token 明文（事务内生成，仅随建单响应返回一次）
+        let mut gift_token: Option<String> = None;
 
         let order_id = {
             let mut tx = self
@@ -1036,6 +1105,28 @@ impl OrderService {
                                     result = Err(e);
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // 送礼物行与订单同事务写入（order_gift，迁移 014）：
+            // 「有订单必有礼物行」原子成立，token 明文仅在此返回一次
+            if result.is_ok() && gift_mode {
+                if let Some(oid) = result.as_ref().ok().copied() {
+                    match crate::trade::gift_order::GiftOrderService::insert_in_tx(
+                        &mut tx,
+                        oid,
+                        &order_sn,
+                        user_id,
+                        &gift_message,
+                        now_ts,
+                    )
+                    .await
+                    {
+                        Ok(token) => gift_token = Some(token),
+                        Err(e) => {
+                            result = Err(e);
                         }
                     }
                 }
@@ -1459,6 +1550,15 @@ impl OrderService {
             }
         }
 
+        // 提交即付清（余额/礼品卡全额抵扣）时礼物同步转待领取；
+        // 在线支付的单由付款成功钩子激活（run_post_payment_hooks）
+        if gift_mode && return_type == 2 {
+            let gift_svc = crate::trade::gift_order::GiftOrderService::new(self.repos.clone());
+            if let Err(e) = gift_svc.activate_on_paid(order_id).await {
+                tracing::warn!("送礼物订单 {order_id} 提交即付清激活失败: {e}");
+            }
+        }
+
         let out_trade_no = format!("PAY{order_sn}");
         Ok(OrderCreateVO {
             order_id,
@@ -1470,6 +1570,7 @@ impl OrderService {
             groupon_promotion_record_id: groupon_record_id.and_then(|v| i32::try_from(v).ok()),
             balance: if final_balance_used > Decimal::ZERO { Some(final_balance_used) } else { None },
             is_card_redeem: Some(false),
+            gift_token,
         })
     }
 
@@ -1551,6 +1652,20 @@ impl OrderService {
             paid_cancel_enabled,
             latest_cancel.as_ref(),
         );
+        // 送礼物标记 + 礼物面板（我方新增）：详情归属已限定买家本人，
+        // gift_info 只对买家下发（领取人走领取页/收到列表的无价格视图）
+        {
+            let gift_svc = crate::trade::gift_order::GiftOrderService::new(self.repos.clone());
+            if let Ok(Some(gift)) = gift_svc.resolve_for_order(order_id).await {
+                vo.is_gift_order = true;
+                vo.gift_status = Some(gift.gift_status);
+                if gift.buyer_user_id == order.user_id {
+                    if let Ok(info) = gift_svc.buyer_info(order_id, order.user_id).await {
+                        vo.gift_info = info;
+                    }
+                }
+            }
+        }
         // 卡密订单：补齐每个商品项已分配的电子卡券（原版 ECardItemVO）
         let mut has_card = false;
         for (idx, item) in items.iter().enumerate() {
@@ -1732,6 +1847,11 @@ impl OrderService {
             )
             .await
             .unwrap_or_default();
+        // 送礼物标记批量解析（我方新增；子单经父单命中）
+        let gift_svc = crate::trade::gift_order::GiftOrderService::new(self.repos.clone());
+        let gift_keys: Vec<(i32, Option<i32>)> =
+            orders.iter().map(|o| (o.order_id, o.parent_order_id)).collect();
+        let gift_map = gift_svc.resolve_map(&gift_keys).await.unwrap_or_default();
         let mut list = Vec::with_capacity(orders.len());
         for o in &orders {
             let items = self.repos.trade.order.find_items(o.order_id).await?;
@@ -1742,6 +1862,10 @@ impl OrderService {
                 paid_cancel_enabled,
                 buyer_cancel_map.get(&o.order_id),
             );
+            if let Some(gift) = gift_map.get(&o.order_id) {
+                vo.is_gift_order = true;
+                vo.gift_status = Some(gift.gift_status);
+            }
             list.push(vo);
         }
         Ok(PageResult::new(total, list, page))
@@ -1820,6 +1944,15 @@ impl OrderService {
         {
             tracing::warn!("取消订单 {order_id} 礼品卡返还失败: {e}");
         }
+        // 送礼物联动（我方新增）：未付款取消后礼物行转「未付款取消」
+        // （非礼物订单无礼物行、空转；买家礼物取消入口另有退款路径，
+        // 只处理待领取状态，不经本函数）
+        {
+            let gift_svc = crate::trade::gift_order::GiftOrderService::new(self.repos.clone());
+            if let Err(e) = gift_svc.mark_canceled_unpaid(order_id).await {
+                tracing::warn!("订单 {order_id} 取消后礼物行联动失败: {e}");
+            }
+        }
         tracing::info!("订单已取消: {order_id}");
         Ok(())
     }
@@ -1875,6 +2008,16 @@ impl OrderService {
     pub async fn run_post_payment_hooks(&self, order: &Order, paid_amount: Decimal) {
         let order_id = order.order_id;
         let now = utils::now_seconds() as i32;
+
+        // 0. 送礼物订单激活（我方新增）：礼物行 待付款 → 待领取 并起算
+        // 领取有效期；非礼物订单无礼物行、天然空转。提交即付清路径不
+        // 经本钩子，由 create 末尾单独调用同一 activate_on_paid。
+        {
+            let gift_svc = crate::trade::gift_order::GiftOrderService::new(self.repos.clone());
+            if let Err(e) = gift_svc.activate_on_paid(order_id).await {
+                tracing::warn!("送礼物订单 {order_id} 付款激活失败: {e}");
+            }
+        }
 
         // 1. 记录订单日志
         let _ = self.repos.trade.user_order.insert_order_log(
@@ -2151,6 +2294,8 @@ impl OrderService {
 
     /// 发货（后台操作）。
     pub async fn ship(&self, order_id: i32, tracking_no: &str, logistics_name: &str) -> Result<()> {
+        // 送礼物守卫（我方新增）：待领取时地址还是空快照，禁止发货
+        crate::trade::gift_order::ensure_deliverable(self.repos.clone(), order_id).await?;
         let ok = self
             .repos.trade.order
             .transition_status(order_id, &[status::PAID], status::SHIPPED)
@@ -2777,6 +2922,10 @@ pub(crate) fn paid_cancel_status_name(status: i32) -> &'static str {
         3 => "已拒绝",
         4 => "已退回",
         _ => "退款中",
+        // 送礼物标记由 list/detail 在 to_vo 后回填（默认非礼物）
+        is_gift_order: false,
+        gift_status: None,
+        gift_info: None,
     }
 }
 

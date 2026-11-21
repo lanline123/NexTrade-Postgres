@@ -4,6 +4,7 @@ pub mod aftersales;
 pub mod aftersales_client;
 pub mod cart_summary;
 pub mod check;
+pub mod gift_order;
 pub mod offline_claim;
 pub mod order;
 pub mod order_admin;

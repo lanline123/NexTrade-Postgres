@@ -84,6 +84,10 @@ export interface OrderRow {
   afterSalesIng?: number;
   /** 买家取消直退状态（后端 paidCancelRefundStatus，我方新增）：0 待处理 / 1 处理中 / 2 已处理 / 3 已拒绝 / 4 已退回；无申请时缺省。 */
   paidCancelRefundStatus?: number;
+  /** 送礼物订单（我方新增）：后端按 order_gift 回填，列表亮「礼物」标记。 */
+  isGiftOrder?: boolean;
+  /** 礼物子状态：0 待付款 1 待领取 2 已领取 3 已关闭 4 已取消。 */
+  giftStatus?: number | null;
   /** 配送方式：3 为同城配送，列表行操作文案用「完成配送」而非「确认收货」。 */
   shippingTypeId?: number;
   /** 自提订单不展示确认收货入口。 */

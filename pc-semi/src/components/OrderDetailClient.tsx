@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Button, Card, Modal, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
+import { cancelGiftOrder, regenerateGiftShareToken } from '@/lib/gift-api';
 import MemberCancelOrderDialog from '@/components/MemberCancelOrderDialog';
 import MemberPaidCancelRefundDialog from '@/components/MemberPaidCancelRefundDialog';
 import DeliveryLinkRows from '@/components/DeliveryLinkRows';
@@ -126,6 +127,18 @@ interface OrderDetail {
   /** 买家取消直退进度（我方新增，后端 VO 下发） */
   paidCancelRefundStatus?: number | null;
   paidCancelRefundStatusName?: string | null;
+  /** 送礼物订单（我方新增，后端 VO 下发） */
+  isGiftOrder?: boolean;
+  giftStatus?: number | null;
+  giftInfo?: {
+    giftStatus?: number;
+    giftStatusName?: string;
+    giftMessage?: string;
+    expireTime?: string | null;
+    claimUserNameMasked?: string | null;
+    claimTime?: string | null;
+    closeReason?: string;
+  } | null;
 }
 
 function money(value: unknown): string {
@@ -167,6 +180,39 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
   const [paidCancelVisible, setPaidCancelVisible] = useState(false);
   const [shippingVisible, setShippingVisible] = useState(false);
   const [nowTs, setNowTs] = useState(Date.now());
+
+  /** 送礼物分享（我方新增）：重新生成链接（旧链接作废）并复制 */
+  const shareGift = async () => {
+    try {
+      const data = await regenerateGiftShareToken(orderId);
+      const link = `${window.location.origin}${data.claimPath}`;
+      try {
+        await navigator.clipboard.writeText(`${t('送你一份礼物，点击领取')}：${link}`);
+        Toast.success({ content: t('领取链接已复制，发给好友吧') });
+      } catch {
+        Toast.info({ content: link });
+      }
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('生成链接失败') });
+    }
+  };
+
+  /** 送礼物取消（我方新增）：待领取走退款关闭，未付款直接取消 */
+  const cancelGift = () => {
+    Modal.confirm({
+      title: t('取消送礼物'),
+      content: t('取消后礼物将关闭，已付款的将原路退款，确认取消吗？'),
+      onOk: async () => {
+        try {
+          await cancelGiftOrder(orderId);
+          Toast.success({ content: t('已取消') });
+          load();
+        } catch (error) {
+          Toast.error({ content: error instanceof Error ? error.message : t('取消失败') });
+        }
+      },
+    });
+  };
 
   const load = () => {
     if (!orderId) {
@@ -358,6 +404,26 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
             {detail.paidCancelRefundStatusName ? (
               <p>{t('买家取消退款')}：{detail.paidCancelRefundStatusName}</p>
             ) : null}
+            {detail.isGiftOrder && detail.giftInfo ? (
+              <>
+                <p>
+                  {t('送礼物')}：<strong>{detail.giftInfo.giftStatusName}</strong>
+                  {detail.giftInfo.giftMessage ? ` · ${t('赠言')}：「${detail.giftInfo.giftMessage}」` : ''}
+                </p>
+                {detail.giftInfo.giftStatus === 1 && detail.giftInfo.expireTime ? (
+                  <p>{t('好友需在')} {detail.giftInfo.expireTime} {t('前领取，超时自动退款')}</p>
+                ) : null}
+                {detail.giftInfo.giftStatus === 2 ? (
+                  <p>
+                    {t('已被')} {detail.giftInfo.claimUserNameMasked || ''} {t('领取')}
+                    {detail.giftInfo.claimTime ? ` · ${detail.giftInfo.claimTime}` : ''}
+                  </p>
+                ) : null}
+                {detail.giftInfo.giftStatus === 3 && detail.giftInfo.closeReason ? (
+                  <p>{detail.giftInfo.closeReason}</p>
+                ) : null}
+              </>
+            ) : null}
             {detail.cancelRemark ? <p>取消原因：{detail.cancelRemark}</p> : null}
             {isGiftCardProduct ? (
               <p className="member-order-detail__tip">{t('为了您的财产安全，请妥善保管卡密信息，切勿将卡号、卡密、二维码截图等任何信息发送他人，谨防上当受骗!')}</p>
@@ -387,6 +453,12 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
             {!showPayCountdown && !actionEnabled(actions, 'toPay') ? <p>{detail.orderStatusTip || STATUS_DESC[orderStatus] || ''}</p> : null}
           </div>
           <div className="order-right">
+            {detail.isGiftOrder && detail.giftInfo && (detail.giftInfo.giftStatus === 0 || detail.giftInfo.giftStatus === 1) ? (
+              <>
+                <Button theme="solid" type="primary" onClick={shareGift}>{t('分享给好友')}</Button>
+                <Button type="danger" onClick={cancelGift}>{t('取消送礼物')}</Button>
+              </>
+            ) : null}
             {actionEnabled(actions, 'cancelOrder') ? (
               <Button type="danger" onClick={() => setCancelVisible(true)}>{t('取消订单')}</Button>
             ) : null}

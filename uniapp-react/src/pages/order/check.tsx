@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from "react";
-import { View, Text } from "@tarojs/components";
+import { View, Text, Input } from "@tarojs/components";
 import Taro, { useDidShow, useRouter } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
@@ -109,6 +109,10 @@ export default function Check() {
         useGiftCardId?: number;
         useGiftCardSn?: string;
         buyerNote: string;
+        /** 送礼物模式（我方新增）：true 时不填收货地址、付款后待好友领取 */
+        isGiftOrder?: boolean;
+        /** 赠言（送礼物模式选填，上限 200 字） */
+        giftMessage?: string;
         invoiceData: any;
         useDefaultCouponIds?: number;
         productReservationTimeId?: number;
@@ -132,6 +136,8 @@ export default function Check() {
         useCouponIds: [],
         selectUserCouponIds: [],
         buyerNote: "",
+        isGiftOrder: false,
+        giftMessage: "",
         invoiceData: {},
         productExtra: {},
         longitude: regionStateAny.currentLocationInfo?.longitude,
@@ -977,6 +983,13 @@ export default function Check() {
         }
 
         formState.deliveryType = deliveryTypeRef.current;
+
+        // 送礼物模式（我方新增）：不带买家地址、固定快递配送，
+        // 收货地址由好友领取时填写
+        if (formState.isGiftOrder) {
+            delete formState.addressId;
+            formState.deliveryType = 1;
+        }
     };
 
     /**
@@ -989,6 +1002,18 @@ export default function Check() {
      * @returns 验证是否通过
      */
     const validateDeliveryAndContact = (): boolean => {
+        // 送礼物模式（我方新增）：无需买家收货地址/联系人，仅要求快递配送
+        if (formState.isGiftOrder) {
+            if (deliveryTypeRef.current !== 1) {
+                Taro.showToast({
+                    title: t("送礼物仅支持快递配送"),
+                    icon: "none"
+                });
+                return false;
+            }
+            return true;
+        }
+
         // 预约服务验证
         if (isReserve()) {
             if (reserveFlowType() === 9) {
@@ -1051,6 +1076,15 @@ export default function Check() {
         return true;
     };
 
+    /** 送礼物开关（我方新增）：开启时切到快递配送，地址留待好友领取时填 */
+    const toggleGiftMode = () => {
+        formState.isGiftOrder = !formState.isGiftOrder;
+        if (formState.isGiftOrder && deliveryTypeRef.current !== 1) {
+            deliveryTypeRef.current = 1;
+        }
+        rerender();
+    };
+
     /**
      * @description 提交订单入口
      * 校验配送方式、联系信息、支付方式后提交订单
@@ -1064,7 +1098,7 @@ export default function Check() {
             return;
         }
 
-        if (!isSubCardRef.current && deliveryTypeRef.current === 3 && !checkLanLon()) {
+        if (!formState.isGiftOrder && !isSubCardRef.current && deliveryTypeRef.current === 3 && !checkLanLon()) {
             setShowAddressPop(true);
             return;
         }
@@ -1569,6 +1603,71 @@ export default function Check() {
                     rerender();
                 }}
             />
+
+            {/* 送礼物模式（我方新增）：次卡兑换流不展示；开启后不填收货地址，
+                付款成功后在订单详情把领取链接分享给好友，好友填自己的地址领取 */}
+            {!isSubCard && (
+                <View
+                    style={{
+                        background: "#fff",
+                        borderRadius: "18rpx",
+                        margin: "20rpx 24rpx 0",
+                        padding: "24rpx 28rpx"
+                    }}
+                >
+                    <View
+                        style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+                        onClick={toggleGiftMode}
+                    >
+                        <View style={{ flex: 1, paddingRight: "20rpx" }}>
+                            <Text style={{ fontSize: "30rpx", color: "#1a1a1a", fontWeight: 600 }}>{t("送礼物")}</Text>
+                            <Text style={{ display: "block", fontSize: "24rpx", color: "#999", marginTop: "6rpx" }}>
+                                {t("不填收货地址，付款后分享链接给好友领取")}
+                            </Text>
+                        </View>
+                        <View
+                            style={{
+                                width: "88rpx",
+                                height: "48rpx",
+                                borderRadius: "24rpx",
+                                background: formState.isGiftOrder ? "#65c4aa" : "#e5e5e5",
+                                position: "relative",
+                                flexShrink: 0
+                            }}
+                        >
+                            <View
+                                style={{
+                                    width: "40rpx",
+                                    height: "40rpx",
+                                    borderRadius: "50%",
+                                    background: "#fff",
+                                    position: "absolute",
+                                    top: "4rpx",
+                                    left: formState.isGiftOrder ? "44rpx" : "4rpx"
+                                }}
+                            />
+                        </View>
+                    </View>
+                    {formState.isGiftOrder && (
+                        <Input
+                            style={{
+                                marginTop: "20rpx",
+                                background: "#f7f8fa",
+                                borderRadius: "12rpx",
+                                padding: "16rpx 20rpx",
+                                fontSize: "28rpx"
+                            }}
+                            value={formState.giftMessage || ""}
+                            maxlength={200}
+                            placeholder={t("写一句赠言，好友领取时可见（选填）")}
+                            onInput={(e: any) => {
+                                formState.giftMessage = e.detail.value;
+                                rerender();
+                            }}
+                        />
+                    )}
+                </View>
+            )}
 
             {/* 礼品卡单选区（原版口径：单选一张、再点已选卡取消；可选卡来自 check 响应
                 availableGiftCards；flowType=12 时锁定 giftCardSn 对应卡不可改。

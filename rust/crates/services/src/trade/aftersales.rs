@@ -2152,11 +2152,36 @@ impl AftersalesService {
             return Ok(existing.refund_id);
         }
 
+        // 送礼物订单退款归属（我方新增）：售后由领取人发起时
+        // aftersales.user_id = 领取人（售后单可见性/进度归领取人），
+        // 但退款收款必须回到买家（付款人）：余额退款按
+        // refund_apply.user_id 回补、渠道退款按订单 paylog 原路，
+        // 故退款单 user_id 改写为订单归属人（买家）；售后单本身不改。
+        let refund_order_id = aftersales.order_id.unwrap_or(0);
+        let mut refund_user_id = aftersales.user_id.unwrap_or(0);
+        if refund_order_id > 0 && refund_user_id > 0 {
+            if let Ok(Some(order)) =
+                self.repos.trade.order.find_by_id(refund_order_id).await
+            {
+                if order.user_id != refund_user_id {
+                    let gift_svc =
+                        crate::trade::gift_order::GiftOrderService::new(self.repos.clone());
+                    if let Ok(Some(gift)) =
+                        gift_svc.resolve_for_order(refund_order_id).await
+                    {
+                        if gift.claim_user_id == refund_user_id {
+                            refund_user_id = order.user_id;
+                        }
+                    }
+                }
+            }
+        }
+
         let apply = RefundApply {
             refund_id: 0,
             refund_type: if aftersales.order_id.unwrap_or(0) > 0 { 1 } else { 2 },
             order_id: aftersales.order_id.unwrap_or(0),
-            user_id: aftersales.user_id.unwrap_or(0),
+            user_id: refund_user_id,
             aftersale_id: aftersales.aftersale_id,
             // 待处理（Java `createRefundApply` 写 REFUND_STATUS_WAIT=0，
             // 与本仓财务域 RefundApplyStatus::Wait 一致；曾误写 1=处理中，
@@ -2188,7 +2213,7 @@ impl AftersalesService {
             refund_amount,
             add_time: now,
             description: Some(format!("售后通过，创建财务退款申请: {refund_note}")),
-            user_id: aftersales.user_id.unwrap_or(0),
+            user_id: refund_user_id,
             order_id: aftersales.order_id.unwrap_or(0),
         };
         let _ = self.repos.payment.refund_apply.insert_log(&log).await;

@@ -62,6 +62,7 @@ type OrderFilters = {
   shippingStatus: number | undefined;
   addTime: string[];
   mark: number; // -1 不限（旧版「订单标记」筛选）
+  isGift: number | undefined; // 送礼物筛选（我方新增）：1 只看礼物订单
 };
 
 const emptyFilters: OrderFilters = {
@@ -74,6 +75,7 @@ const emptyFilters: OrderFilters = {
   shippingStatus: undefined,
   addTime: [],
   mark: -1,
+  isGift: undefined,
 };
 
 /** 会员标签筛选状态（对齐旧版「按会员标签筛选订单」弹窗）。 */
@@ -136,6 +138,7 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
       email: applied.email || undefined,
       mobile: applied.mobile || undefined,
       payStatus: applied.payStatus,
+      isGift: applied.isGift,
       mark: applied.mark !== -1 ? applied.mark : undefined,
       shippingStatus: applied.shippingStatus,
       addStartTime: applied.addTime?.[0] || undefined,
@@ -318,6 +321,22 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
               style={{ width: 120 }}
             />
             <Select
+              placeholder={t('送礼物')}
+              value={filters.isGift}
+              optionList={[
+                { label: t('全部订单'), value: -1 },
+                { label: t('礼物订单'), value: 1 },
+                { label: t('非礼物订单'), value: 0 },
+              ]}
+              onChange={(next) =>
+                setFilters((current) => ({
+                  ...current,
+                  isGift: Number(next) === -1 ? undefined : Number(next),
+                }))
+              }
+              style={{ width: 130 }}
+            />
+            <Select
               placeholder={t('发货状态')}
               value={filters.shippingStatus}
               optionList={[
@@ -435,6 +454,11 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
                   ) : null}
                   {record.paidCancelRefundStatus === 2 ? (
                     <Tag color="grey">{t('买家取消已退款')}</Tag>
+                  {record.isGiftOrder ? (
+                    <Tag color="violet">
+                      {t('礼物')}
+                      {record.giftStatus === 1 ? `·${t('待领取')}` : record.giftStatus === 2 ? `·${t('已领取')}` : ''}
+                    </Tag>
                   ) : null}
                 </Space>
               ),

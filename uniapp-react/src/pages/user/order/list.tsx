@@ -453,6 +453,23 @@ export default function OrderList() {
                         )}
                     </View>
                 </View>
+                {/* 我收到的礼物入口（我方新增） */}
+                <View
+                    style={{
+                        margin: "16rpx 24rpx 0",
+                        background: "#fff",
+                        borderRadius: "14rpx",
+                        padding: "20rpx 24rpx",
+                        display: "flex",
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                    }}
+                    onClick={() => Taro.navigateTo({ url: "/pages/user/giftReceived" })}
+                >
+                    <Text style={{ fontSize: "28rpx", color: "#1a1a1a" }}>{t("我收到的礼物")}</Text>
+                    <Text style={{ fontSize: "24rpx", color: "#999" }}>{t("查看")} ›</Text>
+                </View>
                 <View className="order-list" data-list-rev="eGprMjI4Mng">
                     {orderList.map((item) => (
                         <View className="order-list-item" key={item.orderId}>
@@ -461,6 +478,19 @@ export default function OrderList() {
                                 {item.paidCancelRefundStatus != null && item.paidCancelRefundStatusName ? (
                                     <View className="cancel-reason">
                                         {t("买家取消退款")}：{item.paidCancelRefundStatusName}
+                                {(item as any).isGiftOrder ? (
+                                    <View
+                                        style={{
+                                            marginLeft: "12rpx",
+                                            background: "#f3efff",
+                                            color: "#792dff",
+                                            borderRadius: "8rpx",
+                                            padding: "2rpx 12rpx",
+                                            fontSize: "22rpx"
+                                        }}
+                                    >
+                                        {t("礼物")}
+                                        {(item as any).giftStatus === 1 ? `·${t("待领取")}` : (item as any).giftStatus === 2 ? `·${t("已领取")}` : ""}
                                     </View>
                                 ) : null}
                                 {item.cancelRemark?.trim() ? (

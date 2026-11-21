@@ -9,6 +9,7 @@ pub mod cache_manage;
 pub mod config_basic;
 pub mod price_display_config;
 pub mod paid_cancel_refund_config;
+pub mod gift_order_config;
 pub mod buy_style_config;
 pub mod account_security_config;
 pub mod ops_code_config;
@@ -44,6 +45,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(config_basic::routes(state))
         .merge(price_display_config::routes(state))
         .merge(paid_cancel_refund_config::routes(state))
+        .merge(gift_order_config::routes(state))
         .merge(ad_settings_config::routes(state))
         .merge(buy_style_config::routes(state))
         .merge(account_security_config::routes(state))
@@ -84,6 +86,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(config_basic::implemented_routes());
     out.extend(price_display_config::implemented_routes());
     out.extend(paid_cancel_refund_config::implemented_routes());
+    out.extend(gift_order_config::implemented_routes());
     out.extend(ad_settings_config::implemented_routes());
     out.extend(buy_style_config::implemented_routes());
     out.extend(account_security_config::implemented_routes());

@@ -4,6 +4,7 @@ pub mod aftersales_client;
 pub mod cart_summary;
 pub mod check;
 pub mod cycle_card;
+pub mod gift_order;
 pub mod offline_claim;
 pub mod order_invoice_client;
 pub mod user_order;
@@ -20,6 +21,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(cart_summary::routes(state))
         .merge(check::routes(state))
         .merge(cycle_card::routes(state))
+        .merge(gift_order::routes(state))
         .merge(offline_claim::routes(state))
         .merge(order_invoice_client::routes(state))
         .merge(user_order::routes(state))
@@ -49,6 +51,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(cart_summary::implemented_routes());
     out.extend(check::implemented_routes());
     out.extend(cycle_card::implemented_routes());
+    out.extend(gift_order::implemented_routes());
     out.extend(offline_claim::implemented_routes());
     out.extend(order_invoice_client::implemented_routes());
     out.extend(user_order::implemented_routes());

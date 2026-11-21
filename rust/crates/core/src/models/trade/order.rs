@@ -86,6 +86,13 @@ pub struct OrderCreateDTO {
     /// 为最终计价单价、不叠加活动/满减。None/空 = 现行口径逐字不变。
     #[serde(skip)]
     pub line_price_overrides: Option<std::collections::HashMap<i32, Decimal>>,
+    /// 送礼物模式（我方新增，论坛帖 197742）：true 时不填收货地址、
+    /// 付款后订单进入待领取，好友领取时再落地址。缺省 = 普通订单。
+    #[serde(default)]
+    pub is_gift_order: Option<bool>,
+    /// 赠言（送礼物模式，可选，上限 200 字）
+    #[serde(default)]
+    pub gift_message: Option<String>,
 }
 
 /// 兼容前端三种 `useBalance` 入参：数字（余额抵扣金额）、布尔、字符串数字。
@@ -131,6 +138,8 @@ impl Default for OrderCreateDTO {
             order_source: None,
             pos_user_id: None,
             line_price_overrides: None,
+            is_gift_order: None,
+            gift_message: None,
         }
     }
 }
@@ -159,6 +168,10 @@ pub struct OrderCreateVO {
     /// 是否为次卡兑换的 0 元子订单
     #[serde(default)]
     pub is_card_redeem: Option<bool>,
+    /// 送礼物订单的领取 token 明文（仅建单时一次性返回；库内只存摘要，
+    /// 后续分享走「重新生成」接口）
+    #[serde(default)]
+    pub gift_token: Option<String>,
 }
 
 fn default_return_type() -> i32 {
@@ -266,4 +279,11 @@ pub struct OrderVO {
     /// 已拒绝 / 已退回）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_cancel_refund_status_name: Option<String>,
+    // ————— 送礼物订单（我方新增） —————
+    /// 是否送礼物订单（根订单或其拆单子单命中 order_gift 即为 true）
+    pub is_gift_order: bool,
+    /// 礼物子状态（见 models::trade::gift_order::gift_status）；非礼物订单为 null
+    pub gift_status: Option<i32>,
+    /// 礼物详情（仅订单详情接口填充：有效期/领取人脱敏/关闭原因等）
+    pub gift_info: Option<super::gift_order::GiftInfoVO>,
 }

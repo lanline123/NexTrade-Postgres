@@ -1446,6 +1446,8 @@ export const navGroups: NavGroup[] = [
           {
             "key": "paidCancelRefundSettings",
             "label": "买家取消退款"
+            "key": "giftOrderSettings",
+            "label": "送礼物设置"
           },
           {
             "key": "buyStyleSettings",
@@ -1944,6 +1946,7 @@ export const pageTitles: Record<string, string> = {
   "personalizedManage": "个性化设置",
   "priceDisplaySettings": "价格显示",
   "paidCancelRefundSettings": "买家取消退款",
+  "giftOrderSettings": "送礼物设置",
   "buyStyleSettings": "购买按钮样式",
   "accountSecuritySettings": "账号安全",
   "fontSettings": "网站字体",

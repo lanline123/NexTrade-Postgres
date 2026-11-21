@@ -683,6 +683,9 @@ pub struct OrderListQuery {
     /// 导出列（Java `OrderListPageQuery.exportItem`，`@NotBlank`「请选择导出项」，
     /// 逗号分隔的 `getExportItemList` key；仅 `orderExport` 使用）
     pub export_item: Option<String>,
+    /// 送礼物筛选（我方新增）：Some(1) 只看礼物订单，Some(0) 只看非礼物，None = 不筛
+    #[serde(default)]
+    pub is_gift: Option<i32>,
 }
 
 impl OrderListQuery {
@@ -1018,6 +1021,12 @@ pub struct OrderVO {
     pub offline_payment_claim_reject_reason: Option<String>,
     /// 最新一笔线下认款单全量；无认款为 null
     pub offline_payment_claim: Option<super::offline_claim::OfflinePaymentClaimVO>,
+
+    // *** 送礼物订单（我方新增，论坛帖 197742） ***
+    /// 是否送礼物订单（根订单或其拆单子单命中 order_gift）
+    pub is_gift_order: bool,
+    /// 礼物子状态（0 待付款 1 待领取 2 已领取 3 已关闭 4 已取消）；非礼物为 null
+    pub gift_status: Option<i32>,
 }
 
 /// 订单商品 VO（对应 Java `OrderItemVO` 的展示必需字段）。

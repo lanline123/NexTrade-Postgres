@@ -1537,6 +1537,23 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
         binds.push(Bind::I32(uid));
     }
 
+    // 送礼物筛选（我方新增）：礼物行挂根单，子单经 parent_order_id 命中
+    if let Some(is_gift) = q.is_gift {
+        if is_gift == 1 {
+            conds.push(
+                "EXISTS (SELECT 1 FROM order_gift g WHERE g.order_id = \"order\".order_id \
+                 OR g.order_id = \"order\".parent_order_id)"
+                    .into(),
+            );
+        } else if is_gift == 0 {
+            conds.push(
+                "NOT EXISTS (SELECT 1 FROM order_gift g WHERE g.order_id = \"order\".order_id \
+                 OR g.order_id = \"order\".parent_order_id)"
+                    .into(),
+            );
+        }
+    }
+
     if let Some(ref uids) = q.tag_user_ids {
         if uids.is_empty() {
             conds.push("user_id = -1".into());

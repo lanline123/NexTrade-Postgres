@@ -81,8 +81,35 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(profit_sharing_schedule_loop(repos.clone())),
         tokio::spawn(auction_loop(repos.clone())),
         tokio::spawn(auto_comment_loop(repos.clone())),
+        tokio::spawn(gift_expire_loop(repos.clone())),
         tokio::spawn(exchange_rate_sync_loop(repos)),
     ]
+}
+
+/// 送礼物领取到期循环（`NEXTTRADE_SCHEDULER__GIFT_EXPIRE_SECS`，默认 300s）。
+///
+/// 扫 `order_gift` 中待领取且已过领取有效期的礼物，逐笔走系统退款链
+/// 原路退回买家并关单（我方新增，论坛帖 197742）。领取页预览也会对
+/// 单个过期 token 即时触发同一路径，本循环是兜底全量扫描。
+async fn gift_expire_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 60,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "NEXTTRADE_SCHEDULER__GIFT_EXPIRE_SECS",
+        300,
+    )));
+    loop {
+        ticker.tick().await;
+        let service = crate::trade::gift_order::GiftOrderService::new(repos.clone());
+        let now = utils::now_seconds() as i32;
+        match service.run_expire_scan(now).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：送礼物到期退款关闭 {n} 笔"),
+            Err(e) => tracing::warn!("定时任务：送礼物到期扫描失败: {e}"),
+        }
+    }
 }
 
 /// 自动评价到期生成循环（`NEXTTRADE_SCHEDULER__AUTO_COMMENT_SECS`，默认 300s）。

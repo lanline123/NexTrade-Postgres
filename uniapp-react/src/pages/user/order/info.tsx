@@ -15,6 +15,7 @@ import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import PresaleCard from "./src/PresaleCard";
 import { getOrder, confirmReceipt, getShippingInfo, cancelPaidRefund } from "@/api/user/order";
+import { regenerateGiftShareToken, cancelGiftOrder } from "@/api/order/gift";
 import { buyerDeliveryProgress } from "@/api/rider/rider";
 import type { OrderInfoItemElement, OrderInfoResponseItem, ShippingInfoTrace } from "@/types/user/order";
 import { useUserStore } from "@/store/user";
@@ -457,6 +458,39 @@ export default function OrderInfo() {
                     void __getOrder();
                 } catch (e: any) {
                     Taro.showToast({ title: e?.message || t("提交失败"), icon: "none" });
+    /** 送礼物分享（我方新增）：重新生成链接（旧链接作废）并复制到剪贴板 */
+    const handleShareGift = async (id: number) => {
+        try {
+            const data = await regenerateGiftShareToken(id);
+            const base = typeof window !== "undefined" ? `${window.location.origin}/mobile/` : "";
+            const link = `${base}#/pages/order/giftClaim?token=${data.token}`;
+            Taro.setClipboardData({
+                data: `${t("送你一份礼物，点击领取")}：${link}`,
+                success: () => {
+                    Taro.showToast({ title: t("领取链接已复制，发给好友吧"), icon: "none" });
+                }
+            });
+        } catch (error: any) {
+            Taro.showToast({ title: error.message || t("生成链接失败"), icon: "none" });
+        }
+    };
+
+    /** 送礼物取消（我方新增）：待领取时走退款关闭，未付款时直接取消 */
+    const handleCancelGift = (id: number) => {
+        Taro.showModal({
+            title: t("取消送礼物"),
+            content: t("取消后礼物将关闭，已付款的将原路退款，确认取消吗？"),
+            cancelText: t("再想想"),
+            confirmText: t("确认取消"),
+            success: async (res) => {
+                if (res.confirm) {
+                    try {
+                        await cancelGiftOrder(id);
+                        Taro.showToast({ title: t("已取消"), icon: "success" });
+                        void __getOrder();
+                    } catch (error: any) {
+                        Taro.showToast({ title: error.message || t("取消失败"), icon: "none" });
+                    }
                 }
             }
         });
@@ -642,6 +676,52 @@ export default function OrderInfo() {
                                 {orderInfo.cancelRemark?.trim() ? (
                                     <View className="cancel-reason card-space">
                                         {t("取消原因")}：{orderInfo.cancelRemark}
+                                    </View>
+                                ) : null}
+                                {/* 送礼物面板（我方新增）：状态/赠言/分享/取消 */}
+                                {(orderInfo as any)?.isGiftOrder && (orderInfo as any)?.giftInfo ? (
+                                    <View className="card-space" style={{ background: "#fff", borderRadius: "18rpx", padding: "24rpx 28rpx", marginTop: "20rpx" }}>
+                                        <View style={{ display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                                            <Text style={{ fontSize: "30rpx", fontWeight: 600, color: "#1a1a1a" }}>{t("送礼物")}</Text>
+                                            <Text style={{ fontSize: "26rpx", color: "#65c4aa" }}>{(orderInfo as any).giftInfo.giftStatusName}</Text>
+                                        </View>
+                                        {(orderInfo as any).giftInfo.giftMessage ? (
+                                            <View style={{ fontSize: "26rpx", color: "#666", marginTop: "10rpx" }}>
+                                                {t("赠言")}：「{(orderInfo as any).giftInfo.giftMessage}」
+                                            </View>
+                                        ) : null}
+                                        {(orderInfo as any).giftInfo.giftStatus === 1 && (orderInfo as any).giftInfo.expireTime ? (
+                                            <View style={{ fontSize: "24rpx", color: "#999", marginTop: "8rpx" }}>
+                                                {t("好友需在")} {(orderInfo as any).giftInfo.expireTime} {t("前领取，超时自动退款")}
+                                            </View>
+                                        ) : null}
+                                        {(orderInfo as any).giftInfo.giftStatus === 2 ? (
+                                            <View style={{ fontSize: "24rpx", color: "#999", marginTop: "8rpx" }}>
+                                                {t("已被")} {(orderInfo as any).giftInfo.claimUserNameMasked || ""} {t("领取")}
+                                                {(orderInfo as any).giftInfo.claimTime ? ` · ${(orderInfo as any).giftInfo.claimTime}` : ""}
+                                            </View>
+                                        ) : null}
+                                        {(orderInfo as any).giftInfo.giftStatus === 3 && (orderInfo as any).giftInfo.closeReason ? (
+                                            <View style={{ fontSize: "24rpx", color: "#999", marginTop: "8rpx" }}>
+                                                {(orderInfo as any).giftInfo.closeReason}
+                                            </View>
+                                        ) : null}
+                                        {((orderInfo as any).giftInfo.giftStatus === 0 || (orderInfo as any).giftInfo.giftStatus === 1) && (
+                                            <View style={{ display: "flex", flexDirection: "row", marginTop: "18rpx" }}>
+                                                <View
+                                                    style={{ background: "#65c4aa", color: "#fff", borderRadius: "10rpx", padding: "12rpx 26rpx", fontSize: "26rpx" }}
+                                                    onClick={() => void handleShareGift(orderInfo.orderId)}
+                                                >
+                                                    {t("分享给好友")}
+                                                </View>
+                                                <View
+                                                    style={{ border: "2rpx solid #ddd", color: "#666", borderRadius: "10rpx", padding: "12rpx 26rpx", fontSize: "26rpx", marginLeft: "16rpx" }}
+                                                    onClick={() => handleCancelGift(orderInfo.orderId)}
+                                                >
+                                                    {t("取消送礼物")}
+                                                </View>
+                                            </View>
+                                        )}
                                     </View>
                                 ) : null}
                             </View>

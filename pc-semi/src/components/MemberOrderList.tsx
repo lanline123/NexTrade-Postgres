@@ -78,6 +78,9 @@ interface OrderRow {
   offlinePaymentClaimStatus?: number | string | null;
   /** 买家取消直退进度（我方新增，后端 VO 下发） */
   paidCancelRefundStatus?: number | null;
+  /** 送礼物订单（我方新增，后端 VO 下发） */
+  isGiftOrder?: boolean;
+  giftStatus?: number | null;
   paidCancelRefundStatusName?: string | null;
   /** 快递单号（物流弹窗头部展示） */
   trackingNo?: string;
@@ -458,6 +461,12 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
                     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                       {order.paidCancelRefundStatusName ? (
                         <Tag color="orange">{t('买家取消退款')}：{order.paidCancelRefundStatusName}</Tag>
+                      ) : null}
+                      {order.isGiftOrder ? (
+                        <Tag color="violet">
+                          {t('礼物')}
+                          {order.giftStatus === 1 ? `·${t('待领取')}` : order.giftStatus === 2 ? `·${t('已领取')}` : ''}
+                        </Tag>
                       ) : null}
                       <Tag color={statusTagColor(order)}>{order.orderStatusName}</Tag>
                     </span>

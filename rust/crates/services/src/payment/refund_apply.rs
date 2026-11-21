@@ -309,6 +309,78 @@ impl RefundApplyService {
         Ok(refund_id)
     }
 
+    /// 系统规则退款（我方新增，送礼物订单流使用）：与主动退款同一资金
+    /// 执行链（`execute_refund_money` 原路退回 / 余额回补 / 礼品卡返还 /
+    /// 结算扣回），区别只有两点：
+    /// 1. 发起方固定记为平台（initiator=Platform），备注与日志写明系统
+    ///    触发原因，财务侧可追溯；
+    /// 2. **不经财务审核队列、无条件立即自动执行**：这类退款由明确的
+    ///    业务规则触发（礼物超时未领取 / 买家领取前取消），买家无过错，
+    ///    「到期自动退款」的承诺不能卡在人工队列里；financialReview
+    ///    开关只管人工发起的主动退款，不覆盖系统规则退款。
+    pub async fn create_system_refund(
+        &self,
+        order_id: i32,
+        amount: Decimal,
+        reason: &str,
+    ) -> Result<i32> {
+        let reason = reason.trim();
+        if reason.is_empty() {
+            return Err(Error::Validation("退款原因不能为空".into()));
+        }
+        if reason.chars().count() > 255 {
+            return Err(Error::Validation("退款原因不能超过255字".into()));
+        }
+        if amount <= Decimal::ZERO {
+            return Err(Error::Validation("退款金额必须大于0".into()));
+        }
+        let order = self.load_proactive_order(order_id, None).await?;
+        self.assert_refundable(order_id, amount).await?;
+
+        let now = utils::now_seconds() as i32;
+        let mut apply = RefundApply {
+            refund_id: 0,
+            refund_type: RefundType::Order as i32,
+            order_id,
+            user_id: order.user_id,
+            aftersale_id: 0,
+            refund_status: RefundApplyStatus::Wait as i32,
+            add_time: now,
+            refund_note: reason.to_string(),
+            online_balance: amount,
+            offline_balance: Decimal::ZERO,
+            refund_balance: amount,
+            is_online: 1,
+            is_offline: 0,
+            is_receive: 0,
+            paylog_refund_id: 0,
+            shop_id: order.shop_id,
+            payment_voucher: None,
+            initiator: RefundInitiator::Platform as i16,
+        };
+        let refund_id = self.repos.payment.refund_apply.insert(&apply).await?;
+        apply.refund_id = refund_id;
+        let _ = self.repos.payment.refund_apply.insert_log(&RefundLog {
+            log_id: 0,
+            refund_apply_id: refund_id,
+            order_id,
+            refund_type: RefundType::Order as i32,
+            refund_pay_code: "online".into(),
+            transaction_id: String::new(),
+            refund_amount: amount,
+            add_time: now,
+            description: Some(format!("系统自动退款发起：{reason}")),
+            user_id: order.user_id,
+        }).await;
+        tracing::info!(
+            "系统自动退款发起: id={refund_id} order_id={order_id} amount={amount} reason={reason}"
+        );
+        self.notify_buyer_proactive(&order, amount, reason, RefundInitiator::Platform as i32)
+            .await;
+        self.auto_execute_proactive(&apply, refund_id).await;
+        Ok(refund_id)
+    }
+
     /// 主动退款的目标订单加载 + 强校验：
     /// - 作用域：商家账号（scope 有值）只能操作本店订单——店铺取
     ///   订单本身比对，**不采信请求参数**；平台账号不限制；

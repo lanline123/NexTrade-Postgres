@@ -245,6 +245,7 @@ use nextrade_services::trade::aftersales_client::AftersalesClientService;
 use nextrade_services::trade::cart::CartService;
 use nextrade_services::trade::cart_summary::CartSummaryService;
 use nextrade_services::trade::check::CheckService;
+use nextrade_services::trade::gift_order::GiftOrderService;
 use nextrade_services::trade::order::OrderService;
 use nextrade_services::trade::order_admin::OrderAdminService;
 use nextrade_services::trade::order_invoice_client::OrderInvoiceClientService;
@@ -329,6 +330,7 @@ async fn main() -> anyhow::Result<()> {
         (*product).clone(),
         (*cart).clone(),
     ));
+    let gift_order = Arc::new(GiftOrderService::new(repos.clone()));
     let user = Arc::new(UserService::new(repos.clone()));
     let coupon = Arc::new(CouponService::new(repos.clone()));
     let article = Arc::new(ContentService::new(repos.clone()));
@@ -574,6 +576,7 @@ async fn main() -> anyhow::Result<()> {
         cart_summary: cart_summary.clone(),
         proxy_shopping_delivery: proxy_shopping_delivery.clone(),
         shop_order_config: shop_order_config.clone(),
+        gift_order: gift_order.clone(),
     });
     let merchant_application = Arc::new(MerchantApplicationService::new(repos.clone()));
     let category_fee_rule = Arc::new(CategoryFeeRuleService::new(repos.clone()));

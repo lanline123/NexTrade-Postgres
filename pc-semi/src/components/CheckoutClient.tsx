@@ -239,6 +239,9 @@ export default function CheckoutClient({
   const [useBalance, setUseBalance] = useState(0);
   const [useCredit, setUseCredit] = useState(0);
   const [buyerNote, setBuyerNote] = useState('');
+  /** 送礼物模式（我方新增）：开启后不填收货地址，付款后分享链接给好友领取 */
+  const [giftMode, setGiftMode] = useState(false);
+  const [giftMessage, setGiftMessage] = useState('');
   const [couponTab, setCouponTab] = useState(0);
   const [invoiceData, setInvoiceData] = useState<InvoiceData>(EMPTY_INVOICE);
   const [invoiceQualified, setInvoiceQualified] = useState(false);
@@ -342,7 +345,7 @@ export default function CheckoutClient({
   const deliveryOption = data?.deliveryOption || null;
   const selfPickup = Number(deliveryOption?.deliveryType || 0) === 2;
   const showDeliveryOption = Boolean(deliveryOption) && (selfPickup || flowType === 9 || Number(deliveryOption?.deliveryType || 0) === 4);
-  const needAddress = !selfPickup;
+  const needAddress = !selfPickup && !giftMode;
   const isDepositPresale = Number(presale?.saleMode || 0) === 2;
   const payAmount = isDepositPresale ? Number(total.actualPayDepositAmount ?? total.unpaidAmount ?? 0) : Number(total.unpaidAmount ?? 0);
   const orderSendPoint = Number(total.orderSendPoint || 0);
@@ -574,10 +577,10 @@ export default function CheckoutClient({
     }
     setSubmitting(true);
     try {
-      const result = await apiPost<{ orderId?: number; returnType?: number; grouponPromotionRecordId?: number }>(
+      const result = await apiPost<{ orderId?: number; returnType?: number; grouponPromotionRecordId?: number; giftToken?: string }>(
         'order/check/submit',
         {
-          addressId,
+          addressId: giftMode ? 0 : addressId,
           shippingType,
           payTypeId,
           usePoint,
@@ -587,6 +590,8 @@ export default function CheckoutClient({
           selectUserCouponIds: userCouponIds,
           buyerNote,
           invoiceData: giftCardMode ? {} : invoiceData,
+          isGiftOrder: giftMode || undefined,
+          giftMessage: giftMode ? giftMessage : undefined,
           ...giftCardParams(),
         },
       );
@@ -942,6 +947,38 @@ export default function CheckoutClient({
               </div>
             </div>
           </div>
+
+          {/* 送礼物（我方新增）：礼品卡兑换流不展示；开启后无需收货地址，
+              付款成功后在订单详情生成领取链接分享给好友，好友填自己的地址领取 */}
+          {!giftCardMode && (
+            <div className="orderConfirmConTop">
+              <div className="form_item">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div className="a_rmk_tit" style={{ fontWeight: 600 }}>{t('送礼物')}</div>
+                    <div style={{ fontSize: 13, color: '#999', marginTop: 4 }}>
+                      {t('不填收货地址，付款后分享链接给好友领取')}
+                    </div>
+                  </div>
+                  <Checkbox checked={giftMode} onChange={(e) => setGiftMode(Boolean(e.target.checked))}>
+                    {t('送礼物')}
+                  </Checkbox>
+                </div>
+                {giftMode && (
+                  <div className="el-textarea" style={{ marginTop: 12 }}>
+                    <textarea
+                      className="el-textarea__inner"
+                      rows={2}
+                      maxLength={200}
+                      value={giftMessage}
+                      placeholder={t('写一句赠言，好友领取时可见（选填）')}
+                      onChange={(event) => setGiftMessage(event.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* 礼品卡：原版结算选择器（单选一张、再点已选卡取消；可选卡来自 check 响应
               availableGiftCards；flowType=12 时锁定为 giftCardSn 对应卡、隐藏选择交互）。
