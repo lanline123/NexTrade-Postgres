@@ -1632,7 +1632,7 @@ static EP7_FIELDS: [FieldSpec; 21] = [
     FieldSpec { field: "proxyFulfillRate", code: "proxyFulfillRate", ty: ValueType::Decimal, default: Some("90"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
-static EP8_FIELDS: [FieldSpec; 10] = [
+static EP8_FIELDS: [FieldSpec; 12] = [
     FieldSpec {
         field: "kefuType",
         code: "kefuType",
@@ -1745,9 +1745,36 @@ static EP8_FIELDS: [FieldSpec; 10] = [
         required: None,
         group: None,
     },
+    // 原版 KefuSettingsVO 含 kefuJavascript（PC 端客服 JS 代码），种子数据
+    // config 行 2551 早已在库（空值），此前 FieldSpec 漏登记导致读不到、
+    // 存不进——论坛帖 477914 批次补迁（原版有 · 我方移植漏迁）。
+    FieldSpec {
+        field: "kefuJavascript",
+        code: "kefuJavascript",
+        ty: ValueType::Str,
+        default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    // 原版 KefuSettingsVO 含 wapKefuJavascript（移动端客服 JS 代码），
+    // 种子数据 config 行 2552，同上补迁。
+    FieldSpec {
+        field: "wapKefuJavascript",
+        code: "wapKefuJavascript",
+        ty: ValueType::Str,
+        default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
 ];
 
-static EP9_FIELDS: [FieldSpec; 10] = [
+static EP9_FIELDS: [FieldSpec; 12] = [
     FieldSpec {
         field: "kefuType",
         code: "kefuType",
@@ -1851,6 +1878,31 @@ static EP9_FIELDS: [FieldSpec; 10] = [
     FieldSpec {
         field: "kefuTime",
         code: "kefuTime",
+        ty: ValueType::Str,
+        default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    // 与 EP8 对齐：原版 KefuSaveParam 含 kefuJavascript，保存白名单需放行
+    // （论坛帖 477914 批次补迁）。
+    FieldSpec {
+        field: "kefuJavascript",
+        code: "kefuJavascript",
+        ty: ValueType::Str,
+        default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    // 与 EP8 对齐：原版 KefuSaveParam 含 wapKefuJavascript，同上。
+    FieldSpec {
+        field: "wapKefuJavascript",
+        code: "wapKefuJavascript",
         ty: ValueType::Str,
         default: None,
         is_list: false,

@@ -380,6 +380,34 @@ impl ConfigBasicService {
             .await
     }
 
+    /// 读取运营代码与验证配置（生效值：已存配置清洗后，或内置默认
+    /// ——全部为空串 = 前台零注入）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn get_ops_code(&self) -> Result<Value> {
+        let stored = self
+            .repo()
+            .find_by_code(super::ops_code::OPS_CODE_SETTINGS_CODE)
+            .await?;
+        Ok(super::ops_code::effective_ops_code(stored.as_deref()))
+    }
+
+    /// 保存运营代码与验证配置（严格校验后整块 JSON 落 config 表
+    /// `opsCodeSettings` 行；验证文件名非法/文件名与内容只填其一时
+    /// 明确报错，不静默丢弃）。
+    ///
+    /// # Errors
+    /// - 字段非法 ⇒ `Error::Validation`（文案指明字段）
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn save_ops_code(&self, payload: &Value) -> Result<()> {
+        let clean = super::ops_code::validate_ops_code(payload)
+            .map_err(Error::Validation)?;
+        self.repo()
+            .save_code(super::ops_code::OPS_CODE_SETTINGS_CODE, &clean.to_string())
+            .await
+    }
+
     /// 读取系统模式配置（我方新增；生效值：已存配置归一化后，或默认 `all`）。
     ///
     /// # Errors

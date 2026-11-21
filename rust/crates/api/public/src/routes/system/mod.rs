@@ -6,6 +6,7 @@ pub mod app_version_admin;
 pub mod config_client;
 pub mod price_display_client;
 pub mod buy_style_client;
+pub mod ops_code_client;
 pub mod system_mode_client;
 pub mod font_settings_client;
 pub mod auth_gate_client;
@@ -32,6 +33,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(price_display_client::routes(state))
         .merge(ad_settings_client::routes(state))
         .merge(buy_style_client::routes(state))
+        .merge(ops_code_client::routes(state))
         .merge(system_mode_client::routes(state))
         .merge(font_settings_client::routes(state))
         .merge(auth_gate_client::routes(state))
@@ -72,6 +74,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(price_display_client::implemented_routes());
     out.extend(ad_settings_client::implemented_routes());
     out.extend(buy_style_client::implemented_routes());
+    out.extend(ops_code_client::implemented_routes());
     out.extend(system_mode_client::implemented_routes());
     out.extend(font_settings_client::implemented_routes());
     out.extend(auth_gate_client::implemented_routes());

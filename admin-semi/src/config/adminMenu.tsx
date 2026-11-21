@@ -1565,6 +1565,10 @@ export const navGroups: NavGroup[] = [
             "label": "SEO设置"
           },
           {
+            "key": "opsCodeSettings",
+            "label": "运营代码与验证"
+          },
+          {
             "key": "friendLinksManage",
             "label": "友情链接"
           }
@@ -1953,6 +1957,7 @@ export const pageTitles: Record<string, string> = {
   "logisticsCompanyConfigManage": "物流设置",
   "globalSetting": "全局设置",
   "seoSettings": "SEO设置",
+  "opsCodeSettings": "运营代码与验证",
   "loginSetting": "登录设置",
   "paymentSetting": "支付设置",
   "appVersionManage": "APP版本",

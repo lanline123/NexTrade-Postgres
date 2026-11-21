@@ -4,6 +4,7 @@ import Taro, { useLaunch, useDidShow } from "@tarojs/taro";
 import { useConfigStore } from "@/store/config";
 import { resolveMiniShop, miniShopSilentLogin } from "@/store/miniShop";
 import { fetchSystemMode } from "@/utils/systemMode";
+import { fetchOpsCode } from "@/utils/opsCode";
 import { configureRequestRuntime } from "@/utils/requestRuntime";
 import { handleLogin } from "@/utils/handleLogin";
 import { useI18nStore } from "@/store/i18n";
@@ -65,6 +66,11 @@ function App({ children }: PropsWithChildren<any>) {
 
         // 系统模式（我方新增）：启动拉取一次存全局缓存，供各页入口级门控同步读取
         void fetchSystemMode();
+
+        // 运营代码（论坛帖 477914 批次）：启动拉取一次并注入第三方代码
+        // （headCode/bodyCode）与移动端客服 JS（wapKefuJavascript）；
+        // 未配置时零注入，小程序/App 端无 DOM 自动跳过
+        void fetchOpsCode();
     });
 
     // 基础配置回前台刷新（2026-11-21 修复）：此前配置只在启动时拉一次，

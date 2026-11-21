@@ -62,6 +62,18 @@ export const getSystemMode = () => {
 };
 
 /**
+ * @description 获取运营代码与验证配置（论坛帖 477914 批次）
+ * @returns 站长验证 / 第三方代码（headCode/bodyCode）/ 客服 JS；H5 只消费
+ * headCode、bodyCode 与移动端客服代码 wapKefuJavascript，全部为空即不注入
+ */
+export const getOpsCode = () => {
+    return request<{ code: number; message: string; data: Record<string, string> }>({
+        url: "common/config/opsCode",
+        method: "get"
+    });
+};
+
+/**
  * @description 获取移动端搜索风格
  * @returns 1 普通商品搜索；2 门店聚合搜索
  */

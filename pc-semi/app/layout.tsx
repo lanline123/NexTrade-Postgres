@@ -35,6 +35,8 @@ import RegionSeedProvider from '@/components/RegionSeedProvider';
 import type { RegionSeed } from '@/lib/region-seed';
 import { PC_HEADER_BOOTSTRAP_ID } from '@/lib/header-bootstrap';
 import { loadTheme } from '@/lib/theme-server';
+import { getOpsCodeSettings, opsVerification } from '@/lib/ops-code';
+import OpsCodeSnippet from '@/components/OpsCodeSnippet';
 import { currencyCodeFrom, setPriceDisplayConfig, setServerCurrency } from '@/lib/currency';
 import { setBuyStyleConfig } from '@/lib/buy-style';
 import { setSystemModeConfig } from '@/lib/system-mode';
@@ -60,7 +62,7 @@ const SITE_OG_IMAGE_HEIGHT = 500;
  * 子页面 generateMetadata 仍可覆盖 title。
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const base = await getHeaderBootstrap();
+  const [base, ops] = await Promise.all([getHeaderBootstrap(), getOpsCodeSettings()]);
   const config = base?.base || null;
   const shopTitle = String(config?.shopTitle || SITE_NAME);
   const poweredByStatus = Number(config?.poweredByStatus ?? 0);
@@ -73,6 +75,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const locale = resolveRequestLocale();
   const currentPath = headers().get('x-pathname') || '/';
   const alternates = buildLocaleAlternates(currentPath, locale);
+  // 站长验证 meta（后台「运营代码与验证」，平台管理员配置）：六平台
+  // 验证码 SSR 直出 <head>，站长平台抓取首页 HTML 即可校验；未配置
+  // 时 verification 为 undefined、不输出任何验证 meta。
+  const verification = opsVerification(ops);
   return {
     metadataBase: new URL(SITE_URL),
     title,
@@ -82,6 +88,7 @@ export async function generateMetadata(): Promise<Metadata> {
     ...(icoImg ? { icons: { icon: icoImg } } : {}),
     applicationName: SITE_NAME,
     manifest: '/manifest.webmanifest',
+    ...(verification ? { verification } : {}),
     // iOS Safari 会把疑似电话/邮箱/地址的文本自动转成链接，PC 商城不需要该行为
     formatDetection: { telephone: false, email: false, address: false },
     appleWebApp: { capable: true, title: shopTitle || SITE_NAME, statusBarStyle: 'default' },
@@ -171,7 +178,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // 头部公共数据（Logo / 语言 / 货币）在服务端并发预取，随首屏 HTML 一起下发，
   // 避免客户端各子模块逐个请求导致 «我的/购物车已出现、语言与 Logo 后出现» 的观感。
   // 主题风格同批预取：后台可自定义主题色，服务端直接渲染成 :root 变量，首屏即生效无闪烁。
-  const [headerBootstrap, theme] = await Promise.all([getHeaderBootstrap(), loadTheme()]);
+  const [headerBootstrap, theme, ops] = await Promise.all([getHeaderBootstrap(), loadTheme(), getOpsCodeSettings()]);
   const themeCss = theme.css;
 
   // 后台 base 配置注入：storageUrl（图片相对路径拼接）+ 默认货币符号。
@@ -227,6 +234,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={serverLang}>
       <body>
+        {/* 运营头部代码（后台「运营代码与验证」headCode）：页面最前部
+            执行的代码位，SSR 直出；未配置时渲染为 null 零影响。 */}
+        <OpsCodeSnippet code={ops?.headCode} />
         {/* 后台主题风格 → :root CSS 变量。必须排在所有样式表之前，才能被
             globals.scss / cart-modern.scss 里的 var(--general, …) 兜底链正确消费。 */}
         {themeCss ? <style id="pc-theme-vars" dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
@@ -264,6 +274,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {/* Cookie 隐私偏好（对齐旧版 PrivacyConsent：仅跨境演示站 NEXT_PUBLIC_PC_DEMO=1 渲染） */}
           {process.env.NEXT_PUBLIC_PC_DEMO === '1' ? <PrivacyConsent /> : null}
         </I18nProvider>
+        {/* 运营底部代码（bodyCode，统计代码位）与 PC 端客服 JS 代码
+            （kefuJavascript，原版客服设置字段）：页面底部执行，SSR
+            直出不阻塞渲染；未配置时均为 null。与内置客服浮窗并行
+            生效、互不排斥（原版口径）。 */}
+        <OpsCodeSnippet code={ops?.bodyCode} />
+        <OpsCodeSnippet code={ops?.kefuJavascript} />
       </body>
     </html>
   );

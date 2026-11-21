@@ -341,6 +341,39 @@ impl ConfigClientService {
         Ok(super::system_mode::effective_system_mode(stored))
     }
 
+    /// 运营代码与验证（论坛帖 477914 批次）：站长验证（meta 验证码 +
+    /// 验证文件）、第三方代码（headCode/bodyCode）与原版客服 JS 两键
+    /// （`kefuJavascript`/`wapKefuJavascript`，独立 config 行）合并
+    /// 下发，供 PC/H5 注入。未配置时全部为空串 ⇒ 前台零注入。
+    pub async fn ops_code(&self) -> Result<serde_json::Value> {
+        let rows = self
+            .repos
+            .system
+            .config_client
+            .find_config_values(&[
+                super::ops_code::OPS_CODE_SETTINGS_CODE,
+                super::ops_code::KEFU_JAVASCRIPT_CODE,
+                super::ops_code::WAP_KEFU_JAVASCRIPT_CODE,
+            ])
+            .await?;
+        let mut stored: Option<&str> = None;
+        let mut kefu_js = "";
+        let mut wap_kefu_js = "";
+        for row in &rows {
+            match row.biz_code.as_str() {
+                super::ops_code::OPS_CODE_SETTINGS_CODE => stored = row.biz_val.as_deref(),
+                super::ops_code::KEFU_JAVASCRIPT_CODE => {
+                    kefu_js = row.biz_val.as_deref().unwrap_or("");
+                }
+                super::ops_code::WAP_KEFU_JAVASCRIPT_CODE => {
+                    wap_kefu_js = row.biz_val.as_deref().unwrap_or("");
+                }
+                _ => {}
+            }
+        }
+        Ok(super::ops_code::public_ops_code(stored, kefu_js, wap_kefu_js))
+    }
+
     /// 全站字体配置（供 PC 前台按语言注入字体栈、admin 应用后台字体；
     /// 未配置时返回内置默认：全站默认阿里巴巴普惠体）。
     pub async fn font_settings(&self) -> Result<serde_json::Value> {

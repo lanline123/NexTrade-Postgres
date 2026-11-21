@@ -57,7 +57,53 @@ function passThrough(request: NextRequest, internalPath: string, prefixLocale: s
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
-export function middleware(request: NextRequest) {
+/**
+ * 站长验证文件托管（后台「运营代码与验证」配置，论坛帖 477914 批次）：
+ * 站长平台要求把验证文件放在域名根目录（如 /baidu_verify_xxx.html），
+ * 根路径被 [...slug] 兜底页占用、无法放静态文件，故在中间件按配置的
+ * 文件名精确拦截：请求路径是根级单个 .html/.txt 文件名且与配置的
+ * verifyFileName 逐字相等时，直接返回 verifyFileContent。
+ *
+ * 安全边界：只响应配置的**单个**文件名精确匹配，不做任何目录映射/
+ * 路径拼接（后端保存时已校验文件名格式），无路径穿越面；未配置时
+ * 恒不响应。配置经公开端点读取，进程内缓存 60s（与 theme-server
+ * 同量级），站长平台抓取频率极低，不给正常页面请求加任何开销——
+ * 只有根级 .html/.txt 路径才会走到这里。
+ */
+const VERIFY_FILE_PATH_RE = /^\/[^/]+\.(?:html|txt)$/;
+let verifyFileMemo: { at: number; name: string; content: string } | null = null;
+
+async function serveVerifyFile(pathname: string): Promise<NextResponse | null> {
+  if (!VERIFY_FILE_PATH_RE.test(pathname)) return null;
+  try {
+    if (!verifyFileMemo || Date.now() - verifyFileMemo.at > 60_000) {
+      const base = (process.env.PC_API_BASE || 'https://battery.recy.cc').replace(/\/$/, '');
+      const response = await fetch(`${base}/api/common/config/opsCode`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      const json: any = response.ok ? await response.json().catch(() => null) : null;
+      const data = json?.data ?? json ?? {};
+      verifyFileMemo = {
+        at: Date.now(),
+        name: String(data?.verifyFileName || ''),
+        content: String(data?.verifyFileContent || ''),
+      };
+    }
+    if (verifyFileMemo.name && verifyFileMemo.content && pathname === `/${verifyFileMemo.name}`) {
+      const type = verifyFileMemo.name.toLowerCase().endsWith('.txt')
+        ? 'text/plain; charset=utf-8'
+        : 'text/html; charset=utf-8';
+      return new NextResponse(verifyFileMemo.content, {
+        headers: { 'content-type': type, 'cache-control': 'public, max-age=300' },
+      });
+    }
+  } catch {
+    // 后端不可用时不拦截，落回正常页面流程（[...slug] 404）
+  }
+  return null;
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   // 1) 大小写归一化：只在实际存在大写字母时跳，目标就是小写路径本身，绝不会自指。
@@ -65,6 +111,11 @@ export function middleware(request: NextRequest) {
   if (pathname !== lowerPath) {
     return NextResponse.redirect(externalUrl(request, lowerPath, search), 308);
   }
+
+  // 1.5) 站长验证文件：根级文件名与后台配置精确匹配时直接返回文件
+  // 内容（放在语言前缀处理之前——验证文件只在域名根、不带语言前缀）。
+  const verifyResponse = await serveVerifyFile(pathname);
+  if (verifyResponse) return verifyResponse;
 
   // 2) 语言前缀（SEO hreflang）：/en/... 剥离前缀 rewrite 到内部路径，
   //    并注入 x-locale 请求头（服务端语言判定最高优先级），同时种 locale cookie，

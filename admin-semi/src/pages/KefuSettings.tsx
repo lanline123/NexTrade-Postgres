@@ -22,6 +22,8 @@ interface KefuForm {
   kefuWhatsappPhone?: string;
   kefuPhone?: string;
   kefuTime?: string;
+  kefuJavascript?: string;
+  wapKefuJavascript?: string;
 }
 
 const KEFU_TYPE_OPTIONS = [
@@ -337,6 +339,39 @@ export default function KefuSettings() {
                   value={String(form.kefuTime ?? '')}
                   onChange={(next) => update('kefuTime', next)}
                 />
+              </div>
+            </div>
+          </div>
+
+          <div className="kefu-setting-card">
+            <div className="kefu-setting-card-head">
+              <div className="kefu-setting-card-title">{t('第三方客服代码')}</div>
+              <p className="kefu-setting-card-desc">{t('JS 嵌入型客服（美洽/智齿/53KF 等）的代码位，与上方客服类型并行生效、互不排斥；留空不注入')}</p>
+            </div>
+            <div className="kefu-setting-field">
+              <label>{t('PC端客服代码')}</label>
+              <div className="kefu-setting-control">
+                <TextArea
+                  style={{ width: 640 }}
+                  value={String(form.kefuJavascript ?? '')}
+                  autosize={{ minRows: 4, maxRows: 10 }}
+                  placeholder={t('粘贴客服厂商给出的 <script> 代码（PC 端）')}
+                  onChange={(next) => update('kefuJavascript', next)}
+                />
+                <p className="kefu-setting-extra">{t('警告：粘贴的代码将直接在商城 PC 页面执行，仅粘贴可信服务商的官方代码')}</p>
+              </div>
+            </div>
+            <div className="kefu-setting-field">
+              <label>{t('移动端客服代码')}</label>
+              <div className="kefu-setting-control">
+                <TextArea
+                  style={{ width: 640 }}
+                  value={String(form.wapKefuJavascript ?? '')}
+                  autosize={{ minRows: 4, maxRows: 10 }}
+                  placeholder={t('粘贴客服厂商给出的 <script> 代码（移动端/H5）')}
+                  onChange={(next) => update('wapKefuJavascript', next)}
+                />
+                <p className="kefu-setting-extra">{t('警告：粘贴的代码将直接在商城 H5 页面执行，仅粘贴可信服务商的官方代码')}</p>
               </div>
             </div>
           </div>
