@@ -8,6 +8,7 @@
 pub mod catalog_data;
 pub mod clone;
 pub mod decorate_data;
+pub mod p3_data;
 
 use sqlx::PgPool;
 
@@ -17,6 +18,8 @@ pub struct Repositories {
     pub clone: clone::SiteCloneRepository,
     pub catalog: catalog_data::SiteCloneCatalogRepository,
     pub decorate: decorate_data::SiteCloneDecorateRepository,
+    /// P3 四域（营销模板/文章友链/邮件模板/店铺壳）。
+    pub p3: p3_data::SiteCloneP3Repository,
 }
 
 impl Repositories {
@@ -25,7 +28,8 @@ impl Repositories {
         Self {
             clone: clone::SiteCloneRepository::new(pool.clone()),
             catalog: catalog_data::SiteCloneCatalogRepository::new(pool.clone()),
-            decorate: decorate_data::SiteCloneDecorateRepository::new(pool),
+            decorate: decorate_data::SiteCloneDecorateRepository::new(pool.clone()),
+            p3: p3_data::SiteCloneP3Repository::new(pool),
         }
     }
 }

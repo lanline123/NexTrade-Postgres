@@ -28,7 +28,7 @@ use nextrade_core::{Error, Result};
 use nextrade_infrastructure::storage;
 
 use super::clone::SiteCloneService;
-use super::importer::remote_get;
+use super::importer::{fetch_json, CloneSource};
 use super::whitelist;
 
 /// 单个转存文件大小上限（64 MiB，视频素材余量）。
@@ -66,13 +66,14 @@ impl SiteCloneService {
     pub async fn run_p2(
         &self,
         dto: &CloneExecuteDTO,
-        cred: &CloneSourceCred,
+        src: &CloneSource,
         manifest: &CloneManifestVO,
         job_id: i32,
         target_shop: i32,
         counts: &mut Map<String, Value>,
         failures: &mut Vec<Value>,
     ) -> Result<()> {
+        let cred = &src.cred;
         let want_decorate = dto.import_decorate.unwrap_or(true)
             && manifest.domains.iter().any(|d| d == DOMAIN_DECORATE);
         let want_assets = dto.import_assets.unwrap_or(true)
@@ -83,7 +84,7 @@ impl SiteCloneService {
         let refs = self.load_ref_maps(&cred.fingerprint).await?;
 
         let decorate_pkg = if want_decorate {
-            match fetch_decorate(cred).await {
+            match fetch_decorate(src).await {
                 Ok(p) => Some(p),
                 Err(e) if is_endpoint_missing(&e) => {
                     failures.push(json!({
@@ -106,7 +107,7 @@ impl SiteCloneService {
         let mut url_map: HashMap<String, String> = HashMap::new();
         let mut failed_urls: HashSet<String> = HashSet::new();
         if want_assets {
-            match fetch_assets(cred).await {
+            match fetch_assets(src).await {
                 Ok(pkg) => {
                     self.import_assets_library(
                         &pkg, cred, job_id, target_shop, &mut url_map, counts, failures,
@@ -1026,20 +1027,20 @@ impl SiteCloneService {
 
 // ———————————————————— 源站拉取 ————————————————————
 
-async fn fetch_decorate(cred: &CloneSourceCred) -> Result<CloneDecoratePackage> {
-    let data = remote_get(cred, "/api/clone/v1/decorate").await?;
+async fn fetch_decorate(src: &CloneSource) -> Result<CloneDecoratePackage> {
+    let data = fetch_json(src, "decorate", "/api/clone/v1/decorate").await?;
     serde_json::from_value(data)
         .map_err(|e| Error::Validation(format!("来源站装修包解析失败: {e}")))
 }
 
-async fn fetch_assets(cred: &CloneSourceCred) -> Result<CloneAssetsPackage> {
-    let data = remote_get(cred, "/api/clone/v1/assets").await?;
+async fn fetch_assets(src: &CloneSource) -> Result<CloneAssetsPackage> {
+    let data = fetch_json(src, "assets", "/api/clone/v1/assets").await?;
     serde_json::from_value(data)
         .map_err(|e| Error::Validation(format!("来源站素材包解析失败: {e}")))
 }
 
 /// 源站无此端点（v1 导出端）的判定：remote_get 的错误文案含 HTTP 状态。
-fn is_endpoint_missing(e: &Error) -> bool {
+pub(super) fn is_endpoint_missing(e: &Error) -> bool {
     e.to_string().contains("HTTP 404")
 }
 

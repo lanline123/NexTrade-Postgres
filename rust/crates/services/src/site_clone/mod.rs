@@ -8,6 +8,7 @@
 pub mod clone;
 pub mod decorate_importer;
 pub mod importer;
+pub mod p3_importer;
 pub mod whitelist;
 
 use std::sync::Arc;

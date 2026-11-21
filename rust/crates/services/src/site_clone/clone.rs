@@ -24,7 +24,8 @@ use nextrade_core::models::site_clone::clone::{
     CloneManifestVO, CloneProduct, CloneSettingsBlock,
     CloneSettingsGroup, CloneSettingsGroupInfo, CloneSettingsPackage, CloneShippingTpl,
     CloneSourceCred, SiteCloneCallLog, SiteCloneImportJob, SiteCloneKey, SiteCloneSnapshot,
-    ALL_DOMAINS, DOMAIN_ASSETS, DOMAIN_DECORATE, DOMAIN_SETTINGS, EXPORTER_VERSION,
+    ALL_DOMAINS, DOMAIN_ASSETS, DOMAIN_CONTENT, DOMAIN_DECORATE, DOMAIN_MAIL, DOMAIN_MARKETING,
+    DOMAIN_SETTINGS, DOMAIN_SHOPS, EXPORTER_VERSION,
     MSG_CLONE_CALLS_EXHAUSTED,
     MSG_CLONE_DISABLED, MSG_CLONE_EXPIRED, MSG_CLONE_RATE_LIMITED, MSG_CLONE_SCOPE_DENIED,
     MSG_CLONE_UNAUTHORIZED, MSG_KEY_NAME_REQUIRED, MSG_KEY_NOT_FOUND,
@@ -75,6 +76,10 @@ impl SiteCloneService {
         &self.repos.site_clone.decorate
     }
 
+    pub(crate) fn p3_repo(&self) -> &nextrade_infrastructure::db::repo::site_clone::p3_data::SiteCloneP3Repository {
+        &self.repos.site_clone.p3
+    }
+
     pub(crate) fn config_repo(&self) -> &nextrade_infrastructure::db::repo::system::config_basic::ConfigBasicRepository {
         &self.repos.system.config_basic
     }
@@ -94,7 +99,7 @@ impl SiteCloneService {
         }
         let domains = normalize_domains(&dto.domains);
         if domains.is_empty() {
-            return Err(Error::biz(400, "至少勾选一个分享域（商品/设置/装修/素材）"));
+            return Err(Error::biz(400, "至少勾选一个分享域（商品/设置/装修/素材/营销/文章/邮件/店铺壳）"));
         }
         let plain = utils::random_hex(48);
         let key_code = format!("mv_{}", utils::random_hex(16));
@@ -296,6 +301,27 @@ impl SiteCloneService {
         } else {
             (0, 0)
         };
+        let p3 = self.p3_repo();
+        let marketing_total = if key.has_domain(DOMAIN_MARKETING) {
+            p3.count_marketing_activities().await?
+        } else {
+            0
+        };
+        let (article_total, friend_link_total) = if key.has_domain(DOMAIN_CONTENT) {
+            (p3.count_articles().await?, p3.count_friend_links().await?)
+        } else {
+            (0, 0)
+        };
+        let mail_template_total = if key.has_domain(DOMAIN_MAIL) {
+            p3.count_mail_templates().await?
+        } else {
+            0
+        };
+        let shop_shell_total = if key.has_domain(DOMAIN_SHOPS) {
+            p3.count_shops().await?
+        } else {
+            0
+        };
         Ok(CloneManifestVO {
             site_name,
             exporter_version: EXPORTER_VERSION,
@@ -316,7 +342,12 @@ impl SiteCloneService {
             nav_total,
             asset_pic_total,
             asset_video_total,
-            exempt_note: "支付渠道、各类 API 密钥与凭据、站点身份、会员/订单/财务数据不在分享范围内（白名单导出）".into(),
+            marketing_total,
+            article_total,
+            friend_link_total,
+            mail_template_total,
+            shop_shell_total,
+            exempt_note: "支付渠道、各类 API 密钥与凭据、站点身份、会员/订单/财务数据不在分享范围内（白名单导出）；营销只搬模板不搬已发放实例，店铺只搬基础资料壳不搬商户账号/资金/费率，微信模板消息 ID 属源站公众号签发不搬".into(),
         })
     }
 
@@ -349,6 +380,239 @@ impl SiteCloneService {
             pics: repo.list_asset_pics(shop).await?,
             video_groups: repo.list_asset_video_groups(shop).await?,
             videos: repo.list_asset_videos(shop).await?,
+        })
+    }
+
+    /// 营销模板包导出（P3）：活动的定义/明细行 + 被引用 SKU 目录。
+    /// 只读模板表，已发放/参与实例表不设查询（见 p3_data 文件头）。
+    /// 作用域与密钥一致：源店铺 >0 时只出该店 + 平台（shop_id 0/NULL）
+    /// 的模板，子行随父行；源店铺 =0（平台密钥）时整站出（整站搬家）。
+    pub async fn marketing_package(
+        &self,
+        key: &SiteCloneKey,
+    ) -> Result<nextrade_core::models::site_clone::clone::CloneMarketingPackage> {
+        use nextrade_core::models::site_clone::clone::CloneMarketingPackage;
+        let repo = self.p3_repo();
+        let scope = key.source_shop_id;
+        let in_scope = |shop: Option<i32>| -> bool {
+            scope == 0 || matches!(shop, None | Some(0)) || shop == Some(scope)
+        };
+        let coupons: Vec<_> = repo
+            .list_coupons()
+            .await?
+            .into_iter()
+            .filter(|r| in_scope(r.shop_id))
+            .collect();
+        let seckills: Vec<_> = repo
+            .list_seckills()
+            .await?
+            .into_iter()
+            .filter(|r| in_scope(Some(r.shop_id)))
+            .collect();
+        let seckill_ids: Vec<i32> = seckills.iter().map(|r| r.seckill_id).collect();
+        let seckill_items: Vec<_> = repo
+            .list_seckill_items()
+            .await?
+            .into_iter()
+            .filter(|r| r.seckill_id.is_some_and(|id| seckill_ids.contains(&id)))
+            .collect();
+        let groupons: Vec<_> = repo
+            .list_groupons()
+            .await?
+            .into_iter()
+            .filter(|r| in_scope(r.shop_id))
+            .collect();
+        let groupon_ids: Vec<i64> = groupons.iter().map(|r| r.groupon_promotion_id).collect();
+        let groupon_items: Vec<_> = repo
+            .list_groupon_items()
+            .await?
+            .into_iter()
+            .filter(|r| groupon_ids.contains(&r.groupon_promotion_id))
+            .collect();
+        let groupon_details: Vec<_> = repo
+            .list_groupon_details()
+            .await?
+            .into_iter()
+            .filter(|r| groupon_ids.contains(&r.groupon_promotion_id))
+            .collect();
+        let groupon_shops: Vec<_> = repo
+            .list_groupon_shops()
+            .await?
+            .into_iter()
+            .filter(|r| {
+                r.groupon_promotion_id
+                    .is_some_and(|id| groupon_ids.contains(&i64::from(id)))
+            })
+            .collect();
+        let time_discounts: Vec<_> = repo
+            .list_time_discounts()
+            .await?
+            .into_iter()
+            .filter(|r| in_scope(Some(r.shop_id)))
+            .collect();
+        let td_ids: Vec<i32> = time_discounts.iter().map(|r| r.discount_id).collect();
+        let time_discount_items: Vec<_> = repo
+            .list_time_discount_items()
+            .await?
+            .into_iter()
+            .filter(|r| td_ids.contains(&r.discount_id))
+            .collect();
+        let product_promotions: Vec<_> = repo
+            .list_product_promotions()
+            .await?
+            .into_iter()
+            .filter(|r| in_scope(Some(r.shop_id)))
+            .collect();
+        let promotions: Vec<_> = repo
+            .list_promotions()
+            .await?
+            .into_iter()
+            .filter(|r| in_scope(Some(r.shop_id)))
+            .collect();
+        let points_exchanges: Vec<_> = if scope == 0 {
+            repo.list_points_exchanges().await?
+        } else {
+            // points_exchange 无 shop_id 列：其归属经商品店铺间接判定，
+            // 仓储层无商品店铺信息——平台密钥才全量出；单店密钥不出
+            // （导入端也无法判定归属，宁缺勿带）。
+            Vec::new()
+        };
+        let product_gifts: Vec<_> = repo
+            .list_product_gifts()
+            .await?
+            .into_iter()
+            .filter(|r| in_scope(Some(r.shop_id)))
+            .collect();
+        let recharge_settings = repo.list_recharge_settings().await?;
+        let sign_in_settings = repo.list_sign_in_settings().await?;
+        let gift_card_groups: Vec<_> = repo
+            .list_gift_card_groups()
+            .await?
+            .into_iter()
+            .filter(|r| in_scope(r.shop_id))
+            .collect();
+        let gcg_ids: Vec<i32> = gift_card_groups.iter().map(|r| r.card_groups_id).collect();
+        let gift_card_products: Vec<_> = repo
+            .list_gift_card_products()
+            .await?
+            .into_iter()
+            .filter(|r| gcg_ids.contains(&r.card_groups_id))
+            .collect();
+        let gift_scope_products: Vec<_> = repo
+            .list_gift_scope_products()
+            .await?
+            .into_iter()
+            .filter(|r| gcg_ids.contains(&r.card_groups_id))
+            .collect();
+        let gift_scope_categories: Vec<_> = repo
+            .list_gift_scope_categories()
+            .await?
+            .into_iter()
+            .filter(|r| gcg_ids.contains(&r.card_groups_id))
+            .collect();
+        let lotteries: Vec<_> = repo
+            .list_lotteries()
+            .await?
+            .into_iter()
+            .filter(|r| in_scope(Some(r.shop_id)))
+            .collect();
+        let lottery_ids: Vec<i32> = lotteries.iter().map(|r| r.activity_id).collect();
+        let lottery_prizes: Vec<_> = repo
+            .list_lottery_prizes()
+            .await?
+            .into_iter()
+            .filter(|r| lottery_ids.contains(&r.activity_id))
+            .collect();
+        // SKU 目录：被秒杀/拼团规格价/限时折扣/积分兑换/赠品/礼品卡
+        // 商品池引用的商品集合的全部 SKU。
+        let mut product_ids: Vec<i32> = Vec::new();
+        let mut push_pid = |id: i32| {
+            if id > 0 && !product_ids.contains(&id) {
+                product_ids.push(id);
+            }
+        };
+        for it in &seckill_items {
+            push_pid(it.product_id.unwrap_or(0));
+        }
+        for it in &groupon_items {
+            push_pid(i32::try_from(it.product_id).unwrap_or(0));
+        }
+        for it in &time_discount_items {
+            push_pid(it.product_id);
+        }
+        for it in &points_exchanges {
+            push_pid(it.product_id);
+        }
+        for it in &product_gifts {
+            push_pid(it.product_id);
+        }
+        for it in &gift_card_products {
+            push_pid(it.product_id);
+        }
+        for s in &seckills {
+            push_pid(s.product_id.unwrap_or(0));
+        }
+        let sku_directory = repo.list_sku_refs(&product_ids).await?;
+        Ok(CloneMarketingPackage {
+            coupons,
+            seckills,
+            seckill_items,
+            groupons,
+            groupon_items,
+            groupon_details,
+            groupon_shops,
+            time_discounts,
+            time_discount_items,
+            product_promotions,
+            promotions,
+            points_exchanges,
+            product_gifts,
+            recharge_settings,
+            sign_in_settings,
+            gift_card_groups,
+            gift_card_products,
+            gift_scope_products,
+            gift_scope_categories,
+            lotteries,
+            lottery_prizes,
+            sku_directory,
+        })
+    }
+
+    /// 文章/友链包导出（P3）。
+    pub async fn content_package(
+        &self,
+    ) -> Result<nextrade_core::models::site_clone::clone::CloneContentPackage> {
+        let repo = self.p3_repo();
+        Ok(nextrade_core::models::site_clone::clone::CloneContentPackage {
+            categories: repo.list_article_categories().await?,
+            articles: repo.list_articles().await?,
+            article_products: repo.list_article_products().await?,
+            friend_links: repo.list_friend_links().await?,
+        })
+    }
+
+    /// 邮件/消息模板包导出（P3）：仅文本模板与渠道开关；
+    /// message_template（微信模板 ID）与 mailSettings（SMTP 凭据）豁免。
+    pub async fn mail_package(
+        &self,
+    ) -> Result<nextrade_core::models::site_clone::clone::CloneMailPackage> {
+        let repo = self.p3_repo();
+        Ok(nextrade_core::models::site_clone::clone::CloneMailPackage {
+            templates: repo.list_mail_templates().await?,
+            message_types: repo.list_message_types().await?,
+        })
+    }
+
+    /// 店铺壳包导出（P3）：全部未删除店铺的资料子集 + 分销规则
+    /// （豁免字段在仓储层根本不查，见 p3_data / 模型层说明）。
+    pub async fn shops_package(
+        &self,
+    ) -> Result<nextrade_core::models::site_clone::clone::CloneShopsPackage> {
+        let repo = self.p3_repo();
+        Ok(nextrade_core::models::site_clone::clone::CloneShopsPackage {
+            shops: repo.list_shops().await?,
+            salesman_configs: repo.list_salesman_configs().await?,
         })
     }
 
@@ -585,7 +849,65 @@ impl SiteCloneService {
                 }
             }
         }
+        // —— P3 节：邮件/消息模板（覆盖前原值；existed=false 的行删除） ——
         let now = utils::now_seconds() as i32;
+        if let Some(mail) = payload.get("mail") {
+            let p3 = self.p3_repo();
+            if let Some(templates) = mail.get("templates").and_then(Value::as_array) {
+                for t in templates {
+                    let code = t.get("templateCode").and_then(Value::as_str).unwrap_or("");
+                    if code.is_empty() {
+                        continue;
+                    }
+                    if t.get("existed").and_then(Value::as_bool) == Some(true) {
+                        p3.restore_mail_template(
+                            code,
+                            i32::try_from(t.get("isHtml").and_then(Value::as_i64).unwrap_or(0)).unwrap_or(0),
+                            t.get("templateSubject").and_then(Value::as_str).unwrap_or(""),
+                            t.get("templateContent").and_then(Value::as_str).unwrap_or(""),
+                            t.get("type").and_then(Value::as_str).unwrap_or(""),
+                            now,
+                        )
+                        .await?;
+                    } else {
+                        p3.delete_mail_template(code).await?;
+                    }
+                }
+            }
+            if let Some(types) = mail.get("messageTypes").and_then(Value::as_array) {
+                for t in types {
+                    let mid = i32::try_from(t.get("messageId").and_then(Value::as_i64).unwrap_or(0)).unwrap_or(0);
+                    if mid <= 0 {
+                        continue;
+                    }
+                    if t.get("existed").and_then(Value::as_bool) == Some(true) {
+                        let row: nextrade_core::models::site_clone::clone::CloneMessageType =
+                            serde_json::from_value(t.get("row").cloned().unwrap_or(Value::Null))
+                                .unwrap_or_default();
+                        p3.upsert_message_type(&row, now).await?;
+                    } else {
+                        p3.delete_message_type(mid).await?;
+                    }
+                }
+            }
+        }
+        // —— P3 节：分销规则（按 店铺+code 还原；existed=false 的行删除） ——
+        if let Some(rows) = payload.get("salesman").and_then(Value::as_array) {
+            let p3 = self.p3_repo();
+            for r in rows {
+                let shop_id = i32::try_from(r.get("shopId").and_then(Value::as_i64).unwrap_or(0)).unwrap_or(0);
+                let code = r.get("code").and_then(Value::as_str).unwrap_or("");
+                if code.is_empty() {
+                    continue;
+                }
+                if r.get("existed").and_then(Value::as_bool) == Some(true) {
+                    p3.upsert_salesman_config(shop_id, code, r.get("data").and_then(Value::as_str))
+                        .await?;
+                } else {
+                    p3.delete_salesman_config(shop_id, code).await?;
+                }
+            }
+        }
         self.repo().mark_snapshot_rolled_back(snapshot_id, now).await
     }
 

@@ -17,7 +17,8 @@ use nextrade_common::utils;
 use nextrade_core::models::site_clone::clone::{
     CloneCatalogVO, CloneExecuteDTO, CloneManifestVO, ClonePreviewDTO, ClonePreviewVO,
     CloneProduct, CloneSettingsPackage, CloneSourceCred, SiteCloneImportJob, DOMAIN_ASSETS,
-    DOMAIN_PRODUCTS, DOMAIN_SETTINGS, EXPORTER_VERSION,
+    DOMAIN_MAIL, DOMAIN_MARKETING, DOMAIN_PRODUCTS, DOMAIN_SETTINGS, DOMAIN_SHOPS,
+    EXPORTER_VERSION,
 };
 use nextrade_core::models::system::config_basic::find_endpoint;
 use nextrade_core::{Error, Result};
@@ -39,7 +40,8 @@ impl SiteCloneService {
     /// 将覆盖什么 / 已导入过多少」的清单（不落任何数据）。
     pub async fn preview(&self, dto: &ClonePreviewDTO) -> Result<ClonePreviewVO> {
         let cred = resolve_source(&dto.source)?;
-        let manifest = fetch_manifest(&cred).await?;
+        let src = CloneSource::remote(cred.clone());
+        let manifest = fetch_manifest(&src).await?;
         let has_assets = manifest.domains.iter().any(|d| d == DOMAIN_ASSETS);
         let mut warnings = vec![
             if has_assets {
@@ -53,15 +55,30 @@ impl SiteCloneService {
         let mut groups = Vec::new();
         let mut blocks: Vec<String> = Vec::new();
         if manifest.domains.iter().any(|d| d == DOMAIN_SETTINGS) {
-            let pkg = fetch_settings(&cred).await?;
+            let pkg = fetch_settings(&src).await?;
             groups = settings_group_infos(&pkg);
             blocks = pkg.blocks.iter().map(|b| b.code.clone()).collect();
             if groups.iter().any(|g| g.risk) {
                 warnings.push("费率类设置组（提现/分销）默认不导入，需在执行时显式勾选确认".to_string());
             }
         }
+        if manifest.domains.iter().any(|d| d == DOMAIN_MARKETING) {
+            warnings.push("营销只搬活动模板（券/秒杀/拼团/促销/礼品卡/抽奖等定义），已发放的券/卡与参与记录不搬；导入的活动一律停用态，需在本站检查后手动启用".to_string());
+        }
+        if manifest.domains.iter().any(|d| d == DOMAIN_SHOPS) {
+            warnings.push("店铺壳只重建店铺基础资料：新建店铺默认暂停运营、不带商户账号/资金/费率，绑定商户后由平台开启".to_string());
+        }
+        if manifest.domains.iter().any(|d| d == DOMAIN_MAIL) {
+            warnings.push("邮件模板按模板代码覆盖本站同名模板，覆盖前原值会进导入前快照可回滚；微信模板消息 ID 属源站公众号签发，不在搬运范围".to_string());
+        }
         let already = self.repo().count_maps(&cred.fingerprint, "product").await?;
         let decorate_already = self.repo().count_maps(&cred.fingerprint, "decorate").await?;
+        let mut marketing_already = 0i64;
+        for d in super::p3_importer::MARKETING_MAP_DOMAINS {
+            marketing_already += self.repo().count_maps(&cred.fingerprint, d).await?;
+        }
+        let content_already = self.repo().count_maps(&cred.fingerprint, "article").await?;
+        let shops_already = self.repo().count_maps(&cred.fingerprint, "shop").await?;
         Ok(ClonePreviewVO {
             source_label: manifest.site_name.clone(),
             source_origin: cred.origin.clone(),
@@ -79,6 +96,14 @@ impl SiteCloneService {
             asset_pic_total: manifest.asset_pic_total,
             asset_video_total: manifest.asset_video_total,
             decorate_already_imported: decorate_already,
+            marketing_total: manifest.marketing_total,
+            article_total: manifest.article_total,
+            friend_link_total: manifest.friend_link_total,
+            mail_template_total: manifest.mail_template_total,
+            shop_shell_total: manifest.shop_shell_total,
+            marketing_already_imported: marketing_already,
+            content_already_imported: content_already,
+            shops_already_imported: shops_already,
             settings_groups: groups,
             settings_blocks: blocks,
             warnings,
@@ -95,7 +120,13 @@ impl SiteCloneService {
         operator_id: i32,
         operator_name: &str,
     ) -> Result<SiteCloneImportJob> {
-        let cred = resolve_source(&dto.source)?;
+        // 数据来源：在线（口令拉取）或离线包（dto.package 非空时先验签，
+        // 验签失败直接报错不建任务）；两者共用同一导入编排，无第二通道。
+        let src = match &dto.package {
+            Some(pkg) => self.verify_offline_source(dto, pkg)?,
+            None => CloneSource::remote(resolve_source(&dto.source)?),
+        };
+        let cred = &src.cred;
         let target_shop = dto.target_shop_id.unwrap_or(0);
         let now = utils::now_seconds() as i32;
         let domains: Vec<&str> = [
@@ -103,6 +134,10 @@ impl SiteCloneService {
             (dto.import_settings.unwrap_or(true), "settings"),
             (dto.import_decorate.unwrap_or(true), "decorate"),
             (dto.import_assets.unwrap_or(true), "assets"),
+            (dto.import_marketing.unwrap_or(true), "marketing"),
+            (dto.import_content.unwrap_or(true), "content"),
+            (dto.import_mail.unwrap_or(true), "mail"),
+            (dto.import_shops.unwrap_or(true), "shops"),
         ]
         .into_iter()
         .filter(|(on, _)| *on)
@@ -128,7 +163,7 @@ impl SiteCloneService {
         let mut snapshot_id = 0;
 
         match self
-            .run_import(dto, &cred, job_id, target_shop, operator_id, operator_name, &mut counts, &mut failures)
+            .run_import(dto, &src, job_id, target_shop, operator_id, operator_name, &mut counts, &mut failures)
             .await
         {
             Ok(label) => source_label = label,
@@ -168,7 +203,7 @@ impl SiteCloneService {
     async fn run_import(
         &self,
         dto: &CloneExecuteDTO,
-        cred: &CloneSourceCred,
+        src: &CloneSource,
         job_id: i32,
         target_shop: i32,
         operator_id: i32,
@@ -176,7 +211,7 @@ impl SiteCloneService {
         counts: &mut serde_json::Map<String, Value>,
         failures: &mut Vec<Value>,
     ) -> Result<String> {
-        let manifest = fetch_manifest(cred).await?;
+        let manifest = fetch_manifest(src).await?;
         let want_products = dto.import_products.unwrap_or(true)
             && manifest.domains.iter().any(|d| d == DOMAIN_PRODUCTS);
         let want_settings = dto.import_settings.unwrap_or(true)
@@ -184,15 +219,20 @@ impl SiteCloneService {
 
         // —— 设置域：先快照、后覆盖（快照 id 经 counts 暗键回传） ——
         if want_settings {
-            self.import_settings(dto, cred, job_id, &manifest, operator_id, operator_name, counts, failures)
+            self.import_settings(dto, src, job_id, &manifest, operator_id, operator_name, counts, failures)
                 .await?;
         }
         // —— 商品域：结构对齐 → 逐条建品 ——
         if want_products {
-            self.import_products(dto, cred, job_id, target_shop, counts, failures).await?;
+            self.import_products(dto, src, job_id, target_shop, counts, failures).await?;
         }
         // —— P2：素材转存/重写 → 装修导入（内部按 manifest 授权域再判） ——
-        self.run_p2(dto, cred, &manifest, job_id, target_shop, counts, failures)
+        self.run_p2(dto, src, &manifest, job_id, target_shop, counts, failures)
+            .await?;
+        // —— P3：店铺壳 → 内容 → 邮件 → 营销（依赖顺序，内部再判授权域；
+        // 店铺壳先行使营销的店铺归属能命中壳映射，商品/分类/品牌映射
+        // 已由 P1 阶段与历史任务落入 import_map） ——
+        self.run_p3(dto, src, &manifest, job_id, target_shop, operator_id, operator_name, counts, failures)
             .await?;
         Ok(manifest.site_name.clone())
     }
@@ -201,7 +241,7 @@ impl SiteCloneService {
     async fn import_settings(
         &self,
         dto: &CloneExecuteDTO,
-        cred: &CloneSourceCred,
+        src: &CloneSource,
         job_id: i32,
         manifest: &CloneManifestVO,
         operator_id: i32,
@@ -209,7 +249,8 @@ impl SiteCloneService {
         counts: &mut serde_json::Map<String, Value>,
         failures: &mut Vec<Value>,
     ) -> Result<()> {
-        let pkg = fetch_settings(cred).await?;
+        let cred = &src.cred;
+        let pkg = fetch_settings(src).await?;
         let include_risk = dto.include_risk_groups.unwrap_or(false);
         // 勾选口径：显式列表优先；无列表时 = 全部非风险组（+风险组当 include_risk）。
         let selected: Vec<String> = match &dto.settings_groups {
@@ -325,13 +366,14 @@ impl SiteCloneService {
     async fn import_products(
         &self,
         dto: &CloneExecuteDTO,
-        cred: &CloneSourceCred,
+        src: &CloneSource,
         job_id: i32,
         target_shop: i32,
         counts: &mut serde_json::Map<String, Value>,
         failures: &mut Vec<Value>,
     ) -> Result<()> {
-        let catalog = fetch_catalog(cred).await?;
+        let cred = &src.cred;
+        let catalog = fetch_catalog(src).await?;
         let repo = self.repo();
         let cat = self.catalog_repo();
         let now = utils::now_seconds() as i32;
@@ -446,7 +488,7 @@ impl SiteCloneService {
         let force = dto.force_duplicate.unwrap_or(false);
         let mut page = 1u64;
         loop {
-            let batch = fetch_products(cred, page, PRODUCT_FETCH_SIZE).await?;
+            let batch = fetch_products(src, page, PRODUCT_FETCH_SIZE).await?;
             if batch.is_empty() {
                 break;
             }
@@ -613,6 +655,55 @@ impl SiteCloneService {
         let deleted_pics = deco.delete_gallery_pics(&pic_ids).await?;
         deco.delete_asset_maps_by_job(job_id).await?;
 
+        // —— P3 新建对象：按映射逐域删除并清映射 ——
+        // 口径：券/镜像/抽奖走软删（表有 is_delete）；其余硬删本任务行；
+        // 礼品卡组仅未发行过卡才删组行（已发行卡的组保留，计数差额即
+        // 保留数）；店铺壳软删（关店+删除标记）并连带清其分销规则行；
+        // 签到规则映射中 target 与 source 相同且非本任务新建的行在
+        // 导入端以 source_key 前缀 `exist:` 登记，撤销时跳过不删；
+        // 文章分类为结构域保留（同商品分类）；邮件/消息模板与平台级
+        // 分销规则属覆盖型，走快照回滚通道，不在此删。
+        let p3 = self.p3_repo();
+        let mut deleted_marketing = 0u64;
+        deleted_marketing += p3.soft_delete_promotions(&ids_of("promotion")).await?;
+        deleted_marketing += p3.soft_delete_coupons(&ids_of("coupon")).await?;
+        deleted_marketing += p3.delete_seckills(&ids_of("seckill")).await?;
+        let groupon_ids: Vec<i64> = ids_of("groupon").iter().map(|id| i64::from(*id)).collect();
+        deleted_marketing += p3.delete_groupons(&groupon_ids).await?;
+        deleted_marketing += p3.delete_time_discounts(&ids_of("time_discount")).await?;
+        deleted_marketing += p3.delete_product_promotions(&ids_of("product_promotion")).await?;
+        deleted_marketing += p3.delete_points_exchanges(&ids_of("points_exchange")).await?;
+        deleted_marketing += p3.delete_recharge_settings(&ids_of("recharge")).await?;
+        deleted_marketing += p3.delete_product_gifts(&ids_of("product_gift")).await?;
+        let gift_group_ids = ids_of("gift_card_group");
+        let deleted_gift_groups = p3.delete_gift_card_groups(&gift_group_ids).await?;
+        deleted_marketing += deleted_gift_groups;
+        let kept_gift_groups = (gift_group_ids.len() as u64).saturating_sub(deleted_gift_groups);
+        deleted_marketing += p3.soft_delete_lotteries(&ids_of("lottery")).await?;
+        let signin_new: Vec<i32> = maps
+            .iter()
+            .filter(|m| m.domain == "signin" && !m.source_key.starts_with("exist:"))
+            .map(|m| m.target_id)
+            .collect();
+        deleted_marketing += p3.delete_sign_in_settings(&signin_new).await?;
+        let deleted_articles = p3.delete_articles(&ids_of("article")).await?;
+        let deleted_links = p3.delete_friend_links(&ids_of("friend_link")).await?;
+        // 店铺壳映射含「源主店 → 承接店铺」一条：承接店铺是本站既有
+        // 店铺，撤销绝不能删它，只删本任务新建的壳。
+        let shop_ids: Vec<i32> = ids_of("shop")
+            .into_iter()
+            .filter(|id| *id != job.target_shop_id)
+            .collect();
+        p3.delete_salesman_configs_for_shops(&shop_ids).await?;
+        let deleted_shops = p3.soft_delete_shops(&shop_ids).await?;
+        for domain in [
+            "promotion", "coupon", "seckill", "groupon", "time_discount", "product_promotion",
+            "points_exchange", "recharge", "product_gift", "gift_card_group", "lottery", "signin",
+            "article", "friend_link", "shop",
+        ] {
+            self.repo().delete_maps_by_job_domain(job_id, domain).await?;
+        }
+
         self.repo().mark_job_undone(job_id).await?;
         Ok(json!({
             "jobId": job_id,
@@ -621,7 +712,12 @@ impl SiteCloneService {
             "deletedDiscrete": deleted_discrete,
             "deletedNavigations": deleted_navs + deleted_floors + deleted_cat_navs,
             "deletedAssetPics": deleted_pics,
-            "note": "分类/品牌/运费模板等结构域对象保留（可能已被其他商品引用）；设置请用该任务的导入前快照回滚；已转存的存储文件保留不删",
+            "deletedMarketing": deleted_marketing,
+            "keptGiftCardGroups": kept_gift_groups,
+            "deletedArticles": deleted_articles,
+            "deletedFriendLinks": deleted_links,
+            "deletedShops": deleted_shops,
+            "note": "分类/品牌/运费模板/文章分类等结构域对象保留（可能已被其他商品引用）；设置与邮件模板/分销规则覆盖请用该任务的导入前快照回滚；已转存的存储文件保留不删；已发行过卡的礼品卡组保留不删（持卡人资产）",
         }))
     }
 }
@@ -659,8 +755,39 @@ pub(super) async fn remote_get(cred: &CloneSourceCred, path: &str) -> Result<Val
     Ok(parsed.get("data").cloned().unwrap_or(Value::Null))
 }
 
-async fn fetch_manifest(cred: &CloneSourceCred) -> Result<CloneManifestVO> {
-    let data = remote_get(cred, "/api/clone/v1/manifest").await?;
+/// 导入数据来源：在线拉取或离线包（P3）。离线包经逐文件 sha +
+/// HMAC 验签后把各端点载荷放进 `files`（端点名 → data JSON），
+/// 编排层一律经 `fetch_json` 取数——离线缺文件与在线 404 同语义
+/// （错误文案含 HTTP 404，P2/P3 的「源站版本过低跳过」判定通用）。
+pub(super) struct CloneSource {
+    pub cred: CloneSourceCred,
+    pub files: Option<HashMap<String, Value>>,
+}
+
+impl CloneSource {
+    pub(super) fn remote(cred: CloneSourceCred) -> Self {
+        Self { cred, files: None }
+    }
+
+    pub(super) fn offline(cred: CloneSourceCred, files: HashMap<String, Value>) -> Self {
+        Self { cred, files: Some(files) }
+    }
+}
+
+/// 统一取数：离线包命中文件直接返回；否则走在线只读拉取。
+pub(super) async fn fetch_json(src: &CloneSource, name: &str, path: &str) -> Result<Value> {
+    if let Some(files) = &src.files {
+        return files.get(name).cloned().ok_or_else(|| {
+            Error::Validation(format!(
+                "来源站拒绝（HTTP 404）：离线包不含「{name}」数据（源站版本过低或密钥未授权该域）"
+            ))
+        });
+    }
+    remote_get(&src.cred, path).await
+}
+
+async fn fetch_manifest(src: &CloneSource) -> Result<CloneManifestVO> {
+    let data = fetch_json(src, "manifest", "/api/clone/v1/manifest").await?;
     let manifest: CloneManifestVO = serde_json::from_value(data)
         .map_err(|e| Error::Validation(format!("来源站 manifest 解析失败: {e}")))?;
     if manifest.exporter_version > EXPORTER_VERSION {
@@ -672,24 +799,43 @@ async fn fetch_manifest(cred: &CloneSourceCred) -> Result<CloneManifestVO> {
     Ok(manifest)
 }
 
-async fn fetch_catalog(cred: &CloneSourceCred) -> Result<CloneCatalogVO> {
-    let data = remote_get(cred, "/api/clone/v1/catalog").await?;
+async fn fetch_catalog(src: &CloneSource) -> Result<CloneCatalogVO> {
+    let data = fetch_json(src, "catalog", "/api/clone/v1/catalog").await?;
     serde_json::from_value(data)
         .map_err(|e| Error::Validation(format!("来源站目录包解析失败: {e}")))
 }
 
-async fn fetch_settings(cred: &CloneSourceCred) -> Result<CloneSettingsPackage> {
-    let data = remote_get(cred, "/api/clone/v1/settings").await?;
+async fn fetch_settings(src: &CloneSource) -> Result<CloneSettingsPackage> {
+    let data = fetch_json(src, "settings", "/api/clone/v1/settings").await?;
     serde_json::from_value(data)
         .map_err(|e| Error::Validation(format!("来源站设置包解析失败: {e}")))
 }
 
 async fn fetch_products(
-    cred: &CloneSourceCred,
+    src: &CloneSource,
     page: u64,
     size: u64,
 ) -> Result<Vec<CloneProduct>> {
-    let data = remote_get(cred, &format!("/api/clone/v1/products?page={page}&size={size}")).await?;
+    if let Some(files) = &src.files {
+        // 离线包内为全量商品列表，本地分页切片。
+        let data = files.get("products").cloned().ok_or_else(|| {
+            Error::Validation("来源站拒绝（HTTP 404）：离线包不含「products」数据".to_string())
+        })?;
+        let list = data
+            .get("list")
+            .or_else(|| data.get("records"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let start = usize::try_from((page - 1) * size).unwrap_or(0);
+        if start >= list.len() {
+            return Ok(Vec::new());
+        }
+        let end = (start + usize::try_from(size).unwrap_or(0)).min(list.len());
+        return serde_json::from_value(Value::Array(list[start..end].to_vec()))
+            .map_err(|e| Error::Validation(format!("离线包商品数据解析失败: {e}")));
+    }
+    let data = remote_get(&src.cred, &format!("/api/clone/v1/products?page={page}&size={size}")).await?;
     let list = data
         .get("list")
         .or_else(|| data.get("records"))
@@ -721,7 +867,7 @@ fn source_category_path(catalog: &CloneCatalogVO, category_id: i32) -> String {
 }
 
 /// 计数器 +1（counts JSON 暗键约定：`__` 前缀为内部回传，落库前剔除）。
-fn bump(counts: &mut serde_json::Map<String, Value>, key: &str) {
+pub(super) fn bump(counts: &mut serde_json::Map<String, Value>, key: &str) {
     let cur = counts.get(key).and_then(Value::as_i64).unwrap_or(0);
     counts.insert(key.to_string(), json!(cur + 1));
 }

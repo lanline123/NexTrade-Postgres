@@ -17,6 +17,7 @@
 //! | `POST` | `/siteClone/jobs/undo` | 撤销本次导入（删新建商品） |
 //! | `GET`  | `/siteClone/snapshots/list` | 导入前快照分页 |
 //! | `POST` | `/siteClone/snapshots/rollback` | 一键回滚到导入前设置 |
+//! | `POST` | `/siteClone/offline/export` | 导出离线包（P3：逐文件 sha + HMAC 签名的 JSON 包） |
 
 use axum::{
     extract::{Extension, Query, State},
@@ -38,7 +39,7 @@ use crate::support::tenant::platform_only;
 use crate::AdminState;
 
 /// 本域路由（去掉 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 13] = [
+const ROUTE_TABLE: [(&str, &str, &str); 14] = [
     ("GET", "/siteClone/keys/list", "SiteCloneController.keyList"),
     ("POST", "/siteClone/keys/create", "SiteCloneController.keyCreate"),
     ("POST", "/siteClone/keys/update", "SiteCloneController.keyUpdate"),
@@ -52,6 +53,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 13] = [
     ("POST", "/siteClone/jobs/undo", "SiteCloneController.jobUndo"),
     ("GET", "/siteClone/snapshots/list", "SiteCloneController.snapshotList"),
     ("POST", "/siteClone/snapshots/rollback", "SiteCloneController.snapshotRollback"),
+    ("POST", "/siteClone/offline/export", "SiteCloneController.offlineExport"),
 ];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -70,6 +72,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/siteClone/jobs/undo", post(job_undo))
         .route("/siteClone/snapshots/list", get(snapshot_list))
         .route("/siteClone/snapshots/rollback", post(snapshot_rollback))
+        .route("/siteClone/offline/export", post(offline_export))
         .layer(axum::middleware::from_fn(platform_only))
 }
 
@@ -197,6 +200,19 @@ async fn snapshot_rollback(
     })?;
     state.site_clone.clone.rollback_snapshot(id).await?;
     ok(())
+}
+
+/// 导出离线包（P3 兜底通道）：按该密钥的授权域组装，前端落盘为
+/// .json 文件；导入端在另一站粘贴口令 + 上传此包验签后导入。
+async fn offline_export(
+    State(state): State<AdminState>,
+    Json(dto): Json<CloneIdDTO>,
+) -> ApiResult<Value> {
+    let id = dto.target().ok_or_else(|| {
+        nextrade_security::web::AppError(nextrade_core::Error::biz(400, "缺少密钥 id"))
+    })?;
+    let origin = dto.origin.as_deref().unwrap_or("");
+    ok(state.site_clone.clone.export_offline_package(id, origin).await?)
 }
 
 #[cfg(test)]

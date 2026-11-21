@@ -10,6 +10,10 @@
 //! | `GET` | `/clone/v1/settings` | settings | 设置包（仅白名单） |
 //! | `GET` | `/clone/v1/decorate` | decorate | 装修页+离散组件+导航三表（P2） |
 //! | `GET` | `/clone/v1/assets` | assets | 素材分组与条目 URL 清单（P2） |
+//! | `GET` | `/clone/v1/marketing` | marketing | 营销模板全集（P3，不含已发放实例） |
+//! | `GET` | `/clone/v1/content` | content | 文章分类/文章/关联/友链（P3） |
+//! | `GET` | `/clone/v1/mail` | mail | 邮件模板+消息类型开关（P3） |
+//! | `GET` | `/clone/v1/shops` | shops | 店铺壳+分销规则（P3） |
 //!
 //! 每次带钥调用落 `site_clone_call_log`（密钥/端点/域/状态/条数/耗时）。
 
@@ -24,9 +28,10 @@ use axum::{
 use serde::Deserialize;
 
 use nextrade_core::models::site_clone::clone::{
-    CloneAssetsPackage, CloneCatalogVO, CloneDecoratePackage, CloneManifestVO, CloneProduct,
-    CloneSettingsPackage, SiteCloneKey, DOMAIN_ASSETS, DOMAIN_DECORATE, DOMAIN_PRODUCTS,
-    DOMAIN_SETTINGS, MSG_CLONE_UNAUTHORIZED,
+    CloneAssetsPackage, CloneCatalogVO, CloneContentPackage, CloneDecoratePackage,
+    CloneMailPackage, CloneManifestVO, CloneMarketingPackage, CloneProduct, CloneSettingsPackage,
+    CloneShopsPackage, SiteCloneKey, DOMAIN_ASSETS, DOMAIN_CONTENT, DOMAIN_DECORATE, DOMAIN_MAIL,
+    DOMAIN_MARKETING, DOMAIN_PRODUCTS, DOMAIN_SETTINGS, DOMAIN_SHOPS, MSG_CLONE_UNAUTHORIZED,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::Error;
@@ -35,13 +40,17 @@ use nextrade_security::web::{ok, ApiResult, AppError};
 use super::super::super::PublicState;
 
 /// 本域路由（去掉 `/api` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 6] = [
+const ROUTE_TABLE: [(&str, &str, &str); 10] = [
     ("GET", "/clone/v1/manifest", "CloneApi.manifest"),
     ("GET", "/clone/v1/catalog", "CloneApi.catalog"),
     ("GET", "/clone/v1/products", "CloneApi.products"),
     ("GET", "/clone/v1/settings", "CloneApi.settings"),
     ("GET", "/clone/v1/decorate", "CloneApi.decorate"),
     ("GET", "/clone/v1/assets", "CloneApi.assets"),
+    ("GET", "/clone/v1/marketing", "CloneApi.marketing"),
+    ("GET", "/clone/v1/content", "CloneApi.content"),
+    ("GET", "/clone/v1/mail", "CloneApi.mail"),
+    ("GET", "/clone/v1/shops", "CloneApi.shops"),
 ];
 
 /// 搬家面路由（自带密钥鉴权）。
@@ -54,6 +63,10 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/clone/v1/settings", get(settings))
         .route("/clone/v1/decorate", get(decorate))
         .route("/clone/v1/assets", get(assets))
+        .route("/clone/v1/marketing", get(marketing))
+        .route("/clone/v1/content", get(content))
+        .route("/clone/v1/mail", get(mail))
+        .route("/clone/v1/shops", get(shops))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -219,6 +232,79 @@ async fn assets(
         .site_clone
         .clone
         .record_call(&key, "/api/clone/v1/assets", "assets", 200, count, &client_ip(&headers), started)
+        .await;
+    ok(pkg)
+}
+
+async fn marketing(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+) -> ApiResult<CloneMarketingPackage> {
+    let started = Instant::now();
+    let key = auth_key(&state, &headers, DOMAIN_MARKETING).await?;
+    let pkg = state.site_clone.clone.marketing_package(&key).await.map_err(AppError)?;
+    let count = i32::try_from(
+        pkg.coupons.len()
+            + pkg.seckills.len()
+            + pkg.groupons.len()
+            + pkg.time_discounts.len()
+            + pkg.product_promotions.len()
+            + pkg.gift_card_groups.len()
+            + pkg.lotteries.len(),
+    )
+    .unwrap_or(i32::MAX);
+    state
+        .site_clone
+        .clone
+        .record_call(&key, "/api/clone/v1/marketing", "marketing", 200, count, &client_ip(&headers), started)
+        .await;
+    ok(pkg)
+}
+
+async fn content(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+) -> ApiResult<CloneContentPackage> {
+    let started = Instant::now();
+    let key = auth_key(&state, &headers, DOMAIN_CONTENT).await?;
+    let pkg = state.site_clone.clone.content_package().await.map_err(AppError)?;
+    let count = i32::try_from(pkg.articles.len() + pkg.friend_links.len()).unwrap_or(i32::MAX);
+    state
+        .site_clone
+        .clone
+        .record_call(&key, "/api/clone/v1/content", "content", 200, count, &client_ip(&headers), started)
+        .await;
+    ok(pkg)
+}
+
+async fn mail(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+) -> ApiResult<CloneMailPackage> {
+    let started = Instant::now();
+    let key = auth_key(&state, &headers, DOMAIN_MAIL).await?;
+    let pkg = state.site_clone.clone.mail_package().await.map_err(AppError)?;
+    let count = i32::try_from(pkg.templates.len() + pkg.message_types.len()).unwrap_or(i32::MAX);
+    state
+        .site_clone
+        .clone
+        .record_call(&key, "/api/clone/v1/mail", "mail", 200, count, &client_ip(&headers), started)
+        .await;
+    ok(pkg)
+}
+
+async fn shops(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+) -> ApiResult<CloneShopsPackage> {
+    let started = Instant::now();
+    let key = auth_key(&state, &headers, DOMAIN_SHOPS).await?;
+    let pkg = state.site_clone.clone.shops_package().await.map_err(AppError)?;
+    let count = i32::try_from(pkg.shops.len()).unwrap_or(i32::MAX);
+    state
+        .site_clone
+        .clone
+        .record_call(&key, "/api/clone/v1/shops", "shops", 200, count, &client_ip(&headers), started)
         .await;
     ok(pkg)
 }

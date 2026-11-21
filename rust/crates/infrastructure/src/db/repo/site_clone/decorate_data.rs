@@ -624,6 +624,21 @@ impl SiteCloneDecorateRepository {
         Ok(())
     }
 
+    /// 某来源的全部转存映射（P3：文章正文/营销图片字段落库前按此重写
+    /// 源站 URL；含历史任务的转存结果，跨任务复用）。
+    pub async fn list_asset_maps_by_fingerprint(
+        &self,
+        fingerprint: &str,
+    ) -> Result<Vec<SiteCloneAssetMap>> {
+        sqlx::query_as::<_, SiteCloneAssetMap>(
+            "SELECT * FROM site_clone_asset_map WHERE fingerprint = $1 ORDER BY map_id ASC",
+        )
+        .bind(fingerprint)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     // ———————————————————— URL 重写：外链登记素材与已导入商品 ————————————————————
 
     /// P1 登记的 external 素材行（回溯转存的输入）。

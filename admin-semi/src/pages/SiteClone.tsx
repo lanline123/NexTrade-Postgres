@@ -4,6 +4,10 @@
 // 与导入前快照（一键回滚）。凭据类设置不在分享范围内（后端白名单导出）。
 // P2：分享域加「装修 / 素材」——装修页新建为未发布草稿，素材服务端转存
 // 本站存储并全站改写源站图片地址（含 P1 已导入内容的回溯转存）。
+// P3：分享域再加「营销模板 / 文章友链 / 邮件模板 / 店铺壳」——营销只搬
+// 模板不搬已发放实例且一律停用落库、文章新建不显示、邮件模板按代码
+// 覆盖（进快照可回滚）、店铺壳新建为暂停运营；另加离线包兜底通道
+// （按密钥导出带 sha 与签名的包文件，对方站上传验签后走同一导入）。
 import { useCallback, useEffect, useState } from 'react';
 import {
   Button,
@@ -96,6 +100,14 @@ interface PreviewData {
   assetPicTotal: number;
   assetVideoTotal: number;
   decorateAlreadyImported: number;
+  marketingTotal: number;
+  articleTotal: number;
+  friendLinkTotal: number;
+  mailTemplateTotal: number;
+  shopShellTotal: number;
+  marketingAlreadyImported: number;
+  contentAlreadyImported: number;
+  shopsAlreadyImported: number;
   settingsGroups: SettingsGroupInfo[];
   settingsBlocks: string[];
   warnings: string[];
@@ -140,6 +152,10 @@ const DOMAIN_LABEL: Record<string, string> = {
   settings: '设置',
   decorate: '装修',
   assets: '素材',
+  marketing: '营销模板',
+  content: '文章友链',
+  mail: '邮件模板',
+  shops: '店铺壳',
 };
 const KEY_STATUS: Record<number, { text: string; color: string }> = {
   1: { text: '启用', color: 'green' },
@@ -203,6 +219,12 @@ export default function SiteClone() {
   const [importSettings, setImportSettings] = useState(true);
   const [importDecorate, setImportDecorate] = useState(true);
   const [importAssets, setImportAssets] = useState(true);
+  const [importMarketing, setImportMarketing] = useState(true);
+  const [importContent, setImportContent] = useState(true);
+  const [importMail, setImportMail] = useState(true);
+  const [importShops, setImportShops] = useState(true);
+  const [offlinePkg, setOfflinePkg] = useState<unknown>(null);
+  const [offlineName, setOfflineName] = useState('');
   const [keepStatus, setKeepStatus] = useState(false);
   const [forceDuplicate, setForceDuplicate] = useState(false);
   const [executing, setExecuting] = useState(false);
@@ -352,6 +374,38 @@ export default function SiteClone() {
     }
   };
 
+  const handleOfflineExport = async (row: CloneKeyRow) => {
+    try {
+      const pkg = await apiPost<Record<string, unknown>>('/siteClone/offline/export', {
+        keyId: row.keyId,
+        origin: formOrigin.trim() || window.location.origin,
+      });
+      const blob = new Blob([JSON.stringify(pkg)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nextrade-clone-${row.keyCode}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      Toast.success('离线包已导出：把文件与搬家口令一起交给对方站导入（导入时仍需填口令验签）');
+    } catch (e) {
+      Toast.error(e instanceof Error ? e.message : '离线包导出失败');
+    }
+  };
+
+  const handleOfflineFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const pkg: unknown = JSON.parse(await file.text());
+      setOfflinePkg(pkg);
+      setOfflineName(file.name);
+      setPreview(null);
+      Toast.success('离线包已载入，填好对应口令后可直接开始导入（离线包不走在线预览）');
+    } catch {
+      Toast.error('离线包文件不是合法 JSON');
+    }
+  };
+
   const handleExecute = async () => {
     setExecuting(true);
     try {
@@ -362,6 +416,11 @@ export default function SiteClone() {
         importSettings,
         importDecorate,
         importAssets,
+        importMarketing,
+        importContent,
+        importMail,
+        importShops,
+        package: offlinePkg ?? undefined,
         settingsGroups: selectedGroups,
         includeRiskGroups: includeRisk,
         keepProductStatus: keepStatus,
@@ -383,12 +442,16 @@ export default function SiteClone() {
 
   const handleUndo = async (row: JobRow) => {
     try {
-      const res = await apiPost<{ deletedProducts: number; deletedDecoratePages?: number }>(
-        '/siteClone/jobs/undo',
-        { jobId: row.jobId },
-      );
+      const res = await apiPost<{
+        deletedProducts: number;
+        deletedDecoratePages?: number;
+        deletedMarketing?: number;
+        deletedArticles?: number;
+        deletedShops?: number;
+      }>('/siteClone/jobs/undo', { jobId: row.jobId });
       Toast.success(
-        `已撤销：删除新建商品 ${res.deletedProducts} 件、装修页 ${res.deletedDecoratePages ?? 0} 个`,
+        `已撤销：删除新建商品 ${res.deletedProducts} 件、装修页 ${res.deletedDecoratePages ?? 0} 个` +
+          `、营销模板 ${res.deletedMarketing ?? 0} 个、文章 ${res.deletedArticles ?? 0} 篇、店铺壳 ${res.deletedShops ?? 0} 个`,
       );
       void loadJobs();
     } catch (e) {
@@ -473,11 +536,12 @@ export default function SiteClone() {
     },
     {
       title: '操作',
-      width: 210,
+      width: 280,
       render: (_: unknown, row: CloneKeyRow) => (
         <Space>
           <Button size="small" onClick={() => openEdit(row)}>编辑</Button>
           <Button size="small" onClick={() => void handleReset(row)}>重置口令</Button>
+          <Button size="small" onClick={() => void handleOfflineExport(row)}>离线包</Button>
           {row.status !== -1 && (
             <Popconfirm title="吊销后该密钥立即失效，确定吊销？" onConfirm={() => void handleRevoke(row)}>
               <Button size="small" type="danger">吊销</Button>
@@ -586,7 +650,7 @@ export default function SiteClone() {
         <Title heading={4} style={{ margin: 0 }}>站点搬家</Title>
         <Paragraph type="tertiary" style={{ marginTop: 8, marginBottom: 0 }}>
           把本站的商品与设置分享给另一个 NexTrade 站点（生成搬家口令），或把别站分享的内容一键拉到本站，实现快速开店。
-          支付渠道、各类 API 密钥、站点身份与会员/订单/财务数据不在分享范围内，不会被复制；导入设置前会自动留存快照，可一键回滚。
+          支付渠道、各类 API 密钥、站点身份与会员/订单/财务数据不在分享范围内，不会被复制；营销只搬活动模板（不搬已发放的券/卡）、店铺只搬基础资料壳（不搬商户账号/资金/费率）；导入设置前会自动留存快照，可一键回滚。对方站不在线时可用「离线包」兜底（密钥行上导出、导入侧上传验签）。
         </Paragraph>
       </Card>
 
@@ -621,6 +685,58 @@ export default function SiteClone() {
             <Text type="tertiary">0 = 平台自营店</Text>
             <Button theme="solid" loading={previewLoading} onClick={() => void handlePreview()}>获取分享内容</Button>
           </Space>
+          <Space align="center">
+            <Text>离线包（对方站不在线时用）：</Text>
+            <input
+              id="site-clone-offline-file"
+              type="file"
+              accept=".json,application/json"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                void handleOfflineFile(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+            <Button
+              onClick={() => document.getElementById('site-clone-offline-file')?.click()}
+            >
+              上传离线包文件
+            </Button>
+            {offlinePkg != null && (
+              <>
+                <Tag color="blue">{offlineName}</Tag>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setOfflinePkg(null);
+                    setOfflineName('');
+                  }}
+                >
+                  清除
+                </Button>
+              </>
+            )}
+          </Space>
+          {offlinePkg != null && (
+            <div style={{ border: '1px solid var(--semi-color-border)', padding: 12 }}>
+              <Space wrap>
+                <Checkbox checked={importProducts} onChange={(e) => setImportProducts(e.target.checked ?? false)}>商品</Checkbox>
+                <Checkbox checked={importSettings} onChange={(e) => setImportSettings(e.target.checked ?? false)}>设置</Checkbox>
+                <Checkbox checked={importDecorate} onChange={(e) => setImportDecorate(e.target.checked ?? false)}>装修</Checkbox>
+                <Checkbox checked={importAssets} onChange={(e) => setImportAssets(e.target.checked ?? false)}>素材</Checkbox>
+                <Checkbox checked={importMarketing} onChange={(e) => setImportMarketing(e.target.checked ?? false)}>营销模板</Checkbox>
+                <Checkbox checked={importContent} onChange={(e) => setImportContent(e.target.checked ?? false)}>文章友链</Checkbox>
+                <Checkbox checked={importMail} onChange={(e) => setImportMail(e.target.checked ?? false)}>邮件模板</Checkbox>
+                <Checkbox checked={importShops} onChange={(e) => setImportShops(e.target.checked ?? false)}>店铺壳</Checkbox>
+              </Space>
+              <Paragraph type="tertiary" style={{ margin: '8px 0' }}>
+                离线导入会先校验包内每个文件的 sha256 与整包签名（须与上方口令同一把密钥），验签通过后与在线导入走同一流程；设置组按默认口径（非费率组）导入。
+              </Paragraph>
+              <Button theme="solid" type="primary" loading={executing} onClick={() => void handleExecute()}>
+                开始导入（离线包）
+              </Button>
+            </div>
+          )}
         </div>
 
         {preview && (
@@ -642,6 +758,12 @@ export default function SiteClone() {
             <Paragraph style={{ margin: '8px 0' }}>
               装修页 {preview.decorateTotal} 个（离散组件 {preview.discreteTotal} / 导航与楼层 {preview.navTotal}），
               已导入过 {preview.decorateAlreadyImported} 个（默认跳过）；素材图片 {preview.assetPicTotal} 张 / 视频 {preview.assetVideoTotal} 个（转存到本站存储）。
+            </Paragraph>
+            <Paragraph style={{ margin: '8px 0' }}>
+              营销模板 {preview.marketingTotal} 个活动（已导入过 {preview.marketingAlreadyImported} 个，默认跳过；只搬模板不搬已发放的券/卡，导入后一律停用）；
+              文章 {preview.articleTotal} 篇 / 友链 {preview.friendLinkTotal} 条（已导入文章 {preview.contentAlreadyImported} 篇）；
+              邮件/消息模板 {preview.mailTemplateTotal} 条（按代码覆盖，覆盖前自动快照）；
+              店铺壳 {preview.shopShellTotal} 个（已建壳 {preview.shopsAlreadyImported} 个，新建壳默认暂停运营、不带商户账号与资金）。
             </Paragraph>
             <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
               <div>
@@ -699,6 +821,27 @@ export default function SiteClone() {
                   <Text type="tertiary">装修内的商品/分类引用按已导入映射对齐，对不齐的会置空并在报告中列出。</Text>
                 </div>
               </div>
+              <div>
+                <Space align="center">
+                  <Switch checked={importShops} onChange={setImportShops} />
+                  <Text strong>导入店铺壳（新建为暂停运营）</Text>
+                </Space>
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <Space align="center">
+                    <Switch checked={importMarketing} onChange={setImportMarketing} size="small" />
+                    <Text>导入营销模板（一律停用，检查后手动启用）</Text>
+                  </Space>
+                  <Space align="center">
+                    <Switch checked={importContent} onChange={setImportContent} size="small" />
+                    <Text>导入文章/友链（文章新建为不显示）</Text>
+                  </Space>
+                  <Space align="center">
+                    <Switch checked={importMail} onChange={setImportMail} size="small" />
+                    <Text>导入邮件/消息模板（按代码覆盖，快照可回滚）</Text>
+                  </Space>
+                  <Text type="tertiary">营销活动的店铺归属靠店铺壳映射对齐：其他商户的活动需先导入店铺壳，未建壳的会跳过并在报告列明。</Text>
+                </div>
+              </div>
             </div>
             <Space style={{ marginTop: 14 }}>
               <Button theme="solid" type="primary" loading={executing} onClick={() => void handleExecute()}>
@@ -753,12 +896,16 @@ export default function SiteClone() {
             <Text style={{ width: 90 }}>名称</Text>
             <Input value={formName} onChange={setFormName} placeholder="如：给新站开店用" style={{ width: 300 }} />
           </Space>
-          <Space align="center">
+          <Space align="start" wrap>
             <Text style={{ width: 90 }}>分享域</Text>
             <Checkbox checked={formDomains.includes('products')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'products'] : p.filter((d) => d !== 'products')))}>商品</Checkbox>
             <Checkbox checked={formDomains.includes('settings')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'settings'] : p.filter((d) => d !== 'settings')))}>设置</Checkbox>
             <Checkbox checked={formDomains.includes('decorate')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'decorate'] : p.filter((d) => d !== 'decorate')))}>装修</Checkbox>
             <Checkbox checked={formDomains.includes('assets')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'assets'] : p.filter((d) => d !== 'assets')))}>素材</Checkbox>
+            <Checkbox checked={formDomains.includes('marketing')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'marketing'] : p.filter((d) => d !== 'marketing')))}>营销模板</Checkbox>
+            <Checkbox checked={formDomains.includes('content')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'content'] : p.filter((d) => d !== 'content')))}>文章友链</Checkbox>
+            <Checkbox checked={formDomains.includes('mail')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'mail'] : p.filter((d) => d !== 'mail')))}>邮件模板</Checkbox>
+            <Checkbox checked={formDomains.includes('shops')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'shops'] : p.filter((d) => d !== 'shops')))}>店铺壳</Checkbox>
           </Space>
           <Space align="center">
             <Text style={{ width: 90 }}>源店铺 ID</Text>

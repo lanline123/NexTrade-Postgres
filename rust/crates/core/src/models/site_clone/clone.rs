@@ -12,7 +12,9 @@ use sqlx::FromRow;
 
 /// 导出端协议版本（manifest `exporterVersion`）。导入端拒绝高于自身的大版本。
 /// v2 = P2（装修/素材两域端点上线）；v1 源站无此两端点，导入端按缺失处理。
-pub const EXPORTER_VERSION: i32 = 2;
+/// v3 = P3（营销模板/文章友链/邮件模板/店铺壳四域端点上线）；v1/v2 源站
+/// 无 P3 端点，导入端对 P3 域记说明跳过、既有域照常。
+pub const EXPORTER_VERSION: i32 = 3;
 
 /// 授权域：商品。
 pub const DOMAIN_PRODUCTS: &str = "products";
@@ -22,8 +24,25 @@ pub const DOMAIN_SETTINGS: &str = "settings";
 pub const DOMAIN_DECORATE: &str = "decorate";
 /// 授权域：素材（P2）。
 pub const DOMAIN_ASSETS: &str = "assets";
-/// 全部可授权域（P1 两域 + P2 两域）。
-pub const ALL_DOMAINS: [&str; 4] = [DOMAIN_PRODUCTS, DOMAIN_SETTINGS, DOMAIN_DECORATE, DOMAIN_ASSETS];
+/// 授权域：营销模板（P3：活动/券/卡/抽奖等模板与规则，不含已发放实例）。
+pub const DOMAIN_MARKETING: &str = "marketing";
+/// 授权域：文章/友链（P3）。
+pub const DOMAIN_CONTENT: &str = "content";
+/// 授权域：邮件/消息模板（P3：文本模板与通知渠道开关，不含公众号模板 ID）。
+pub const DOMAIN_MAIL: &str = "mail";
+/// 授权域：店铺壳（P3：店铺基础资料重建，不含商户账号/资金/费率）。
+pub const DOMAIN_SHOPS: &str = "shops";
+/// 全部可授权域（P1 两域 + P2 两域 + P3 四域）。
+pub const ALL_DOMAINS: [&str; 8] = [
+    DOMAIN_PRODUCTS,
+    DOMAIN_SETTINGS,
+    DOMAIN_DECORATE,
+    DOMAIN_ASSETS,
+    DOMAIN_MARKETING,
+    DOMAIN_CONTENT,
+    DOMAIN_MAIL,
+    DOMAIN_SHOPS,
+];
 
 pub const MSG_CLONE_UNAUTHORIZED: &str = "搬家密钥无效";
 pub const MSG_CLONE_DISABLED: &str = "搬家密钥已停用或吊销";
@@ -103,7 +122,9 @@ pub struct SiteCloneSnapshot {
     pub operator_name: String,
     pub source_label: String,
     pub fingerprint: String,
-    /// 快照 JSON：`{groups:{key:原值}, blocks:{code:原值或 null}}`。
+    /// 快照 JSON：`{groups:{key:原值}, blocks:{code:原值或 null}}`；
+    /// P3 起可另含 `mail` / `salesman` 两节（覆盖前的模板与分销规则
+    /// 原值，回滚同通道还原，见 rollback_snapshot）。
     pub payload: String,
     pub group_keys: String,
     /// 1 有效 / 2 已回滚。
@@ -327,6 +348,22 @@ pub struct CloneExecuteDTO {
     /// 导入素材并转存（P2：素材库转存本站存储 + 全站 URL 重写，
     /// 含 P1 已导入商品/设置/外链登记素材的回溯转存）。
     pub import_assets: Option<bool>,
+    /// 导入营销模板（P3：券/秒杀/拼团/限时折扣/促销/礼品卡/抽奖/积分
+    /// 兑换/赠品/充值档位/签到规则 + promotion 镜像行；一律停用态落库，
+    /// 已发放实例不搬）。
+    pub import_marketing: Option<bool>,
+    /// 导入文章/友链（P3：文章分类按名对齐、文章新建为不显示）。
+    pub import_content: Option<bool>,
+    /// 导入邮件/消息模板（P3：按 template_code / message_id 覆盖，
+    /// 覆盖前原值进导入前快照，可一键回滚）。
+    pub import_mail: Option<bool>,
+    /// 导入店铺壳（P3：为源站其他店铺在本站新建暂停运营的壳店铺，
+    /// 不含商户账号/资金/费率；含分销规则 salesman_config 按店对齐）。
+    pub import_shops: Option<bool>,
+    /// 离线包内容（P3 兜底通道）：粘贴/上传导出的离线包 JSON 时走离线
+    /// 导入——逐文件验 sha + HMAC 验签通过后与在线导入共用同一编排，
+    /// `source` 仍须提供对应密钥三元组（验签与指纹都依赖它）。
+    pub package: Option<serde_json::Value>,
     /// 勾选导入的设置组 key（缺省 = 全部非风险组）；风险组须同时置
     /// `include_risk_groups = true` 才生效。
     pub settings_groups: Option<Vec<String>>,
@@ -374,6 +411,22 @@ pub struct ClonePreviewVO {
     pub asset_video_total: i64,
     /// 已导入过的装修页数（默认跳过，防重复建页）。
     pub decorate_already_imported: i64,
+    /// 营销模板活动总数（P3；未授权营销域或源站版本过低时为 0）。
+    pub marketing_total: i64,
+    /// 文章总数（P3）。
+    pub article_total: i64,
+    /// 友链总数（P3）。
+    pub friend_link_total: i64,
+    /// 邮件模板 + 消息类型合计条数（P3）。
+    pub mail_template_total: i64,
+    /// 店铺壳总数（P3，源站全部店铺）。
+    pub shop_shell_total: i64,
+    /// 已导入过的营销模板数（映射合计，默认跳过）。
+    pub marketing_already_imported: i64,
+    /// 已导入过的文章数（默认跳过）。
+    pub content_already_imported: i64,
+    /// 已建过的店铺壳数（默认跳过）。
+    pub shops_already_imported: i64,
     /// 设置组清单（含风险标记与字段数）。
     pub settings_groups: Vec<CloneSettingsGroupInfo>,
     /// 将整块覆盖的独立 JSON 设置块 code 列表。
@@ -418,6 +471,17 @@ pub struct CloneManifestVO {
     pub asset_pic_total: i64,
     /// 素材视频总数（P2）。
     pub asset_video_total: i64,
+    /// 营销模板活动总数（P3：券+秒杀+拼团+限时折扣+促销+礼品卡组+
+    /// 抽奖+积分兑换，不含已发放实例；未授权营销域时为 0）。
+    pub marketing_total: i64,
+    /// 文章总数（P3；未授权文章域时为 0）。
+    pub article_total: i64,
+    /// 友链总数（P3）。
+    pub friend_link_total: i64,
+    /// 邮件模板 + 消息类型合计（P3；未授权邮件域时为 0）。
+    pub mail_template_total: i64,
+    /// 店铺壳总数（P3：源站全部未删除店铺；未授权店铺壳域时为 0）。
+    pub shop_shell_total: i64,
     /// 豁免声明（明示不导出的域，供导入端预览展示）。
     pub exempt_note: String,
 }
@@ -877,6 +941,661 @@ pub struct CloneAssetVideo {
     pub size: Option<String>,
     pub description: Option<String>,
 }
+
+// ———————————————————— P3：营销模板序列化包 ————————————————————
+
+/// `GET /clone/v1/marketing` 返回：营销「模板/规则」全集（各活动的定义行
+/// 与明细行），**不含任何已发放/已参与实例**（user_coupon、gift_cards、
+/// groupon_promotion_record、lottery_record 等实例表不设端点、不导出）。
+/// 引用口径：商品/分类/品牌引用在导入端按 import_map 重写；SKU 引用随
+/// `sku_directory` 给出源 SKU 的商品归属与货号，导入端按货号在目标商品
+/// 的 SKU 列表中对齐（对不齐的明细行跳过并在任务报告列明）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloneMarketingPackage {
+    pub coupons: Vec<CloneCoupon>,
+    pub seckills: Vec<CloneSeckill>,
+    pub seckill_items: Vec<CloneSeckillItem>,
+    pub groupons: Vec<CloneGroupon>,
+    pub groupon_items: Vec<CloneGrouponItem>,
+    pub groupon_details: Vec<CloneGrouponDetail>,
+    pub groupon_shops: Vec<CloneGrouponShops>,
+    pub time_discounts: Vec<CloneTimeDiscount>,
+    pub time_discount_items: Vec<CloneTimeDiscountItem>,
+    pub product_promotions: Vec<CloneProductPromotion>,
+    /// `promotion` 统一镜像行（relation_id 指向上面各活动，导入端按
+    /// type 分发到对应活动映射重写；源站没有镜像行的活动不凭空造行）。
+    pub promotions: Vec<ClonePromotion>,
+    pub points_exchanges: Vec<ClonePointsExchange>,
+    pub product_gifts: Vec<CloneProductGift>,
+    pub recharge_settings: Vec<CloneRechargeSetting>,
+    pub sign_in_settings: Vec<CloneSignInSetting>,
+    pub gift_card_groups: Vec<CloneGiftCardGroup>,
+    pub gift_card_products: Vec<CloneGiftCardProduct>,
+    pub gift_scope_products: Vec<CloneGiftScopeRef>,
+    pub gift_scope_categories: Vec<CloneGiftScopeRef>,
+    pub lotteries: Vec<CloneLotteryActivity>,
+    pub lottery_prizes: Vec<CloneLotteryPrize>,
+    /// 被上述任一行引用的源 SKU 目录（sku_id → 商品 + 货号）。
+    pub sku_directory: Vec<CloneSkuRef>,
+}
+
+/// 优惠券模板序列化（`coupon` 行，导出侧已过滤 is_delete=1）。
+/// 导入防呆：`is_show` 强制 0（不公开领取）、`send_num` 归 0。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneCoupon {
+    pub coupon_id: i32,
+    pub coupon_name: String,
+    pub coupon_money: Decimal,
+    pub coupon_discount: Decimal,
+    pub coupon_desc: String,
+    pub coupon_type: i32,
+    /// 使用范围：1 分类 / 2 品牌 / 3 指定商品 / 4 排除商品 / 其他 全场。
+    pub send_range: i32,
+    /// 范围 id 列表原文（Java List.toString，如 `[1, 2]`），按
+    /// send_range 在导入端分发到分类/品牌/商品映射重写。
+    pub send_range_data: String,
+    pub min_order_amount: Decimal,
+    pub send_start_date: i32,
+    pub send_end_date: i32,
+    pub send_type: i32,
+    pub use_day: i32,
+    pub use_start_date: i32,
+    pub use_end_date: i32,
+    pub is_show: i32,
+    pub is_global: i32,
+    pub is_new_user: i32,
+    pub enabled_click_get: i32,
+    /// 会员等级 id 列表原文（等级为两站同源体系字典，按原值搬运）。
+    pub limit_user_rank: Option<String>,
+    pub shop_id: Option<i32>,
+    pub limit_num: Option<i32>,
+    pub delay_day: i32,
+    pub max_order_amount: Decimal,
+    pub coupon_unit: i32,
+    pub reduce_type: i32,
+}
+
+/// 秒杀活动序列化（`seckill` 行）。无启停标志，生效与否由时间窗决定，
+/// 时间原样搬运（模板口径）；其 promotion 镜像行 is_available 强制 0。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneSeckill {
+    pub seckill_id: i32,
+    pub seckill_name: Option<String>,
+    pub seckill_start_time: Option<i32>,
+    pub seckill_end_time: Option<i32>,
+    pub seckill_limit_num: Option<i32>,
+    pub product_id: Option<i32>,
+    pub shop_id: i32,
+}
+
+/// 秒杀明细序列化（`seckill_item` 行；导入时 seckill_sales 归 0）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneSeckillItem {
+    pub rec_id: i32,
+    pub seckill_id: Option<i32>,
+    pub product_id: Option<i32>,
+    pub sku_id: Option<i32>,
+    pub seckill_price: Option<Decimal>,
+    pub seckill_stock: Option<i32>,
+    pub seckill_start_time: Option<i32>,
+    pub seckill_end_time: Option<i32>,
+}
+
+/// 拼团活动序列化（`groupon_promotion` 行，i64 主键；旧 `groupon` 表
+/// 无任何在役消费者，不导出）。时间原样搬运，镜像行停用（同秒杀口径）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneGroupon {
+    pub groupon_promotion_id: i64,
+    pub name: String,
+    pub start_time: i64,
+    pub end_time: i64,
+    pub group_type: i32,
+    pub expiration_time: i64,
+    pub groupon_image: Option<String>,
+    pub pc_groupon_image: Option<String>,
+    pub share_image: Option<String>,
+    pub groupon_explain: Option<String>,
+    pub shop_id: Option<i32>,
+}
+
+/// 拼团商品行序列化（`groupon_promotion_item` 行）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneGrouponItem {
+    pub groupon_promotion_item_id: i64,
+    pub groupon_promotion_id: i64,
+    pub product_id: i64,
+    pub group_type: i32,
+    /// 成团人数阶梯 JSON 原文（无外部引用，透传）。
+    pub group_num: String,
+    pub order_limit_num: i32,
+    pub is_auto_group: i32,
+    pub min_group_num: i32,
+    pub sort: i32,
+    pub min_group_price: Option<Decimal>,
+}
+
+/// 拼团规格价行序列化（`groupon_promotion_detail` 行，SKU 级价格）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneGrouponDetail {
+    pub groupon_detail_id: i64,
+    pub groupon_promotion_id: i64,
+    pub groupon_promotion_item_id: i64,
+    pub product_id: i64,
+    pub sku_id: i64,
+    pub group_price: String,
+    pub limit_num: i32,
+    pub is_join: i32,
+}
+
+/// 拼团适用店铺行序列化（`groupon_promotion_shops` 行；shop_ids 为
+/// JSON 店铺 id 列表原文，导入端按店铺壳映射重写、对不齐剔除）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneGrouponShops {
+    pub groupon_shop_id: i32,
+    pub groupon_promotion_id: Option<i32>,
+    pub shop_ids: Option<String>,
+}
+
+/// 限时折扣序列化（`time_discount` 行）。时间在明细行上，原样搬运。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneTimeDiscount {
+    pub discount_id: i32,
+    pub promotion_name: String,
+    pub start_time: i32,
+    pub end_time: i32,
+    pub shop_id: i32,
+}
+
+/// 限时折扣明细序列化（`time_discount_item` 行；sku_ids 为 JSON 列表
+/// 原文，空 = 全部规格；导入端逐个按货号对齐，对不齐剔除；源非空而
+/// 对齐后全空时整行跳过——避免语义放大为全部规格）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneTimeDiscountItem {
+    pub item_id: i32,
+    pub discount_id: i32,
+    pub start_time: i32,
+    pub end_time: i32,
+    pub product_id: i32,
+    pub sku_ids: Option<String>,
+    pub value: Decimal,
+    pub discount_type: i32,
+}
+
+/// 满减/折扣/满赠序列化（`product_promotion` 行）。
+/// 导入防呆：`is_available` 强制 0。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneProductPromotion {
+    pub promotion_id: i32,
+    pub promotion_name: String,
+    pub start_time: i32,
+    pub end_time: i32,
+    /// 会员等级列表原文（同源字典，按原值搬运）。
+    pub limit_user_rank: String,
+    /// 范围：0 全部 / 3 指定商品 / 4 排除商品（本表仅此三值有定义）。
+    pub range: i32,
+    /// 范围商品 id 列表原文（JSON），按商品映射重写。
+    pub range_data: String,
+    pub min_order_amount: Decimal,
+    pub max_order_amount: Decimal,
+    /// 1 满减 / 2 折扣 / 3 满赠。
+    pub promotion_type: i32,
+    /// 阶梯规则 JSON 原文（数组，元素含 gift_id → 按赠品映射重写）。
+    pub promotion_type_data: String,
+    pub is_available: i32,
+    pub sort_order: i32,
+    pub shop_id: i32,
+    pub rules_type: i32,
+    pub unit: i32,
+}
+
+/// `promotion` 统一活动镜像行序列化。导入防呆：`is_available` 强制 0、
+/// `is_delete` 强制 0；relation_id 按 type 重写（1 秒杀 / 2 优惠券 /
+/// 3、4、5 满减折扣满赠（product_promotion）/ 6 限时折扣 / 8 抽奖），
+/// 关系对不齐整行跳过；range_data / sku_ids 按同名字段口径重写，
+/// member_* 会员人群字段为同源字典口径、按原值搬运。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct ClonePromotion {
+    pub promotion_id: i32,
+    pub promotion_name: String,
+    pub start_time: i32,
+    pub end_time: i32,
+    pub r#type: i32,
+    pub shop_id: i32,
+    pub relation_id: Option<i32>,
+    pub range: Option<i32>,
+    pub range_data: Option<String>,
+    pub sku_ids: Option<String>,
+    pub member_range: i32,
+    pub member_marks: Option<String>,
+    pub member_scope: Option<String>,
+}
+
+/// 积分兑换规则序列化（`points_exchange` 行）。
+/// 导入防呆：`is_enabled` 强制 0。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct ClonePointsExchange {
+    pub id: i32,
+    pub product_id: i32,
+    pub exchange_integral: i32,
+    pub points_deducted_amount: Decimal,
+    pub is_hot: i32,
+    pub is_enabled: i32,
+    pub sku_id: Option<i32>,
+    /// 1 兑商品 / 2 兑优惠券。
+    pub exchange_type: i32,
+    pub coupon_id: Option<i32>,
+}
+
+/// 赠品定义序列化（`product_gift` 行；被满赠阶梯与充值档位引用，
+/// 营销域内先于引用方导入）。sku 对不齐时降为整品赠品（sku_id=0）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneProductGift {
+    pub gift_id: i32,
+    pub gift_name: String,
+    pub gift_stock: i32,
+    pub product_id: i32,
+    pub sku_id: i32,
+    pub shop_id: i32,
+}
+
+/// 充值档位序列化（`recharge_setting` 行；gift_id 按赠品映射重写，
+/// 对不齐置 0 = 无赠品）。导入防呆：`is_show` 强制 0。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneRechargeSetting {
+    pub recharge_id: i32,
+    pub money: Option<Decimal>,
+    pub discount_money: Option<Decimal>,
+    pub sort_order: Option<i32>,
+    pub is_show: Option<i32>,
+    pub gift_id: i32,
+    pub gift_quantity: i32,
+}
+
+/// 签到规则序列化（`sign_in_setting` 行，平台级、无店铺维）。
+/// 导入按 day_num 对齐：本站已有同 day_num 规则时跳过（防翻倍），
+/// 仍登记映射以便撤销口径统一（撤销时同理跳过删除本站原有行——
+/// 映射的 target_id 记本站既有行 id、撤销按「非本任务新建」处理，
+/// 见导入端实现注释）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneSignInSetting {
+    pub id: i32,
+    pub name: Option<String>,
+    pub points: Option<i32>,
+    pub day_num: Option<i32>,
+    pub sort_order: i32,
+}
+
+/// 礼品卡组序列化（`gift_card_groups` 行 + 012 适用范围列）。
+/// 导入防呆：`status` 强制 0（关闭）。已发行卡（gift_cards，含卡密）
+/// 属实例资产，不导出。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneGiftCardGroup {
+    pub card_groups_id: i32,
+    pub group_type: i32,
+    pub card_type: i32,
+    pub card_group_name: String,
+    pub image_url: Option<String>,
+    pub validity_type: i32,
+    pub validity_days: Option<i32>,
+    pub expire_time: Option<i32>,
+    pub face_amount: Option<Decimal>,
+    pub status: i32,
+    pub remark: Option<String>,
+    pub shop_id: Option<i32>,
+    pub availability_stock: Option<i32>,
+    /// 适用范围：0 全部 / 1 指定商品 / 2 指定品类（迁移 012）。
+    pub scope_type: i32,
+}
+
+/// 礼品卡兑换商品池行序列化（`gift_card_products` 行）。
+/// sku 对不齐时降为整品绑定（sku_id=0）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneGiftCardProduct {
+    pub gift_product_id: i32,
+    pub card_groups_id: i32,
+    pub product_id: i32,
+    pub sku_id: i32,
+}
+
+/// 礼品卡适用范围引用行（商品或品类，结构相同、两表共用）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneGiftScopeRef {
+    pub card_groups_id: i32,
+    /// 商品表时为 product_id、品类表时为 category_id（按所在 Vec 区分）。
+    pub ref_id: i32,
+}
+
+/// 抽奖活动序列化（`lottery_activity` 行）。无启停标志，时间原样
+/// 搬运、镜像行停用（同秒杀口径）；decorate_config 内的商品/分类
+/// 引用走装修同款变换重写。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneLotteryActivity {
+    pub activity_id: i32,
+    pub activity_name: String,
+    pub start_time: i32,
+    pub end_time: i32,
+    pub cost_points: i32,
+    pub daily_limit: i32,
+    pub total_limit: i32,
+    pub win_limit: i32,
+    pub decorate_config: Option<String>,
+    pub grid_config: Option<String>,
+    pub no_win_name: String,
+    pub no_win_image: String,
+    pub no_win_tips: String,
+    pub shop_id: i32,
+    pub cost_type: i32,
+    pub share_reward_enabled: i32,
+    pub share_reward_count: i32,
+    pub share_reward_daily_limit: i32,
+    pub share_reward_total_limit: i32,
+}
+
+/// 抽奖奖品序列化（`lottery_prize` 行；导入时 prize_stock_used 归 0）。
+/// prize_value 按 prize_type 解释：1 积分 = 积分数（原值）；2 商品 =
+/// 商品 id（按商品映射重写）；3 优惠券 = 券 id（按券映射重写）；
+/// 对不齐的奖品行跳过并在任务报告列明。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneLotteryPrize {
+    pub prize_id: i32,
+    pub activity_id: i32,
+    pub prize_name: String,
+    pub prize_type: i32,
+    pub prize_value: String,
+    pub prize_image: String,
+    pub prize_stock: i32,
+}
+
+/// 源 SKU 目录项：营销明细的 SKU 引用靠它在导入端按货号对齐。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneSkuRef {
+    pub sku_id: i32,
+    pub product_id: i32,
+    /// 货号（运营可控的跨站稳定标识；空串表示无货号，只能靠
+    /// 「源/本站均为单 SKU」兜底对齐）。
+    pub sku_sn: String,
+}
+
+// ———————————————————— P3：文章/友链序列化包 ————————————————————
+
+/// `GET /clone/v1/content` 返回：文章分类 + 文章 + 文章-商品关联 + 友链。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloneContentPackage {
+    pub categories: Vec<CloneArticleCategory>,
+    pub articles: Vec<CloneArticle>,
+    pub article_products: Vec<CloneArticleProduct>,
+    pub friend_links: Vec<CloneFriendLink>,
+}
+
+/// 文章分类序列化（导入按名称路径对齐，同商品分类口径；
+/// 结构域对象撤销时保留）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneArticleCategory {
+    pub article_category_id: i32,
+    pub article_category_name: String,
+    pub category_sn: String,
+    pub category_type: i32,
+    pub keywords: String,
+    pub description: String,
+    pub sort_order: i32,
+    pub parent_id: i32,
+}
+
+/// 文章序列化。导入防呆：`is_show` 强制 0（不显示）、`click_count`
+/// 归 0（运营数据不搬）；正文 HTML 内的源站素材地址按素材转存映射
+/// 重写（素材域已导入时）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneArticle {
+    pub article_id: i32,
+    pub article_title: String,
+    pub article_category_id: i32,
+    pub article_sn: String,
+    pub article_thumb: String,
+    pub article_tag: String,
+    pub article_author: String,
+    pub article_type: i32,
+    pub content: String,
+    pub description: Option<String>,
+    pub keywords: String,
+    pub is_hot: i32,
+    pub is_top: i32,
+    pub link: String,
+}
+
+/// 文章-商品关联行（`product_article`：goods_id × article_id）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneArticleProduct {
+    pub article_id: i32,
+    pub goods_id: i32,
+}
+
+/// 友情链接序列化（导入按 标题+地址 去重）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneFriendLink {
+    pub link_id: i32,
+    pub link_title: String,
+    pub link_logo: String,
+    pub link_url: String,
+    pub sort_order: i32,
+}
+
+// ———————————————————— P3：邮件/消息模板序列化包 ————————————————————
+
+/// `GET /clone/v1/mail` 返回：邮件模板文本 + 消息类型渠道开关配置。
+/// **豁免**：`message_template`（微信模板消息）不导出——其 template_id
+/// 是源站公众号在微信侧签发的外部标识，复制到本站会指向错误公众号，
+/// 属站点身份绑定信息；`mailSettings`（SMTP 凭据）在设置域已豁免，
+/// 本域同样不碰。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloneMailPackage {
+    pub templates: Vec<CloneMailTemplate>,
+    pub message_types: Vec<CloneMessageType>,
+}
+
+/// 邮件模板序列化（`mail_templates` 行；按 template_code 对齐覆盖，
+/// `last_send` 为运行态统计不搬、导入端不动本站原值）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneMailTemplate {
+    pub template_id: i32,
+    pub template_code: String,
+    pub is_html: i32,
+    pub template_subject: String,
+    pub template_content: String,
+    pub r#type: String,
+}
+
+/// 消息类型配置序列化（`message_type` 行：通知类型的各渠道开关，
+/// 按 message_id 对齐覆盖；name/describe 为两站同源字典文案一并搬运）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneMessageType {
+    pub message_id: i32,
+    pub name: Option<String>,
+    pub describe: Option<String>,
+    pub send_type: Option<i32>,
+    pub is_wechat: Option<i32>,
+    pub is_mini_program: Option<i32>,
+    pub is_message: Option<i32>,
+    pub is_msg: Option<i32>,
+    pub is_app: Option<i32>,
+    pub is_ding: Option<i32>,
+    pub is_wx_work: i32,
+    pub is_mail: i32,
+}
+
+// ———————————————————— P3：店铺壳序列化包 ————————————————————
+
+/// `GET /clone/v1/shops` 返回：全部未删除店铺的「壳」字段 + 分销规则。
+/// **豁免字段**（逐项）：merchant_id（商户账号绑定）、shop_money /
+/// frozen_money（资金）、fee_rate / service_fee_rate（费率条款）、
+/// vendor_set_price_type / vendor_set_price_auto_value（供应商定价
+/// 条款）、click_count / shop_sales / shop_star / shop_total_star /
+/// shop_star_num（运营数据）、last_login_time（运行态）。导入端：
+/// 新建壳一律 status=4（暂停运营）、资金归 0、merchant_id=0，
+/// 绑定商户账号后由平台开启；store_parent_id 按壳映射二次回填。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloneShopsPackage {
+    pub shops: Vec<CloneShop>,
+    pub salesman_configs: Vec<CloneSalesmanConfig>,
+}
+
+/// 店铺壳序列化（`shop` 行的资料子集，见 CloneShopsPackage 豁免说明）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneShop {
+    pub shop_id: i32,
+    pub shop_title: Option<String>,
+    pub shop_logo: Option<String>,
+    pub description: Option<String>,
+    pub contact_mobile: Option<String>,
+    pub kefu_phone: Option<String>,
+    pub kefu_weixin: Option<String>,
+    pub kefu_link: Option<String>,
+    pub is_contact_kefu: i32,
+    pub kefu_inlet: Option<String>,
+    /// 发货信息（店铺自身业务资料，随壳搬运）。
+    pub ship_info: Option<String>,
+    /// 收货信息（同上）。
+    pub receive_info: Option<String>,
+    /// 1 店铺 / 2 门店 / 3 自提点。
+    pub shop_type: Option<i32>,
+    /// 父级店铺 id（门店归属），导入端按壳映射回填。
+    pub store_parent_id: Option<i32>,
+    pub shop_cover_picture: Option<String>,
+    pub shop_show_picture: Option<String>,
+    pub shop_contact_json: Option<String>,
+    pub shop_open_close_json: Option<String>,
+    /// 区划 id（两站同源区划字典，按原值搬运）。
+    pub shop_region_id: Option<String>,
+    pub shop_detailed_address: Option<String>,
+    pub shop_longitude: Option<Decimal>,
+    pub shop_latitude: Option<Decimal>,
+    pub use_shop_category: Option<i32>,
+    pub shop_show_category: Option<String>,
+    pub auto_erase_zero: i32,
+    pub auto_deduction_points: i32,
+    pub default_collection_method: i32,
+    pub auto_add_cart_after_scan: i32,
+    pub auto_print_online_order: i32,
+    pub auto_print_offline_order: i32,
+    pub shop_common_remarks: Option<String>,
+    pub pos_product_source: Option<String>,
+}
+
+/// 分销规则序列化（`salesman_config` 行：仅 salesmanConfig /
+/// salesmanSettlement 两 code 有业务语义，data 为规则 JSON 原文，
+/// 不含任何凭据）。导入按（壳映射后 shop_id, code）upsert，
+/// 覆盖前原值进 P3 快照可回滚。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneSalesmanConfig {
+    pub id: i32,
+    pub shop_id: Option<i32>,
+    pub code: Option<String>,
+    pub data: Option<String>,
+}
+
+// ———————————————————— P3：离线包 ————————————————————
+
+/// 离线包文件格式（导出端生成、导入端验签后走同一导入编排）。
+/// `files[].content` 为对应 `/clone/v1` 端点 `data` 载荷的 JSON 原文；
+/// 每个文件带 sha256，整包带 HMAC-SHA256 签名：签名键为密钥
+/// secret 的 SHA-256（即落库的 secret_hash——导出端用落库哈希签名、
+/// 导入端用口令中的 secret 现算哈希验签，两侧都不需要明文落盘）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloneOfflinePackage {
+    /// 固定 `nextrade-clone-package`。
+    pub format: String,
+    pub package_version: i32,
+    pub key_code: String,
+    pub source_label: String,
+    pub source_origin: String,
+    pub source_shop_id: i32,
+    pub exporter_version: i32,
+    pub created_at: i32,
+    pub files: Vec<CloneOfflineFile>,
+    /// HMAC-SHA256(secret_hash, 规范串) 的 hex；规范串 = 文件按名
+    /// 排序后逐个 `name\nsha256\n` 拼接。
+    pub signature: String,
+}
+
+/// 离线包内的一个数据文件。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloneOfflineFile {
+    /// 端点名：manifest / catalog / products / settings / decorate /
+    /// assets / marketing / content / mail / shops。
+    pub name: String,
+    /// content 的 SHA-256（hex）。
+    pub sha256: String,
+    /// 端点 data 载荷 JSON 原文。
+    pub content: String,
+}
+
+/// 离线包格式标识。
+pub const OFFLINE_PACKAGE_FORMAT: &str = "nextrade-clone-package";
+/// 离线包格式版本（随 EXPORTER_VERSION v3 首发）。
+pub const OFFLINE_PACKAGE_VERSION: i32 = 3;
 
 #[cfg(test)]
 mod tests {
