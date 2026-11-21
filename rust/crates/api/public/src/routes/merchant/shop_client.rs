@@ -303,9 +303,9 @@ async fn mini_program_context(
             shop_title: svc.shop_title(shop_id).await?,
             app_id: app_id.to_string(),
         }),
-        AppResolution::Unknown => Err(Error::Forbidden(
+        AppResolution::Unknown => Err(AppError(Error::Forbidden(
             "该小程序未绑定店铺或绑定已停用".into(),
-        )),
+        ))),
     }
 }
 

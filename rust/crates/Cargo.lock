@@ -2315,6 +2315,7 @@ dependencies = [
  "axum-extra",
  "base64 0.22.1",
  "chrono",
+ "futures",
  "hmac",
  "nextrade-common",
  "nextrade-core",

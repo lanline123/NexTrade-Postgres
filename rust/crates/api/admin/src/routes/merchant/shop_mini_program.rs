@@ -25,7 +25,7 @@ use axum::{
 use serde::Deserialize;
 
 use nextrade_core::Error;
-use nextrade_security::web::{ok, ApiResult, TenantContext};
+use nextrade_security::web::{ok, ApiResult, AppError, TenantContext};
 use nextrade_services::merchant::shop_mini_program::{
     ShopMiniProgramBind, ShopMiniProgramItem, ShopMiniProgramStatus,
 };
@@ -106,7 +106,7 @@ async fn ensure_binding_access(
     Ok(())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct ListQuery {
     keyword: Option<String>,
@@ -126,7 +126,7 @@ async fn list(
     if let Some(own) = tenant.shop_scope() {
         rows.retain(|r| r.shop_id == own);
     } else if !tenant.is_platform() {
-        return Err(Error::Forbidden("缺少店铺租户上下文".into()));
+        return Err(AppError(Error::Forbidden("缺少店铺租户上下文".into())));
     }
     ok(rows)
 }
@@ -158,7 +158,7 @@ async fn bind(
         .await?)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct IdBody {
     id: Option<i32>,
