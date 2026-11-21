@@ -2242,3 +2242,10 @@
 ### 新增
 
 - **抖音团购券手工输码核销入口（我方新增·外卖聚合二期登记后续小批）**：二期已实装抖音验券链（`DouyinAdapter::verify_certificate`：prepare → verify），但管理端无入口，商家拿到顾客口头/截图券码时无处核销。本批补齐：后端新增管理服务 `verify_douyin_certificate` 与路由 `POST /adminapi/setting/takeout/douyin/verify`（入参 bindingId + 明文券码）——按绑定取商家授权令牌与渠道门店 ID（抖音 POI，取绑定 `external_poi_id`）走既有核销链，权限与绑定/外部订单同口径（平台全部、门店仅本店，`TenantScope` 校验）；核销成功后按抖音订单号匹配本地外部单并置「已核销」（completed）+ 内部单状态同步，匹配不到如实回 `localOrder = null` 不假装已对齐；失败一律原样透传渠道错误（券码不可用/已核销/接口报错），不假成功。为此 `verify_certificate` 成功时把 prepare 阶段的抖音订单号以 `order_id` 键补入返回载荷（渠道原始响应已有同名键则不覆盖）。管理端「外卖聚合」页新增「抖音券码核销」卡：选抖音绑定 + 输码 → 核销，成功回显抖音订单号与对应本地订单（外部单/内部单/状态同步结果），失败红字展示渠道返回原因。无迁移。验收口径：CI check-rust + build-admin 绿后随合并版上线；真实核销须等抖音凭据点亮（服务商入驻/应用/商家授权，见二期报告凭据清单）后以真实券码实调，并顺带校准 D-3（prepare 响应字段名）。
+
+## 0.0.2 续 · 2026-11-22 批次（登录滑块验证码三项体验修复，未部署——随下一后端 + PC + admin 合并版上线）
+
+### 修复
+
+- **滑块验证码体验三修（用户 2026-11-22 实页反馈；校验协议/后端核验契约零改动）**：① 图片观感——拼图块加常态投影（`drop-shadow`，在纹理较密的照片背景上可辨认）、画布加内描边、手柄加投影；后端生成缩放滤镜 Triangle → Lanczos3（785×395 → 310×155 边缘更锐利，仅生成画质变化，`rust/crates/services/src/system/captcha.rs`）。背景图本体是后端内置单张照片按 AJ-Captcha 协议逐次切割下发，前端无法替换图源（换图须动生成侧方案，另行立项）。② 光标——拖动区（画布/拼图块/轨道/手柄）统一 `grab`，拖动期间经 `body.pc-verify-dragging` 全页钉 `grabbing !important`，指针划过任何子元素都不再跳变/「消失」；画布与轨道补 `touch-action: none`。③ 卡顿——window 级拖动监听改经 handlersRef 转发最新处理器（旧实现闭包捕获打开瞬间的 `verify`、其 captcha 恒为 null，在面板外松手时校验永远发不出去、界面停在 moving 态像卡死）；拖动位置改 rAF 合帧应用（每秒上百次 mousemove → ≤60 次/秒重渲染）、轨道宽度按下时缓存（消除逐帧读 `clientWidth` 的强制同步布局）、拼图块定位 `left` 改 `transform: translateX`（合成器动画）；释放时同步落下最后一帧位置，校验坐标不变。PC（`pc-semi/src/components/VerifySlide.tsx` + `app/pages-source.scss`）与 admin 同构副本（`admin-semi/src/components/VerifySlide.tsx` + `src/styles.css`）同修；H5 为 uniapp 原版移植的另一实现（触屏无光标问题），未动。报告：`~/workspace/login-captcha-fix/REPORT.md`。
+- **浮动「联系客服」全站移除（配置侧，用户 2026-11-22 指令）**：该红色浮标非站内组件，而是后台客服 JS 代码位（config 表 `kefuJavascript` / `wapKefuJavascript` 两行）注入的腾讯云智服（yzf.qq.com）第三方脚本，由 PC 根布局每页底部执行故全站出现；已由主聊清空两行配置值（原值备份在服务器 `/www/backup/kefu_js_backup_20261122.txt`），实测登录页/首页 HTML 中脚本已消失。代码侧无动作；GlobalSideTools 侧边栏客服入口与 IM/客服主链不受影响。

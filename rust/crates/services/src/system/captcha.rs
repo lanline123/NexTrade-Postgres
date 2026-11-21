@@ -130,8 +130,10 @@ pub fn new_captcha() -> Result<CaptchaVO> {
         image::load_from_memory(include_bytes!("captcha_bg.jpg"))
             .unwrap_or_else(|_| image::DynamicImage::new_rgb8(BG_W, BG_H))
     });
+    // 785×395 原图缩到 310×155：用 Lanczos3 而非 Triangle（双线性），
+    // 边缘明显更锐利；只影响生成画质，token/坐标/校验协议不变。
     let original = source
-        .resize_to_fill(BG_W, BG_H, image::imageops::FilterType::Triangle)
+        .resize_to_fill(BG_W, BG_H, image::imageops::FilterType::Lanczos3)
         .to_rgba8();
     let mut bg = original.clone();
 

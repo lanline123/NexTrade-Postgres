@@ -47,6 +47,11 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
   const startXRef = useRef(0);
   const draggingRef = useRef(false);
   const statusRef = useRef<'idle' | 'moving' | 'success' | 'fail'>('idle');
+  /** 拖动开始时缓存的轨道宽度（拖动中不再逐帧读 clientWidth 触发强制同步布局） */
+  const trackWidthRef = useRef(0);
+  /** 待应用的拖动位置 + 已排队的动画帧句柄（mousemove 合帧用） */
+  const pendingLeftRef = useRef<number | null>(null);
+  const rafRef = useRef(0);
 
   const setMove = (value: number) => {
     moveLeftRef.current = value;
@@ -83,34 +88,64 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
     if (statusRef.current === 'success' || statusRef.current === 'fail' || checking) return;
     draggingRef.current = true;
     startXRef.current = clientX - moveLeftRef.current;
+    trackWidthRef.current = trackRef.current?.clientWidth || IMG_WIDTH;
+    // 拖动期间把全页光标钉为 grabbing（样式侧 body.pc-verify-dragging），指针划过任何子元素都不丢光标
+    document.body.classList.add('pc-verify-dragging');
   };
 
+  // mousemove 每秒可达上百次：位置只入队、每动画帧最多应用一次，
+  // 且宽度用 startDrag 缓存值，不再逐帧读 clientWidth（旧实现的主要卡顿源，与 PC 版同修）
   const moveDrag = (clientX: number) => {
     if (!draggingRef.current) return;
-    const track = trackRef.current;
-    if (!track) return;
-    const max = Math.max(0, track.clientWidth - 48);
+    const max = Math.max(0, (trackWidthRef.current || IMG_WIDTH) - 48);
     const next = Math.max(0, Math.min(max, clientX - startXRef.current));
-    setMove(next);
-    setStatusBoth('moving');
+    pendingLeftRef.current = next;
+    if (statusRef.current !== 'moving') setStatusBoth('moving');
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = 0;
+        if (pendingLeftRef.current !== null) {
+          setMove(pendingLeftRef.current);
+          pendingLeftRef.current = null;
+        }
+      });
+    }
   };
 
   const endDrag = () => {
     if (!draggingRef.current) return;
     draggingRef.current = false;
+    document.body.classList.remove('pc-verify-dragging');
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    // 校验前先把排队中的最后一帧位置同步落下，保证提交坐标就是释放点
+    if (pendingLeftRef.current !== null) {
+      setMove(pendingLeftRef.current);
+      pendingLeftRef.current = null;
+    }
     if (statusRef.current !== 'moving') return;
     void verify(moveLeftRef.current);
   };
 
+  // 处理器经 handlersRef 转发到最新一次渲染的 moveDrag/endDrag：旧实现直接闭包
+  // 捕获打开瞬间的处理器，其 verify 闭包里的 captcha 还是 null，在面板外松手时
+  // 校验永远发不出去（界面停在 moving 态、看起来像卡死），与 PC 版同修。
+  const handlersRef = useRef({ moveDrag, endDrag });
+  useEffect(() => {
+    handlersRef.current = { moveDrag, endDrag };
+  });
+
   useEffect(() => {
     if (!open) return undefined;
-    const onWinMove = (event: MouseEvent) => moveDrag(event.clientX);
-    const onWinUp = () => endDrag();
+    const onWinMove = (event: MouseEvent) => handlersRef.current.moveDrag(event.clientX);
+    const onWinUp = () => handlersRef.current.endDrag();
     const onTouchMove = (event: TouchEvent) => {
       const touch = event.touches[0];
-      if (touch) moveDrag(touch.clientX);
+      if (touch) handlersRef.current.moveDrag(touch.clientX);
     };
-    const onTouchEnd = () => endDrag();
+    const onTouchEnd = () => handlersRef.current.endDrag();
     window.addEventListener('mousemove', onWinMove);
     window.addEventListener('mouseup', onWinUp);
     window.addEventListener('touchmove', onTouchMove, { passive: true });
@@ -120,8 +155,14 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
       window.removeEventListener('mouseup', onWinUp);
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);
+      document.body.classList.remove('pc-verify-dragging');
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
+      pendingLeftRef.current = null;
     };
-  }, [open ]);
+  }, [open]);
 
   const verify = useCallback(
     async (left: number) => {
@@ -129,8 +170,7 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
       const secretKey = captcha?.secretKey;
       if (!token) return;
       setChecking(true);
-      const track = trackRef.current;
-      const imgWidth = track?.clientWidth || IMG_WIDTH;
+      const imgWidth = trackWidthRef.current || trackRef.current?.clientWidth || IMG_WIDTH;
       const x = (left * IMG_WIDTH) / imgWidth;
       const point = JSON.stringify({ x, y: 5.0 });
       const pointJson = secretKey ? aesEncrypt(point, secretKey) : point;
@@ -204,7 +244,7 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
                     className={`pc-verify__block${status === 'success' ? ' is-success' : ''}${status === 'fail' ? ' is-fail' : ''}`}
                     src={`data:image/png;base64,${captcha.jigsawImageBase64}`}
                     alt=""
-                    style={{ left: `${moveLeft}px` }}
+                    style={{ transform: `translateX(${moveLeft}px)` }}
                     draggable={false}
                   />
                 ) : null}

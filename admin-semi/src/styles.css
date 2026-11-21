@@ -9654,14 +9654,21 @@ body[theme-mode='dark'] .kefu-setting-actions {
   overflow: hidden;
   border-radius: 8px;
   background: #f2f3f5;
-  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(16, 24, 40, 0.08);
+  cursor: grab;
   user-select: none;
+  touch-action: none;
 }
 .pc-verify__bg { display: block; width: 100%; height: 100%; }
 .pc-verify__block {
   position: absolute;
   top: 0;
+  left: 0;
   height: 155px;
+  cursor: grab;
+  will-change: transform;
+  /* 常态投影：拼图块在纹理较密的照片背景上也能一眼分辨（成功/失败态彩色投影覆盖之） */
+  filter: drop-shadow(0 2px 6px rgba(16, 24, 40, 0.35));
   &.is-success { filter: drop-shadow(0 0 4px #52ccba); }
   &.is-fail { filter: drop-shadow(0 0 4px #d9534f); }
 }
@@ -9683,6 +9690,8 @@ body[theme-mode='dark'] .kefu-setting-actions {
   border: 1px solid var(--ui-border);
   border-radius: 8px;
   background: #f7f8fa;
+  cursor: grab;
+  touch-action: none;
 }
 .pc-verify__bar {
   position: absolute;
@@ -9704,6 +9713,8 @@ body[theme-mode='dark'] .kefu-setting-actions {
   text-align: center;
   cursor: grab;
   user-select: none;
+  touch-action: none;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.16);
   &:active { cursor: grabbing; }
   &.is-success { background: #d2f4ef; border-color: #52ccba; color: #fff; }
   &.is-fail { background: #fce1e1; border-color: #d9534f; color: #fff; }
@@ -9718,6 +9729,10 @@ body[theme-mode='dark'] .kefu-setting-actions {
   text-align: center;
   pointer-events: none;
 }
+/* 滑块拖动进行中（VerifySlide 在拖动起止时切换 body 类名）：全页光标钉为
+   grabbing，避免指针划过拼图块/轨道/遮罩时在 grab/pointer/默认之间跳变、
+   看起来像光标消失；松手或面板关闭即摘除。 */
+body.pc-verify-dragging, body.pc-verify-dragging * { cursor: grabbing !important; }
 
 /* 主导航栏编辑器紧凑图标位（默认 96px 太大，导航图标实际显示仅 24px） */
 .mobile-nav-compact .image-uploader-item,

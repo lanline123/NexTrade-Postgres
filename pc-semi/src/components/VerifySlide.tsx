@@ -67,6 +67,11 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
   const startXRef = useRef(0);
   const draggingRef = useRef(false);
   const statusRef = useRef<'idle' | 'moving' | 'success' | 'fail'>('idle');
+  /** 拖动开始时缓存的轨道宽度：拖动中不再逐帧读 clientWidth（强制同步布局） */
+  const trackWidthRef = useRef(0);
+  /** 待应用的拖动位置 + 已排队的动画帧句柄（mousemove 合帧用） */
+  const pendingLeftRef = useRef<number | null>(null);
+  const rafRef = useRef(0);
 
   const setMove = (value: number) => {
     moveLeftRef.current = value;
@@ -100,22 +105,37 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
     if (open) void loadCaptcha();
   }, [open, loadCaptcha]);
 
-  /** 按下开始拖动 */
+  /** 按下开始拖动：缓存轨道宽度，并把全页光标钉为 grabbing（见样式侧 body.pc-verify-dragging） */
   const startDrag = (clientX: number) => {
     if (statusRef.current === 'success' || statusRef.current === 'fail' || checking) return;
     draggingRef.current = true;
     startXRef.current = clientX - moveLeftRef.current;
+    trackWidthRef.current = trackRef.current?.clientWidth || IMG_WIDTH;
+    document.body.classList.add('pc-verify-dragging');
   };
 
-  /** 拖动中更新位置 */
+  /**
+   * 拖动中更新位置。
+   *
+   * mousemove 在快速拖动时每秒可达上百次：位置只入队、每动画帧最多应用
+   * 一次（setMove → 整面板重渲染 ≤60 次/秒），且宽度用 startDrag 的缓存值，
+   * 不再逐帧读 clientWidth 造成读写交替的强制同步布局（旧实现的主要卡顿源）。
+   */
   const moveDrag = (clientX: number) => {
     if (!draggingRef.current) return;
-    const track = trackRef.current;
-    if (!track) return;
-    const max = Math.max(0, track.clientWidth - 48);
+    const max = Math.max(0, (trackWidthRef.current || IMG_WIDTH) - 48);
     const next = Math.max(0, Math.min(max, clientX - startXRef.current));
-    setMove(next);
-    setStatusBoth('moving');
+    pendingLeftRef.current = next;
+    if (statusRef.current !== 'moving') setStatusBoth('moving');
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = 0;
+        if (pendingLeftRef.current !== null) {
+          setMove(pendingLeftRef.current);
+          pendingLeftRef.current = null;
+        }
+      });
+    }
   };
 
   /**
@@ -124,10 +144,20 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
    * 旧版 VerifySlide.vue 在 window 上挂 mousemove/mouseup/touchmove/touchend：
    * 拖出滑块轨道后仍能继续拖动，且松开一定触发校验。
    * 这里同样在 window 监听（见下方 useEffect），元素上的 onMouseMove 只是兜底。
+   * 校验前先把排队中的最后一帧位置同步落下，保证提交坐标就是释放点。
    */
   const endDrag = () => {
     if (!draggingRef.current) return;
     draggingRef.current = false;
+    document.body.classList.remove('pc-verify-dragging');
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    if (pendingLeftRef.current !== null) {
+      setMove(pendingLeftRef.current);
+      pendingLeftRef.current = null;
+    }
     if (statusRef.current !== 'moving') return;
     void verify(moveLeftRef.current);
   };
@@ -135,19 +165,27 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
   /**
    * window 级拖动监听（对齐旧版 VerifySlide.vue:206-217）。
    *
-   * 旧版在 mousedown 时 addEventListener、mouseup 时 removeEventListener。
-   * 这里改为面板打开期间常驻监听、处理器内部用 draggingRef 判定 —— 避免
-   * 拖动过程中每次 setState 触发 effect 重挂监听（性能浪费 + 事件可能漏挂）。
+   * 面板打开期间常驻监听、处理器内部用 draggingRef 判定 —— 避免拖动过程中
+   * 每次 setState 触发 effect 重挂监听（性能浪费 + 事件可能漏挂）。
+   * 处理器一律经 handlersRef 转发到最新一次渲染的 moveDrag/endDrag：旧实现
+   * 直接闭包捕获打开瞬间的处理器，其 verify 闭包里的 captcha 还是 null，
+   * 在面板外松手时校验永远发不出去（界面停在 moving 态、看起来像卡死），
+   * 只能靠元素自身的 onMouseUp 兜底才偶尔成功。
    */
+  const handlersRef = useRef({ moveDrag, endDrag });
+  useEffect(() => {
+    handlersRef.current = { moveDrag, endDrag };
+  });
+
   useEffect(() => {
     if (!open) return undefined;
-    const onWinMove = (event: MouseEvent) => moveDrag(event.clientX);
-    const onWinUp = () => endDrag();
+    const onWinMove = (event: MouseEvent) => handlersRef.current.moveDrag(event.clientX);
+    const onWinUp = () => handlersRef.current.endDrag();
     const onTouchMove = (event: TouchEvent) => {
       const touch = event.touches[0];
-      if (touch) moveDrag(touch.clientX);
+      if (touch) handlersRef.current.moveDrag(touch.clientX);
     };
-    const onTouchEnd = () => endDrag();
+    const onTouchEnd = () => handlersRef.current.endDrag();
     window.addEventListener('mousemove', onWinMove);
     window.addEventListener('mouseup', onWinUp);
     window.addEventListener('touchmove', onTouchMove, { passive: true });
@@ -157,6 +195,12 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
       window.removeEventListener('mouseup', onWinUp);
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);
+      document.body.classList.remove('pc-verify-dragging');
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
+      pendingLeftRef.current = null;
     };
   }, [open]);
 
@@ -183,8 +227,8 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
       if (!token) return;
       setChecking(true);
       // 旧版：moveLeftDistance = (滑块左偏移 * 310) / 图片实际宽度
-      const track = trackRef.current;
-      const imgWidth = track?.clientWidth || IMG_WIDTH;
+      // 宽度优先用 startDrag 缓存值（与拖动全程同一口径），未缓存时回退实测
+      const imgWidth = trackWidthRef.current || trackRef.current?.clientWidth || IMG_WIDTH;
       const x = (left * IMG_WIDTH) / imgWidth;
       const point = JSON.stringify({ x, y: 5.0 });
       const pointJson = secretKey ? aesEncrypt(point, secretKey) : point;
@@ -265,7 +309,7 @@ export default function VerifySlide({ onSuccess, onError, open, onClose }: Verif
                     className={`pc-verify__block${status === 'success' ? ' is-success' : ''}${status === 'fail' ? ' is-fail' : ''}`}
                     src={`data:image/png;base64,${captcha.jigsawImageBase64}`}
                     alt=""
-                    style={{ left: `${moveLeft}px` }}
+                    style={{ transform: `translateX(${moveLeft}px)` }}
                     draggable={false}
                   />
                 ) : null}
