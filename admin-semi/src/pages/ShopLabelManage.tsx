@@ -4,6 +4,7 @@ import {
   Form,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Spin,
   Switch,
@@ -22,6 +23,9 @@ const { Text, Title } = Typography;
  * 买家侧在店铺名旁展示。与门店服务提示（标签管理 shopTipManage）是两套概念。
  * 二期：自动榜单授标规则——按成交额/成交单量/评分/收藏人数榜单定时重算，
  * 自动给上榜店铺授标、掉榜摘标；自动标签与手动打标并存、互不摘除。
+ * 三期：榜单维度——全平台榜之外可开类目榜（限主营该一级类目的店铺）
+ * 与地区榜（限登记地区在该省/市的店铺）；维度榜徽章在买家侧带维度
+ * 前缀展示（如「手机数码类目·人气店铺」），不会被误读为全平台榜。
  */
 
 interface ShopLabelItem {
@@ -39,6 +43,10 @@ interface ShopLabelRuleItem {
   labelId: number;
   labelName: string;
   metric: string;
+  /** 三期维度：platform 全平台 / category 类目榜 / region 地区榜 */
+  dimension: string;
+  dimensionId: number;
+  dimensionName: string;
   windowDays: number;
   rankTop: number;
   minValue: string | number;
@@ -73,6 +81,25 @@ const METRIC_OPTIONS = [
   { label: '评分', value: 'rating' },
   { label: '收藏人数', value: 'collectors' },
 ];
+
+const DIMENSION_OPTIONS = [
+  { label: '全平台榜', value: 'platform' },
+  { label: '类目榜', value: 'category' },
+  { label: '地区榜', value: 'region' },
+];
+
+interface CategoryOption {
+  categoryId: number;
+  parentId: number;
+  categoryName: string;
+}
+
+interface RegionOption {
+  regionId: number;
+  regionName: string;
+  parentId: number;
+  level: number;
+}
 
 function metricLabel(metric: string): string {
   return METRIC_OPTIONS.find((m) => m.value === metric)?.label || metric;
@@ -123,6 +150,64 @@ export default function ShopLabelManage() {
   const [runningRuleId, setRunningRuleId] = useState<number | null>(null);
   const [logsRule, setLogsRule] = useState<ShopLabelRuleItem | null>(null);
   const [logRows, setLogRows] = useState<ShopLabelRuleLogItem[]>([]);
+  // 三期：维度选择（类目只列一级类目；地区省/市两级联动）
+  const [rootCategories, setRootCategories] = useState<CategoryOption[]>([]);
+  const [provinces, setProvinces] = useState<RegionOption[]>([]);
+  const [cities, setCities] = useState<RegionOption[]>([]);
+  const [ruleDimension, setRuleDimension] = useState('platform');
+  const [ruleCategoryId, setRuleCategoryId] = useState<number | undefined>(undefined);
+  const [regionProvinceId, setRegionProvinceId] = useState<number | undefined>(undefined);
+  const [regionCityId, setRegionCityId] = useState<number | undefined>(undefined);
+
+  const loadCities = useCallback(async (provinceId: number) => {
+    try {
+      const result = await apiGet<{ records?: RegionOption[] }>('/setting/region/list', {
+        parentId: provinceId,
+        page: 1,
+        size: 200,
+      });
+      setCities(Array.isArray(result?.records) ? result.records : []);
+    } catch {
+      setCities([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    // 一级类目（类目榜维度选项）：类目列表分页拉全后过滤 parentId=0
+    void (async () => {
+      try {
+        const all: CategoryOption[] = [];
+        let page = 1;
+        let total = 0;
+        do {
+          const result = await apiGet<{ records: CategoryOption[]; total: number }>(
+            '/product/category/list',
+            { page, pageSize: 100 },
+          );
+          const records = result.records || [];
+          all.push(...records);
+          total = result.total || 0;
+          page += 1;
+          if (!records.length) break;
+        } while (all.length < total && page <= 10);
+        setRootCategories(all.filter((c) => !c.parentId));
+      } catch {
+        setRootCategories([]);
+      }
+    })();
+    void (async () => {
+      try {
+        const result = await apiGet<{ records?: RegionOption[] }>('/setting/region/list', {
+          parentId: 0,
+          page: 1,
+          size: 200,
+        });
+        setProvinces(Array.isArray(result?.records) ? result.records : []);
+      } catch {
+        setProvinces([]);
+      }
+    })();
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,15 +240,62 @@ export default function ShopLabelManage() {
 
   const openRuleCreate = () => {
     setEditingRule(null);
+    setRuleDimension('platform');
+    setRuleCategoryId(undefined);
+    setRegionProvinceId(undefined);
+    setRegionCityId(undefined);
+    setCities([]);
     setRuleModalVisible(true);
   };
 
-  const openRuleEdit = (row: ShopLabelRuleItem) => {
+  const openRuleEdit = async (row: ShopLabelRuleItem) => {
     setEditingRule(row);
+    const dimension = row.dimension || 'platform';
+    setRuleDimension(dimension);
+    setRuleCategoryId(dimension === 'category' ? row.dimensionId : undefined);
+    setRegionProvinceId(undefined);
+    setRegionCityId(undefined);
+    setCities([]);
+    if (dimension === 'region' && row.dimensionId) {
+      // 按 regionId 反查层级回显省/市选择（市榜需带出所属省）
+      try {
+        const result = await apiGet<{ records?: RegionOption[] }>('/setting/region/list', {
+          regionId: row.dimensionId,
+          page: 1,
+          size: 1,
+        });
+        const rec = (result?.records || [])[0];
+        if (rec && rec.level === 2) {
+          setRegionProvinceId(rec.parentId);
+          setRegionCityId(rec.regionId);
+          void loadCities(rec.parentId);
+        } else {
+          setRegionProvinceId(row.dimensionId);
+        }
+      } catch {
+        setRegionProvinceId(row.dimensionId);
+      }
+    }
     setRuleModalVisible(true);
   };
 
   const submitRule = async (values: Record<string, unknown>) => {
+    const dimension = String(values.dimension || ruleDimension || 'platform');
+    let dimensionId = 0;
+    if (dimension === 'category') {
+      if (!ruleCategoryId) {
+        Toast.error({ content: t('请选择榜单类目') });
+        return;
+      }
+      dimensionId = ruleCategoryId;
+    } else if (dimension === 'region') {
+      const target = regionCityId ?? regionProvinceId;
+      if (!target) {
+        Toast.error({ content: t('请选择榜单地区') });
+        return;
+      }
+      dimensionId = target;
+    }
     setRuleSaving(true);
     try {
       const payload = {
@@ -171,6 +303,8 @@ export default function ShopLabelManage() {
         ruleName: String(values.ruleName || '').trim(),
         labelId: Number(values.labelId || 0),
         metric: String(values.metric || 'sales_amount'),
+        dimension,
+        dimensionId,
         windowDays: Number(values.windowDays || 30),
         rankTop: Number(values.rankTop || 10),
         minValue: Number(values.minValue || 0),
@@ -199,6 +333,8 @@ export default function ShopLabelManage() {
         ruleName: row.ruleName,
         labelId: row.labelId,
         metric: row.metric,
+        dimension: row.dimension || 'platform',
+        dimensionId: row.dimensionId || 0,
         windowDays: row.windowDays,
         rankTop: row.rankTop,
         minValue: Number(row.minValue || 0),
@@ -272,6 +408,11 @@ export default function ShopLabelManage() {
       width: 240,
       render: (_: unknown, row: ShopLabelRuleItem) => (
         <Text size="small">
+          {row.dimension === 'category'
+            ? `${t('类目')}：${row.dimensionName} · `
+            : row.dimension === 'region'
+              ? `${t('地区')}：${row.dimensionName} · `
+              : `${t('全平台')} · `}
           {metricLabel(row.metric)}
           {row.metric === 'collectors'
             ? ` · ${t('总收藏')}`
@@ -317,7 +458,7 @@ export default function ShopLabelManage() {
           >
             {t('立即重算')}
           </Button>
-          <Button theme="borderless" size="small" onClick={() => openRuleEdit(row)}>
+          <Button theme="borderless" size="small" onClick={() => void openRuleEdit(row)}>
             {t('编辑')}
           </Button>
           <Button theme="borderless" size="small" onClick={() => void openLogs(row)}>
@@ -466,7 +607,7 @@ export default function ShopLabelManage() {
             {t('自动授标规则')}
           </Title>
           <Text type="tertiary" size="small">
-            {t('按榜单定时重算（默认每小时）：上榜店铺自动授予标签，掉榜自动摘除；与手动打标并存、互不摘除。停用规则只停止重算，已授标签保留。')}
+            {t('按榜单定时重算（默认每小时）：上榜店铺自动授予标签，掉榜自动摘除；与手动打标并存、互不摘除。停用规则只停止重算，已授标签保留。类目榜/地区榜只在对应类目/地区的店铺内排名，徽章带维度前缀展示。')}
           </Text>
         </div>
         <Button type="primary" theme="solid" onClick={openRuleCreate}>
@@ -550,6 +691,7 @@ export default function ShopLabelManage() {
                   ruleName: editingRule.ruleName,
                   labelId: editingRule.labelId,
                   metric: editingRule.metric,
+                  dimension: editingRule.dimension || 'platform',
                   windowDays: editingRule.windowDays,
                   rankTop: editingRule.rankTop,
                   minValue: Number(editingRule.minValue || 0),
@@ -560,6 +702,7 @@ export default function ShopLabelManage() {
                   ruleName: '',
                   labelId: rows.find((l) => l.status === 1)?.labelId,
                   metric: 'sales_amount',
+                  dimension: 'platform',
                   windowDays: 30,
                   rankTop: 10,
                   minValue: 0,
@@ -592,6 +735,67 @@ export default function ShopLabelManage() {
             optionList={METRIC_OPTIONS.map((m) => ({ label: t(m.label), value: m.value }))}
             style={{ width: '100%' }}
           />
+          <Form.Select
+            field="dimension"
+            label={t('榜单维度')}
+            optionList={DIMENSION_OPTIONS.map((d) => ({ label: t(d.label), value: d.value }))}
+            style={{ width: '100%' }}
+            onChange={(v) => setRuleDimension(String(v || 'platform'))}
+          />
+          {ruleDimension === 'category' && (
+            <Form.Slot label={t('榜单类目')}>
+              <Select
+                value={ruleCategoryId}
+                placeholder={t('请选择一级类目')}
+                filter
+                onChange={(v) => setRuleCategoryId(typeof v === 'number' ? v : undefined)}
+                style={{ width: '100%' }}
+                optionList={rootCategories.map((c) => ({
+                  label: c.categoryName,
+                  value: c.categoryId,
+                }))}
+              />
+              <div>
+                <Text type="tertiary" size="small">
+                  {t('仅一级类目。竞争范围 = 主营类目为该类目的店铺（主营按在售商品分布定）；买家侧徽章显示为「类目名类目·标签名」。')}
+                </Text>
+              </div>
+            </Form.Slot>
+          )}
+          {ruleDimension === 'region' && (
+            <Form.Slot label={t('榜单地区')}>
+              <Space style={{ width: '100%' }}>
+                <Select
+                  value={regionProvinceId}
+                  placeholder={t('请选择省')}
+                  filter
+                  onChange={(v) => {
+                    const pid = typeof v === 'number' ? v : undefined;
+                    setRegionProvinceId(pid);
+                    setRegionCityId(undefined);
+                    setCities([]);
+                    if (pid) void loadCities(pid);
+                  }}
+                  style={{ width: 180 }}
+                  optionList={provinces.map((r) => ({ label: r.regionName, value: r.regionId }))}
+                />
+                <Select
+                  value={regionCityId}
+                  placeholder={t('全省（可选市）')}
+                  filter
+                  showClear
+                  onChange={(v) => setRegionCityId(typeof v === 'number' ? v : undefined)}
+                  style={{ width: 180 }}
+                  optionList={cities.map((r) => ({ label: r.regionName, value: r.regionId }))}
+                />
+              </Space>
+              <div>
+                <Text type="tertiary" size="small">
+                  {t('选省即全省榜，再选市则为市榜。竞争范围 = 登记地区在该省/市内的店铺；买家侧徽章显示为「地区全名·标签名」。')}
+                </Text>
+              </div>
+            </Form.Slot>
+          )}
           <Form.InputNumber
             field="windowDays"
             label={t('统计窗口(天)')}

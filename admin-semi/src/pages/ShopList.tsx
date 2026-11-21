@@ -73,6 +73,13 @@ interface ShopLabelAssignment {
   /** 二期：0 手动打标 / 1 自动规则授标 */
   source?: number;
   ruleId?: number;
+  /** 三期：维度榜徽章前缀（如「手机数码类目」「浙江省杭州市」），手动/全平台为空 */
+  scopeText?: string;
+}
+
+/** 徽章展示名：维度榜带前缀，与买家侧组装口径一致 */
+function chipDisplayName(chip: ShopLabelAssignment): string {
+  return chip.scopeText ? `${chip.scopeText}·${chip.labelName}` : chip.labelName;
 }
 
 export default function ShopList() {
@@ -165,7 +172,7 @@ export default function ShopList() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {chip.labelName}
+                    {chipDisplayName(chip)}
                     {chip.source === 1 ? ' ·自动' : ''}
                   </span>
                 ))}
@@ -547,7 +554,7 @@ export default function ShopList() {
                         opacity: 0.75,
                       }}
                     >
-                      {chip.labelName} ·自动
+                      {chipDisplayName(chip)} ·自动
                     </span>
                   ))}
               </div>

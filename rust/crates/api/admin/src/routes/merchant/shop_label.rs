@@ -21,8 +21,12 @@
 //! > （`TenantContext::is_platform`），商家/供应商账号调用返回 403。
 //! > 与既有 `store_tip`（门店服务提示）是两套概念，互不影响。
 //! >
+//! > 三期：规则写参数扩 `dimension` / `dimensionId`（类目榜/地区榜，
+//! > 见服务层 shop_label_rule 模块头注），路由不变。
+//! >
 //! > 迁移：`rust/deploy/pg/2026-11-21_shop_label.sql` 须先于本代码部署执行；
-//! > 二期规则表与来源列见 `rust/migrations/028_shop_label_auto_rule.sql`。
+//! > 二期规则表与来源列见 `rust/migrations/028_shop_label_auto_rule.sql`；
+//! > 三期维度列与 scope_text 见 `rust/migrations/039_shop_label_dimension.sql`。
 
 use axum::{
     extract::{Query, State},

@@ -25,10 +25,28 @@
 //!   user_id）。**不吃窗口**——collect_shop 的 add_time 在现行写入路径恒为
 //!   0（仓储 insert 实证），窗口统计无意义，收藏榜按存量排名。
 //!
-//! 维度：本期仅全平台榜（类目/地区维度未做，理由见二期报告第三节）。
-//! 迁移：`rust/migrations/028_shop_label_auto_rule.sql`（部署前必须先执行）。
+//! 维度（二期仅全平台榜；三期扩类目榜/地区榜，见
+//! ~/workspace/shop-label-phase3/REPORT.md 第二、三节）：
+//! - `platform` 全平台榜：全部未删店铺同场排名（二期口径不变）。
+//! - `category` 类目榜：竞争范围 = **主营类目**等于规则类目的店铺。主营
+//!   类目按在售商品（product_status=1、is_delete=0，全仓既有口径）沿
+//!   category.parent_id 上溯到一级类目后的分布第一名（并列取类目 id 小
+//!   者，无在售商品的店铺无主营类目）；规则类目必须是一级类目。指标仍
+//!   为全店口径——榜单语义是「主营该类目的店铺里谁做得最好」。
+//! - `region` 地区榜：竞争范围 = 店铺地区路径（`shop.shop_region_id`
+//!   JSON id 数组，与就近门店二期区域隔离同源解析）**元素精确包含**
+//!   规则地区 id 的店铺；规则地区可选省（region.level=1）或市（level=2），
+//!   区县不开榜。无地区数据的店铺不进地区榜。
+//! - 维度榜的买家侧徽章必须带维度语义：授标时把维度前缀快照写入
+//!   `shop_label_rel.scope_text`（类目榜「{类目}类目」/ 省榜「{省}」/
+//!   市榜「{省}{市}」），买家侧回填组装为「{scope_text}·{标签名}」，
+//!   不会被误读为全平台榜；全平台榜与手动标签 scope_text 为空、展示
+//!   与一二期逐字不变。
+//! 迁移：`rust/migrations/028_shop_label_auto_rule.sql`（二期，部署前必须
+//! 先执行）；三期维度列与 scope_text 见
+//! `rust/migrations/039_shop_label_dimension.sql`。
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use rust_decimal::Decimal;
@@ -53,6 +71,13 @@ const ALL_METRICS: [&str; 4] = [
     METRIC_COLLECTORS,
 ];
 
+/// 榜单维度（三期）：全平台 / 类目 / 地区。
+pub const DIMENSION_PLATFORM: &str = "platform";
+pub const DIMENSION_CATEGORY: &str = "category";
+pub const DIMENSION_REGION: &str = "region";
+
+const ALL_DIMENSIONS: [&str; 3] = [DIMENSION_PLATFORM, DIMENSION_CATEGORY, DIMENSION_REGION];
+
 /// 规则一行（管理端全字段；label_name 为标签库 LEFT JOIN 回填，标签已删时为空）。
 #[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -62,6 +87,13 @@ pub struct ShopLabelRuleItem {
     pub label_id: i32,
     pub label_name: String,
     pub metric: String,
+    /// 榜单维度（三期）：platform 全平台 / category 类目榜 / region 地区榜
+    pub dimension: String,
+    /// 维度目标 id：类目榜 = 一级类目 category_id；地区榜 = region_id
+    /// （省或市）；全平台榜恒 0
+    pub dimension_id: i32,
+    /// 维度名快照（保存时落、重算时刷新）：类目名 / 地区全名（省或省+市）
+    pub dimension_name: String,
     pub window_days: i32,
     pub rank_top: i32,
     pub min_value: Decimal,
@@ -83,6 +115,10 @@ pub struct ShopLabelRuleWrite {
     pub rule_name: Option<String>,
     pub label_id: Option<i32>,
     pub metric: Option<String>,
+    /// 榜单维度（三期），缺省 platform（兼容二期前端与存量调用）
+    pub dimension: Option<String>,
+    /// 维度目标 id（类目榜 = 一级类目 id；地区榜 = 省/市 region_id）
+    pub dimension_id: Option<i32>,
     pub window_days: Option<i32>,
     pub rank_top: Option<i32>,
     pub min_value: Option<Decimal>,
@@ -163,6 +199,61 @@ fn validate_metric(metric: &str) -> Result<()> {
     }
 }
 
+fn validate_dimension(dimension: &str) -> Result<()> {
+    if ALL_DIMENSIONS.contains(&dimension) {
+        Ok(())
+    } else {
+        Err(Error::biz(SERVICE_DATA_ERROR, "榜单维度不合法"))
+    }
+}
+
+/// 主营类目选取（纯函数，可单测）：输入 (shop_id, 一级类目 id, 在售商品数)
+/// 行集，每店取商品数第一名；并列取类目 id 小者（确定性，不依赖行序）。
+fn pick_main_categories(rows: &[(i32, i32, i64)]) -> HashMap<i32, i32> {
+    let mut best: HashMap<i32, (i32, i64)> = HashMap::new();
+    for &(shop_id, root_id, cnt) in rows {
+        if shop_id <= 0 || root_id <= 0 || cnt <= 0 {
+            continue;
+        }
+        let replace = match best.get(&shop_id) {
+            None => true,
+            Some(&(cur_root, cur_cnt)) => cnt > cur_cnt || (cnt == cur_cnt && root_id < cur_root),
+        };
+        if replace {
+            best.insert(shop_id, (root_id, cnt));
+        }
+    }
+    best.into_iter().map(|(shop, (root, _))| (shop, root)).collect()
+}
+
+/// 地区榜竞争范围（纯函数，可单测）：店铺地区路径（已解析的 id 数组）
+/// 元素精确包含目标 region_id 的店铺。与区域隔离的硬匹配同口径——
+/// 不做字符串模糊，路径缺失/为空的店铺不入围。
+fn filter_region_cohort(rows: &[(i32, Vec<i32>)], region_id: i32) -> Vec<i32> {
+    if region_id <= 0 {
+        return Vec::new();
+    }
+    rows.iter()
+        .filter(|(_, path)| path.contains(&region_id))
+        .map(|(shop_id, _)| *shop_id)
+        .collect()
+}
+
+/// 徽章维度前缀（纯函数，可单测）：授标时快照写入 rel.scope_text。
+/// 类目榜「{类目}类目」、地区榜 = 地区全名（省或省+市）、全平台为空
+/// （展示与一二期逐字不变）。
+fn compose_scope_text(dimension: &str, dimension_name: &str) -> String {
+    let name = dimension_name.trim();
+    if name.is_empty() {
+        return String::new();
+    }
+    match dimension {
+        DIMENSION_CATEGORY => format!("{name}类目"),
+        DIMENSION_REGION => name.to_string(),
+        _ => String::new(),
+    }
+}
+
 /// 规则字段校验（纯函数，可单测；标签存在性由服务层查库校验）。
 fn validate_rule_fields(
     rule_name: &str,
@@ -214,7 +305,7 @@ impl ShopLabelRuleService {
         let rows: Vec<ShopLabelRuleItem> = sqlx::query_as(
             "SELECT r.rule_id, r.rule_name, r.label_id, \
                     COALESCE(l.label_name, '') AS label_name, \
-                    r.metric, r.window_days, r.rank_top, r.min_value, r.min_samples, \
+                    r.metric, r.dimension, r.dimension_id, r.dimension_name, r.window_days, r.rank_top, r.min_value, r.min_samples, \
                     r.status, r.last_run_time, r.last_award_count, r.last_remove_count, \
                     r.add_time, r.update_time \
              FROM shop_label_rule r \
@@ -230,7 +321,7 @@ impl ShopLabelRuleService {
         let row: Option<ShopLabelRuleItem> = sqlx::query_as(
             "SELECT r.rule_id, r.rule_name, r.label_id, \
                     COALESCE(l.label_name, '') AS label_name, \
-                    r.metric, r.window_days, r.rank_top, r.min_value, r.min_samples, \
+                    r.metric, r.dimension, r.dimension_id, r.dimension_name, r.window_days, r.rank_top, r.min_value, r.min_samples, \
                     r.status, r.last_run_time, r.last_award_count, r.last_remove_count, \
                     r.add_time, r.update_time \
              FROM shop_label_rule r \
@@ -258,6 +349,74 @@ impl ShopLabelRuleService {
         Ok(())
     }
 
+    /// 维度目标校验与名称快照解析（三期）：返回 (dimension_id, dimension_name)。
+    /// - platform：恒 (0, "")；
+    /// - category：目标须存在且为一级类目（parent_id=0），名为类目名——
+    ///   榜按一级类目开，叶子类目榜会碎片化且多为空榜；
+    /// - region：目标须存在且 level 为 1（省）或 2（市），区县不开榜；
+    ///   市名为「省名+市名」全名（市名跨省可重名，徽章与列表都用全名
+    ///   防误读），省名为省名本身。
+    async fn resolve_dimension(
+        &self,
+        dimension: &str,
+        dimension_id: i32,
+    ) -> Result<(i32, String)> {
+        validate_dimension(dimension)?;
+        match dimension {
+            DIMENSION_PLATFORM => Ok((0, String::new())),
+            DIMENSION_CATEGORY => {
+                if dimension_id <= 0 {
+                    return Err(Error::biz(SERVICE_DATA_ERROR, "请选择榜单类目"));
+                }
+                let row: Option<(String, i32)> = sqlx::query_as(
+                    "SELECT category_name, parent_id FROM category WHERE category_id = $1",
+                )
+                .bind(dimension_id)
+                .fetch_optional(self.pool())
+                .await.map_err(|e| Error::Database(e.to_string()))?;
+                let Some((name, parent_id)) = row else {
+                    return Err(Error::biz(SERVICE_DATA_ERROR, "榜单类目不存在"));
+                };
+                if parent_id != 0 {
+                    return Err(Error::biz(SERVICE_DATA_ERROR, "类目榜只能选一级类目"));
+                }
+                Ok((dimension_id, name))
+            }
+            DIMENSION_REGION => {
+                if dimension_id <= 0 {
+                    return Err(Error::biz(SERVICE_DATA_ERROR, "请选择榜单地区"));
+                }
+                let row: Option<(String, i32, i32)> = sqlx::query_as(
+                    "SELECT region_name, parent_id, level FROM region WHERE region_id = $1",
+                )
+                .bind(dimension_id)
+                .fetch_optional(self.pool())
+                .await.map_err(|e| Error::Database(e.to_string()))?;
+                let Some((name, parent_id, level)) = row else {
+                    return Err(Error::biz(SERVICE_DATA_ERROR, "榜单地区不存在"));
+                };
+                match level {
+                    1 => Ok((dimension_id, name)),
+                    2 => {
+                        let parent: Option<(String,)> = sqlx::query_as(
+                            "SELECT region_name FROM region WHERE region_id = $1",
+                        )
+                        .bind(parent_id)
+                        .fetch_optional(self.pool())
+                        .await.map_err(|e| Error::Database(e.to_string()))?;
+                        let full = match parent {
+                            Some((pname,)) if !pname.is_empty() => format!("{pname}{name}"),
+                            _ => name,
+                        };
+                        Ok((dimension_id, full))
+                    }
+                    _ => Err(Error::biz(SERVICE_DATA_ERROR, "地区榜只能选省或市")),
+                }
+            }
+            _ => unreachable!("validate_dimension 已拦截非法维度"),
+        }
+    }
+
     pub async fn create_rule(&self, p: &ShopLabelRuleWrite) -> Result<i32> {
         let metric = p.metric.as_deref().unwrap_or(METRIC_SALES_AMOUNT);
         let name = validate_rule_fields(
@@ -270,15 +429,25 @@ impl ShopLabelRuleService {
         )?;
         let label_id = p.label_id.unwrap_or(0);
         self.ensure_label_exists(label_id).await?;
+        let (dimension_id, dimension_name) = self
+            .resolve_dimension(
+                p.dimension.as_deref().unwrap_or(DIMENSION_PLATFORM),
+                p.dimension_id.unwrap_or(0),
+            )
+            .await?;
         let now = now_i32();
         let row: (i32,) = sqlx::query_as(
-            "INSERT INTO shop_label_rule (rule_name, label_id, metric, window_days, \
+            "INSERT INTO shop_label_rule (rule_name, label_id, metric, dimension, \
+                dimension_id, dimension_name, window_days, \
                 rank_top, min_value, min_samples, status, add_time, update_time) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9) RETURNING rule_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12) RETURNING rule_id",
         )
         .bind(name)
         .bind(label_id)
         .bind(metric)
+        .bind(p.dimension.as_deref().unwrap_or(DIMENSION_PLATFORM))
+        .bind(dimension_id)
+        .bind(dimension_name)
         .bind(p.window_days.unwrap_or(30))
         .bind(p.rank_top.unwrap_or(10))
         .bind(p.min_value.unwrap_or(Decimal::ZERO))
@@ -306,16 +475,26 @@ impl ShopLabelRuleService {
         )?;
         let label_id = p.label_id.unwrap_or(0);
         self.ensure_label_exists(label_id).await?;
+        let (dimension_id, dimension_name) = self
+            .resolve_dimension(
+                p.dimension.as_deref().unwrap_or(DIMENSION_PLATFORM),
+                p.dimension_id.unwrap_or(0),
+            )
+            .await?;
         let affected = sqlx::query(
             "UPDATE shop_label_rule SET rule_name = $2, label_id = $3, metric = $4, \
-                window_days = $5, rank_top = $6, min_value = $7, min_samples = $8, \
-                status = $9, update_time = $10 \
+                dimension = $5, dimension_id = $6, dimension_name = $7, \
+                window_days = $8, rank_top = $9, min_value = $10, min_samples = $11, \
+                status = $12, update_time = $13 \
              WHERE rule_id = $1",
         )
         .bind(rule_id)
         .bind(name)
         .bind(label_id)
         .bind(metric)
+        .bind(p.dimension.as_deref().unwrap_or(DIMENSION_PLATFORM))
+        .bind(dimension_id)
+        .bind(dimension_name)
         .bind(p.window_days.unwrap_or(30))
         .bind(p.rank_top.unwrap_or(10))
         .bind(p.min_value.unwrap_or(Decimal::ZERO))
@@ -372,13 +551,79 @@ impl ShopLabelRuleService {
         Ok(rows)
     }
 
+    /// 维度竞争范围（三期）：全平台返回 None（不加过滤）；类目/地区返回
+    /// 入围店铺 id 集（可为空集——本轮无人上榜时，该规则已授自动标将按
+    /// 差集全数摘除，与二期语义一致）。
+    async fn resolve_cohort(&self, rule: &ShopLabelRuleItem) -> Result<Option<Vec<i32>>> {
+        match rule.dimension.as_str() {
+            DIMENSION_CATEGORY => {
+                // 主营类目：在售商品（product_status=1、is_delete=0）沿
+                // category.parent_id 上溯一级类目后的分布（递归深度上限
+                // 10 防脏数据成环），Rust 侧纯函数取第一名。
+                let rows: Vec<(i32, i32, i64)> = sqlx::query_as(
+                    "WITH RECURSIVE cat_root AS ( \
+                        SELECT category_id AS cat_id, category_id AS root_id, parent_id, 0 AS depth \
+                        FROM category \
+                        UNION ALL \
+                        SELECT cr.cat_id, c.category_id, c.parent_id, cr.depth + 1 \
+                        FROM cat_root cr \
+                        JOIN category c ON c.category_id = cr.parent_id \
+                        WHERE cr.parent_id <> 0 AND cr.depth < 10 \
+                     ) \
+                     SELECT p.shop_id AS shop_id, m.root_id AS root_id, COUNT(*)::bigint AS cnt \
+                     FROM product p \
+                     JOIN (SELECT cat_id, root_id FROM cat_root WHERE parent_id = 0) m \
+                       ON m.cat_id = p.category_id \
+                     WHERE p.product_status = 1 AND p.is_delete = 0 AND p.shop_id > 0 \
+                     GROUP BY p.shop_id, m.root_id",
+                )
+                .fetch_all(self.pool())
+                .await.map_err(|e| Error::Database(e.to_string()))?;
+                let mains = pick_main_categories(&rows);
+                Ok(Some(
+                    mains
+                        .into_iter()
+                        .filter(|(_, root)| *root == rule.dimension_id)
+                        .map(|(shop, _)| shop)
+                        .collect(),
+                ))
+            }
+            DIMENSION_REGION => {
+                // 店铺地区路径与就近门店二期区域隔离同源解析
+                // （shop_client::parse_int_list_json），元素精确包含目标
+                // region_id 即入围（省榜含其全部市/区县店铺，市榜同理）。
+                let rows: Vec<(i32, Option<String>)> = sqlx::query_as(
+                    "SELECT shop_id, shop_region_id FROM shop \
+                     WHERE shop_id > 0 AND (is_delete IS NULL OR is_delete = 0)",
+                )
+                .fetch_all(self.pool())
+                .await.map_err(|e| Error::Database(e.to_string()))?;
+                let parsed: Vec<(i32, Vec<i32>)> = rows
+                    .into_iter()
+                    .map(|(shop_id, raw)| {
+                        (
+                            shop_id,
+                            crate::merchant::shop_client::parse_int_list_json(raw.as_deref()),
+                        )
+                    })
+                    .collect();
+                Ok(Some(filter_region_cohort(&parsed, rule.dimension_id)))
+            }
+            _ => Ok(None),
+        }
+    }
+
     /// 按指标聚合上榜名单（已按 名次序 排好：指标降序、样本降序、shop_id 升序）。
+    /// 三期：维度榜先定竞争范围（cohort），四指标在同一范围内排名；指标
+    /// 本身仍为全店口径（二期不变），变的只是同场竞争的店铺集合。
     async fn compute_winners(&self, rule: &ShopLabelRuleItem) -> Result<Vec<WinnerRow>> {
+        let cohort = self.resolve_cohort(rule).await?;
         let since = now_i32() - rule.window_days.max(1) * 86_400;
         let min_samples = effective_min_samples(&rule.metric, rule.min_samples);
         let rows: Vec<WinnerRow> = match rule.metric.as_str() {
             METRIC_SALES_AMOUNT => {
-                sqlx::query_as(
+                let clause = if cohort.is_some() { " AND oi.shop_id = ANY($5)" } else { "" };
+                let sql = format!(
                     "SELECT oi.shop_id AS shop_id, \
                             SUM(oi.price * oi.quantity)::numeric AS value, \
                             COUNT(DISTINCT oi.order_id) AS samples \
@@ -386,22 +631,25 @@ impl ShopLabelRuleService {
                      JOIN \"order\" o ON o.order_id = oi.order_id \
                      JOIN shop s ON s.shop_id = oi.shop_id \
                      WHERE o.pay_status = 2 AND o.is_del = 0 AND o.pay_time >= $1 \
-                       AND oi.shop_id > 0 AND (s.is_delete IS NULL OR s.is_delete = 0) \
+                       AND oi.shop_id > 0 AND (s.is_delete IS NULL OR s.is_delete = 0){clause} \
                      GROUP BY oi.shop_id \
                      HAVING SUM(oi.price * oi.quantity) >= $2 \
                         AND COUNT(DISTINCT oi.order_id) >= $3 \
                      ORDER BY value DESC, samples DESC, oi.shop_id ASC \
-                     LIMIT $4",
-                )
-                .bind(since)
-                .bind(rule.min_value)
-                .bind(min_samples)
-                .bind(i64::from(rule.rank_top))
-                .fetch_all(self.pool())
-                .await.map_err(|e| Error::Database(e.to_string()))?
+                     LIMIT $4"
+                );
+                let q = sqlx::query_as::<_, WinnerRow>(&sql)
+                    .bind(since)
+                    .bind(rule.min_value)
+                    .bind(min_samples)
+                    .bind(i64::from(rule.rank_top));
+                let q = if let Some(c) = &cohort { q.bind(c) } else { q };
+                q.fetch_all(self.pool())
+                    .await.map_err(|e| Error::Database(e.to_string()))?
             }
             METRIC_SALES_ORDERS => {
-                sqlx::query_as(
+                let clause = if cohort.is_some() { " AND oi.shop_id = ANY($4)" } else { "" };
+                let sql = format!(
                     "SELECT oi.shop_id AS shop_id, \
                             COUNT(DISTINCT oi.order_id)::numeric AS value, \
                             COUNT(DISTINCT oi.order_id) AS samples \
@@ -409,20 +657,23 @@ impl ShopLabelRuleService {
                      JOIN \"order\" o ON o.order_id = oi.order_id \
                      JOIN shop s ON s.shop_id = oi.shop_id \
                      WHERE o.pay_status = 2 AND o.is_del = 0 AND o.pay_time >= $1 \
-                       AND oi.shop_id > 0 AND (s.is_delete IS NULL OR s.is_delete = 0) \
+                       AND oi.shop_id > 0 AND (s.is_delete IS NULL OR s.is_delete = 0){clause} \
                      GROUP BY oi.shop_id \
                      HAVING COUNT(DISTINCT oi.order_id) >= $2 \
                      ORDER BY value DESC, samples DESC, oi.shop_id ASC \
-                     LIMIT $3",
-                )
-                .bind(since)
-                .bind(rule.min_value)
-                .bind(i64::from(rule.rank_top))
-                .fetch_all(self.pool())
-                .await.map_err(|e| Error::Database(e.to_string()))?
+                     LIMIT $3"
+                );
+                let q = sqlx::query_as::<_, WinnerRow>(&sql)
+                    .bind(since)
+                    .bind(rule.min_value)
+                    .bind(i64::from(rule.rank_top));
+                let q = if let Some(c) = &cohort { q.bind(c) } else { q };
+                q.fetch_all(self.pool())
+                    .await.map_err(|e| Error::Database(e.to_string()))?
             }
             METRIC_RATING => {
-                sqlx::query_as(
+                let clause = if cohort.is_some() { " AND c.shop_id = ANY($5)" } else { "" };
+                let sql = format!(
                     "SELECT c.shop_id AS shop_id, \
                             AVG(c.comment_rank)::numeric AS value, \
                             COUNT(*) AS samples \
@@ -430,36 +681,41 @@ impl ShopLabelRuleService {
                      JOIN shop s ON s.shop_id = c.shop_id \
                      WHERE c.status = 1 AND c.parent_id = 0 AND c.shop_id > 0 \
                        AND c.add_time >= $1 \
-                       AND (s.is_delete IS NULL OR s.is_delete = 0) \
+                       AND (s.is_delete IS NULL OR s.is_delete = 0){clause} \
                      GROUP BY c.shop_id \
                      HAVING AVG(c.comment_rank) >= $2 AND COUNT(*) >= $3 \
                      ORDER BY value DESC, samples DESC, c.shop_id ASC \
-                     LIMIT $4",
-                )
-                .bind(since)
-                .bind(rule.min_value)
-                .bind(i64::from(min_samples))
-                .bind(i64::from(rule.rank_top))
-                .fetch_all(self.pool())
-                .await.map_err(|e| Error::Database(e.to_string()))?
+                     LIMIT $4"
+                );
+                let q = sqlx::query_as::<_, WinnerRow>(&sql)
+                    .bind(since)
+                    .bind(rule.min_value)
+                    .bind(i64::from(min_samples))
+                    .bind(i64::from(rule.rank_top));
+                let q = if let Some(c) = &cohort { q.bind(c) } else { q };
+                q.fetch_all(self.pool())
+                    .await.map_err(|e| Error::Database(e.to_string()))?
             }
             METRIC_COLLECTORS => {
-                sqlx::query_as(
+                let clause = if cohort.is_some() { " AND cs.shop_id = ANY($3)" } else { "" };
+                let sql = format!(
                     "SELECT cs.shop_id AS shop_id, \
                             COUNT(DISTINCT cs.user_id)::numeric AS value, \
                             COUNT(DISTINCT cs.user_id) AS samples \
                      FROM collect_shop cs \
                      JOIN shop s ON s.shop_id = cs.shop_id \
-                     WHERE cs.shop_id > 0 AND (s.is_delete IS NULL OR s.is_delete = 0) \
+                     WHERE cs.shop_id > 0 AND (s.is_delete IS NULL OR s.is_delete = 0){clause} \
                      GROUP BY cs.shop_id \
                      HAVING COUNT(DISTINCT cs.user_id) >= $1 \
                      ORDER BY value DESC, cs.shop_id ASC \
-                     LIMIT $2",
-                )
-                .bind(rule.min_value)
-                .bind(i64::from(rule.rank_top))
-                .fetch_all(self.pool())
-                .await.map_err(|e| Error::Database(e.to_string()))?
+                     LIMIT $2"
+                );
+                let q = sqlx::query_as::<_, WinnerRow>(&sql)
+                    .bind(rule.min_value)
+                    .bind(i64::from(rule.rank_top));
+                let q = if let Some(c) = &cohort { q.bind(c) } else { q };
+                q.fetch_all(self.pool())
+                    .await.map_err(|e| Error::Database(e.to_string()))?
             }
             other => {
                 return Err(Error::biz(
@@ -487,6 +743,13 @@ impl ShopLabelRuleService {
         if label_found.is_none() {
             return Err(Error::biz(SERVICE_DATA_ERROR, "规则绑定的标签已被删除"));
         }
+        // 三期：重算时刷新维度名（类目/地区改名自动跟上）并生成本轮徽章
+        // 维度前缀。维度目标已被删除时与标签被删同口径——明确报错、
+        // 不静默授空（定时重算只记日志跳过该规则）。
+        let (_, dimension_name) = self
+            .resolve_dimension(&rule.dimension, rule.dimension_id)
+            .await?;
+        let scope_text = compose_scope_text(&rule.dimension, &dimension_name);
 
         let winner_rows = self.compute_winners(&rule).await?;
         let winner_ids: Vec<i32> = winner_rows.iter().map(|w| w.shop_id).collect();
@@ -514,17 +777,25 @@ impl ShopLabelRuleService {
         }
         for shop_id in &to_add {
             sqlx::query(
-                "INSERT INTO shop_label_rel (shop_id, label_id, source, rule_id, add_time) \
-                 VALUES ($1, $2, 1, $3, $4) \
+                "INSERT INTO shop_label_rel (shop_id, label_id, source, rule_id, add_time, scope_text) \
+                 VALUES ($1, $2, 1, $3, $4, $5) \
                  ON CONFLICT (shop_id, label_id) DO NOTHING",
             )
             .bind(shop_id)
             .bind(rule.label_id)
             .bind(rule_id)
             .bind(now)
+            .bind(&scope_text)
             .execute(&mut *tx)
             .await.map_err(|e| Error::Database(e.to_string()))?;
         }
+        // 维度前缀同步刷新到本规则全部持标行：留守店铺（未掉榜）也要跟上
+        // 类目/地区改名，不能只有新上榜店铺带新名。
+        sqlx::query("UPDATE shop_label_rel SET scope_text = $2 WHERE source = 1 AND rule_id = $1")
+            .bind(rule_id)
+            .bind(&scope_text)
+            .execute(&mut *tx)
+            .await.map_err(|e| Error::Database(e.to_string()))?;
         let awarded: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM shop_label_rel WHERE source = 1 AND rule_id = $1",
         )
@@ -544,12 +815,13 @@ impl ShopLabelRuleService {
 
         sqlx::query(
             "UPDATE shop_label_rule SET last_run_time = $2, last_award_count = $3, \
-                last_remove_count = $4 WHERE rule_id = $1",
+                last_remove_count = $4, dimension_name = $5 WHERE rule_id = $1",
         )
         .bind(rule_id)
         .bind(now)
         .bind(i32::try_from(awarded.0).unwrap_or(0))
         .bind(i32::try_from(to_remove.len()).unwrap_or(0))
+        .bind(&dimension_name)
         .execute(&mut *tx)
         .await.map_err(|e| Error::Database(e.to_string()))?;
         sqlx::query(
@@ -598,7 +870,10 @@ impl ShopLabelRuleService {
 
 #[cfg(test)]
 mod tests {
-    use super::{diff_winners, effective_min_samples, validate_metric, validate_rule_fields};
+    use super::{
+        compose_scope_text, diff_winners, effective_min_samples, filter_region_cohort,
+        pick_main_categories, validate_dimension, validate_metric, validate_rule_fields,
+    };
     use rust_decimal::Decimal;
 
     #[test]
@@ -630,6 +905,63 @@ mod tests {
         assert_eq!(effective_min_samples("rating", 5), 5);
         assert_eq!(effective_min_samples("sales_orders", 5), 0);
         assert_eq!(effective_min_samples("collectors", 5), 0);
+    }
+
+    #[test]
+    fn dimension_whitelist() {
+        assert!(validate_dimension("platform").is_ok());
+        assert!(validate_dimension("category").is_ok());
+        assert!(validate_dimension("region").is_ok());
+        assert!(validate_dimension("city").is_err());
+        assert!(validate_dimension("").is_err());
+    }
+
+    #[test]
+    fn main_category_plurality_and_tiebreak() {
+        // 店 1：类目 10 有 5 件、类目 20 有 3 件 → 主营 10
+        // 店 2：类目 20 与 10 各 4 件并列 → 取 id 小者 10
+        // 店 3：只有一行 0 件（脏数据）→ 无主营，不出现在结果里
+        let rows = vec![
+            (1, 10, 5),
+            (1, 20, 3),
+            (2, 20, 4),
+            (2, 10, 4),
+            (3, 10, 0),
+        ];
+        let mains = pick_main_categories(&rows);
+        assert_eq!(mains.get(&1), Some(&10));
+        assert_eq!(mains.get(&2), Some(&10));
+        assert!(!mains.contains_key(&3));
+        // 行序不影响结果（确定性）
+        let shuffled = vec![(2, 10, 4), (1, 20, 3), (2, 20, 4), (1, 10, 5)];
+        assert_eq!(pick_main_categories(&shuffled), mains);
+    }
+
+    #[test]
+    fn region_cohort_exact_element_match() {
+        // 路径 [省, 市, 区]：省 id=11、市 id=1101；店 3 无地区数据不入围
+        let rows = vec![
+            (1, vec![11, 1101, 110101]),
+            (2, vec![11, 1102]),
+            (3, vec![]),
+            (4, vec![31, 3101]),
+        ];
+        assert_eq!(filter_region_cohort(&rows, 11), vec![1, 2]);
+        assert_eq!(filter_region_cohort(&rows, 1101), vec![1]);
+        assert_eq!(filter_region_cohort(&rows, 1102), vec![2]);
+        assert!(filter_region_cohort(&rows, 999).is_empty());
+        assert!(filter_region_cohort(&rows, 0).is_empty());
+    }
+
+    #[test]
+    fn scope_text_carries_dimension_semantics() {
+        assert_eq!(compose_scope_text("category", "手机数码"), "手机数码类目");
+        assert_eq!(compose_scope_text("region", "浙江省杭州市"), "浙江省杭州市");
+        assert_eq!(compose_scope_text("region", "浙江省"), "浙江省");
+        // 全平台榜与空名恒为空——展示与一二期逐字不变
+        assert_eq!(compose_scope_text("platform", ""), "");
+        assert_eq!(compose_scope_text("category", ""), "");
+        assert_eq!(compose_scope_text("region", "  "), "");
     }
 
     #[test]

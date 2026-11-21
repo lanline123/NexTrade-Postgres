@@ -11,8 +11,15 @@
 //! 分配关系以 source 区分来源（0 手动 / 1 自动规则），本模块的整店替换
 //! 只维护手动行，自动行由规则重算维护、手动保存永不摘除。
 //!
+//! 三期（类目榜/地区榜）：维度规则授标时把维度前缀快照写入 rel 的
+//! `scope_text`（见 `shop_label_rule` 模块），本模块的买家侧回填把展示名
+//! 组装为「{scope_text}·{标签名}」，使类目/地区榜徽章自带维度语义、
+//! 不被误读为全平台榜；手动标签与全平台榜 scope_text 为空，展示与
+//! 一二期逐字不变。管理端分配视图带出 scope_text 原文供运营核对。
+//!
 //! 迁移：`rust/deploy/pg/2026-11-21_shop_label.sql`（部署前必须先执行）；
-//! 二期列与规则表见 `rust/migrations/028_shop_label_auto_rule.sql`。
+//! 二期列与规则表见 `rust/migrations/028_shop_label_auto_rule.sql`；
+//! 三期 scope_text 列见 `rust/migrations/039_shop_label_dimension.sql`。
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -62,6 +69,8 @@ pub struct ShopLabelAssignment {
     pub color: String,
     pub source: i32,
     pub rule_id: i32,
+    /// 维度前缀快照（三期）：维度榜自动授标行非空，手动/全平台为空
+    pub scope_text: String,
 }
 
 #[derive(Debug, FromRow)]
@@ -70,6 +79,7 @@ struct LabelJoinRow {
     label_id: i32,
     label_name: String,
     color: String,
+    scope_text: String,
 }
 
 /// 带来源的分配行（仅 all_assignments 使用；前台回填不需要来源）。
@@ -81,6 +91,19 @@ struct AssignmentJoinRow {
     color: String,
     source: i32,
     rule_id: i32,
+    scope_text: String,
+}
+
+/// 买家侧徽章展示名（纯函数，可单测）：维度前缀非空时组装
+/// 「{前缀}·{标签名}」（如「手机数码类目·人气店铺」），否则原名——
+/// 手动标签与全平台榜的展示与一二期逐字不变。
+fn display_label_name(label_name: &str, scope_text: &str) -> String {
+    let scope = scope_text.trim();
+    if scope.is_empty() {
+        label_name.to_string()
+    } else {
+        format!("{scope}·{label_name}")
+    }
 }
 
 fn now_i32() -> i32 {
@@ -99,7 +122,8 @@ pub async fn fetch_labels_for_shops(
     }
     let rows: Vec<LabelJoinRow> = sqlx::query_as(
         "SELECT r.shop_id AS shop_id, l.label_id AS label_id, \
-                l.label_name AS label_name, l.color AS color \
+                l.label_name AS label_name, l.color AS color, \
+                r.scope_text AS scope_text \
          FROM shop_label_rel r \
          JOIN shop_label l ON l.label_id = r.label_id \
          WHERE l.status = 1 AND r.shop_id = ANY($1) \
@@ -111,7 +135,7 @@ pub async fn fetch_labels_for_shops(
     for row in rows {
         map.entry(row.shop_id).or_default().push(ShopLabelVO {
             label_id: Some(row.label_id),
-            label_name: Some(row.label_name),
+            label_name: Some(display_label_name(&row.label_name, &row.scope_text)),
             color: if row.color.is_empty() {
                 None
             } else {
@@ -226,7 +250,8 @@ impl ShopLabelService {
         let rows: Vec<AssignmentJoinRow> = sqlx::query_as(
             "SELECT r.shop_id AS shop_id, l.label_id AS label_id, \
                     l.label_name AS label_name, l.color AS color, \
-                    r.source AS source, r.rule_id AS rule_id \
+                    r.source AS source, r.rule_id AS rule_id, \
+                    r.scope_text AS scope_text \
              FROM shop_label_rel r \
              JOIN shop_label l ON l.label_id = r.label_id \
              ORDER BY l.sort_order ASC, l.label_id ASC",
@@ -242,6 +267,7 @@ impl ShopLabelService {
                 color: r.color,
                 source: r.source,
                 rule_id: r.rule_id,
+                scope_text: r.scope_text,
             })
             .collect())
     }
@@ -345,7 +371,17 @@ fn validate_color(raw: Option<&str>) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_color, validate_name};
+    use super::{display_label_name, validate_color, validate_name};
+
+    #[test]
+    fn display_name_dimension_semantics() {
+        // 维度榜：前缀 + 标签名，买家不会误读为全平台榜
+        assert_eq!(display_label_name("人气店铺", "手机数码类目"), "手机数码类目·人气店铺");
+        assert_eq!(display_label_name("人气店铺", "浙江省杭州市"), "浙江省杭州市·人气店铺");
+        // 手动/全平台：原名逐字不变
+        assert_eq!(display_label_name("金牌商家", ""), "金牌商家");
+        assert_eq!(display_label_name("金牌商家", "  "), "金牌商家");
+    }
 
     #[test]
     fn name_rules() {
