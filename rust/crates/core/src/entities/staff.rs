@@ -45,6 +45,24 @@ pub struct ServiceStaff {
     pub update_time: i32,
     /// 是否删除：0-否，1-是 [NOT NULL]
     pub is_delete: i32,
+    // ——— 骑手档案扩展（我方新增，迁移 021_rider_profile_track.sql；原版表无此组字段，
+    // 本组为手工同步补入，重新跑 schema_parser 生成时会丢失，须按 016 迁移回补）———
+    /// 证件号（入驻审核通过时从申请带入）
+    pub id_card: String,
+    /// 性别：0-未知，1-男，2-女
+    pub gender: i32,
+    /// 交通工具（自由文本）
+    pub vehicle_type: String,
+    /// 车牌号
+    pub plate_no: String,
+    /// 紧急联系人
+    pub emergency_contact: String,
+    /// 紧急联系电话
+    pub emergency_phone: String,
+    /// 入职时间（epoch 秒）
+    pub entry_time: i64,
+    /// 管理员备注
+    pub admin_remark: String,
 }
 
 impl ServiceStaff {

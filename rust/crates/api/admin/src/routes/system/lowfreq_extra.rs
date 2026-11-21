@@ -43,6 +43,11 @@ pub struct Pg {
     pub r#type: Option<i64>,
     pub business_type: Option<i64>,
     pub withdraw_id: Option<i64>,
+    /// 骑手轨迹查询时间窗（epoch 秒；帖 487950 完整版新增，其余接口不用）
+    pub start_time: Option<i64>,
+    pub end_time: Option<i64>,
+    /// 工作状态筛选（0 下班 1 空闲 2 忙碌；人员列表/定位总览用）
+    pub work_status: Option<i32>,
 }
 
 fn json_ids(body: &Value) -> Vec<i64> {
@@ -576,8 +581,9 @@ async fn h_staff_list(
         None => q.shop_id.unwrap_or(0),
     };
     let want_type: i64 = q.r#type.unwrap_or(0);
+    let work_status = q.work_status.unwrap_or(-1);
     let (total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND ($3 = 0 OR store_id = $4) AND ($5 = 0 OR type = $6) AND (name ILIKE $7 OR phone ILIKE $8)",
+        "SELECT COUNT(*) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND ($3 = 0 OR store_id = $4) AND ($5 = 0 OR type = $6) AND (name ILIKE $7 OR phone ILIKE $8) AND ($9 = -1 OR work_status = $10)",
     )
     .bind(status)
     .bind(status)
@@ -587,11 +593,13 @@ async fn h_staff_list(
     .bind(want_type)
     .bind(&kw)
     .bind(&kw)
+    .bind(work_status)
+    .bind(work_status)
     .fetch_one(&pool(&state))
     .await
     .map_err(db)?;
     let rows: Vec<(Value,)> = sqlx::query_as(
-        "SELECT json_build_object('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND ($3 = 0 OR store_id = $4) AND ($5 = 0 OR type = $6) AND (name ILIKE $7 OR phone ILIKE $8) ORDER BY id DESC LIMIT $9 OFFSET $10",
+        "SELECT json_build_object('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time, 'idCard', id_card, 'gender', gender, 'vehicleType', vehicle_type, 'plateNo', plate_no, 'emergencyContact', emergency_contact, 'emergencyPhone', emergency_phone, 'entryTime', entry_time, 'adminRemark', admin_remark) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND ($3 = 0 OR store_id = $4) AND ($5 = 0 OR type = $6) AND (name ILIKE $7 OR phone ILIKE $8) AND ($9 = -1 OR work_status = $10) ORDER BY id DESC LIMIT $11 OFFSET $12",
     )
     .bind(status)
     .bind(status)
@@ -601,6 +609,8 @@ async fn h_staff_list(
     .bind(want_type)
     .bind(&kw)
     .bind(&kw)
+    .bind(work_status)
+    .bind(work_status)
     .bind(s)
     .bind(off)
     .fetch_all(&pool(&state))
@@ -611,10 +621,10 @@ async fn h_staff_list(
     )
 }
 
-// get /o2o/serviceStaff/detail
+// get /o2o/serviceStaff/detail（档案全字段 + 最近一次定位，帖 487950 完整版）
 async fn h_staff_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
     let row: Option<(Value,)> = sqlx::query_as(
-        "SELECT json_build_object('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time) FROM service_staff WHERE id = $1 AND is_delete = 0",
+        "SELECT json_build_object('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time, 'idCard', id_card, 'gender', gender, 'vehicleType', vehicle_type, 'plateNo', plate_no, 'emergencyContact', emergency_contact, 'emergencyPhone', emergency_phone, 'entryTime', entry_time, 'adminRemark', admin_remark, 'lastLongitude', (SELECT longitude FROM staff_location_latest WHERE staff_id = service_staff.id), 'lastLatitude', (SELECT latitude FROM staff_location_latest WHERE staff_id = service_staff.id), 'lastLocationTime', (SELECT update_time FROM staff_location_latest WHERE staff_id = service_staff.id)) FROM service_staff WHERE id = $1 AND is_delete = 0",
     )
     .bind(q.id.unwrap_or(0))
     .fetch_optional(&pool(&state))
@@ -689,8 +699,17 @@ async fn h_staff_create(
         }
         None => gi("storeId"),
     };
+    // 档案字段（迁移 021，我方新增）：入职时间未传则取建档时间。
+    let entry_time = {
+        let v = gi("entryTime");
+        if v > 0 {
+            v
+        } else {
+            now
+        }
+    };
     let r: i32 = sqlx::query_scalar(
-        "INSERT INTO service_staff (name, nickname, avatar, phone, member_id, store_id, type, status, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
+        "INSERT INTO service_staff (name, nickname, avatar, phone, member_id, store_id, type, status, create_time, update_time, id_card, gender, vehicle_type, plate_no, emergency_contact, emergency_phone, entry_time, admin_remark) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id",
     )
     .bind(gs("name"))
     .bind(gs("nickname"))
@@ -702,6 +721,14 @@ async fn h_staff_create(
     .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1))
     .bind(now)
     .bind(now)
+    .bind(gs("idCard"))
+    .bind(gi("gender"))
+    .bind(gs("vehicleType"))
+    .bind(gs("plateNo"))
+    .bind(gs("emergencyContact"))
+    .bind(gs("emergencyPhone"))
+    .bind(entry_time)
+    .bind(gs("adminRemark"))
     .fetch_one(&pool(&state))
     .await
     .map_err(db)?;
@@ -727,7 +754,7 @@ async fn h_staff_update(
     };
     let gi = |k: &str| body.get(k).and_then(Value::as_i64).unwrap_or(0);
     sqlx::query(
-        "UPDATE service_staff SET name = $1, nickname = $2, avatar = $3, phone = $4, member_id = $5, store_id = $6, type = $7, status = $8, update_time = $9 WHERE id = $10 AND is_delete = 0",
+        "UPDATE service_staff SET name = $1, nickname = $2, avatar = $3, phone = $4, member_id = $5, store_id = $6, type = $7, status = $8, update_time = $9, id_card = $11, gender = $12, vehicle_type = $13, plate_no = $14, emergency_contact = $15, emergency_phone = $16, entry_time = CASE WHEN $17 > 0 THEN $17 ELSE entry_time END, admin_remark = $18 WHERE id = $10 AND is_delete = 0",
     )
     .bind(gs("name"))
     .bind(gs("nickname"))
@@ -742,6 +769,14 @@ async fn h_staff_update(
     .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1))
     .bind(now)
     .bind(gi("id"))
+    .bind(gs("idCard"))
+    .bind(gi("gender"))
+    .bind(gs("vehicleType"))
+    .bind(gs("plateNo"))
+    .bind(gs("emergencyContact"))
+    .bind(gs("emergencyPhone"))
+    .bind(gi("entryTime"))
+    .bind(gs("adminRemark"))
     .execute(&pool(&state))
     .await
     .map_err(db)?;
@@ -902,14 +937,14 @@ async fn h_apply_audit(
     let admin_id = auth.map(|Extension(u)| u.id).unwrap_or(0);
     let pool = pool(&state);
     let mut tx = pool.begin().await.map_err(db)?;
-    let row: Option<(i32, i32, i32, String, String, i32)> = sqlx::query_as(
-        "SELECT member_id, shop_id, type, name, phone, status FROM service_staff_apply WHERE apply_id = $1 AND is_delete = 0 FOR UPDATE",
+    let row: Option<(i32, i32, i32, String, String, String, i32)> = sqlx::query_as(
+        "SELECT member_id, shop_id, type, name, phone, id_card, status FROM service_staff_apply WHERE apply_id = $1 AND is_delete = 0 FOR UPDATE",
     )
     .bind(apply_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(db)?;
-    let Some((member_id, shop_id, apply_type, name, phone, status)) = row else {
+    let Some((member_id, shop_id, apply_type, name, phone, id_card, status)) = row else {
         return Err(nextrade_security::web::AppError(Error::NotFound(
             "入驻申请不存在".into(),
         )));
@@ -940,8 +975,10 @@ async fn h_apply_audit(
                 "该会员已绑定服务人员，不能重复入驻".into(),
             )));
         }
+        // 档案带入（帖 487950 完整版）：申请留存的证件号随审核通过落入人员档案，
+        // 入职时间取审核通过时刻（迁移 021 两列）。
         let staff_id: i32 = sqlx::query_scalar(
-            "INSERT INTO service_staff (name, nickname, avatar, phone, member_id, store_id, type, status, work_status, create_time, update_time) VALUES ($1, '', '', $2, $3, $4, $5, 1, 0, $6, $6) RETURNING id",
+            "INSERT INTO service_staff (name, nickname, avatar, phone, member_id, store_id, type, status, work_status, create_time, update_time, id_card, entry_time) VALUES ($1, '', '', $2, $3, $4, $5, 1, 0, $6, $6, $7, $6) RETURNING id",
         )
         .bind(&name)
         .bind(&phone)
@@ -949,6 +986,7 @@ async fn h_apply_audit(
         .bind(shop_id)
         .bind(apply_type)
         .bind(now)
+        .bind(&id_card)
         .fetch_one(&mut *tx)
         .await
         .map_err(db)?;
@@ -977,6 +1015,164 @@ async fn h_apply_audit(
     }
     tx.commit().await.map_err(db)?;
     ok(())
+}
+
+// ————————————————————— 骑手管理完整版（帖 487950，我方新增） —————————————————————
+
+/// 后台强制工作状态决策（纯函数，供单测）：work_status 2（忙碌）是系统派生
+/// 状态，后台只能写 0（下班）/1（空闲）；有在途单（delivery_order status=30）
+/// 时一律拒绝，避免把正在配送的人打下线或把忙碌标记误清。
+fn admin_work_status_decision(in_transit: i64, target: i64) -> Result<i32, &'static str> {
+    if !(0..=1).contains(&target) {
+        return Err("目标工作状态仅允许 0（下班）或 1（空闲），忙碌状态由系统派生");
+    }
+    if in_transit > 0 {
+        return Err("该人员有在途派送单，不能强制变更工作状态");
+    }
+    Ok(target as i32)
+}
+
+// post /o2o/serviceStaff/setWorkStatus —— 后台强制下线 / 忙碌卡死重置。
+// 与 C 端 updateWorkStatus（本人切换）分工：本口给管理端纠偏（骑手掉线后
+// 状态残留、设备丢失等），同店作用域守卫与人员写口一致。
+async fn h_staff_set_work_status(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<Value>,
+) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let target = body.get("workStatus").and_then(Value::as_i64).unwrap_or(-1);
+    guard_staff_scope(&state, &tenant, id).await?;
+    let (in_transit,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM delivery_order WHERE staff_id = $1 AND status = 30 AND is_delete = 0",
+    )
+    .bind(id)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    let target = admin_work_status_decision(in_transit, target)
+        .map_err(|msg| nextrade_security::web::AppError(Error::Validation(msg.into())))?;
+    let now = nextrade_common::utils::now_seconds();
+    sqlx::query(
+        "UPDATE service_staff SET work_status = $1, update_time = $2 WHERE id = $3 AND is_delete = 0",
+    )
+    .bind(target)
+    .bind(now)
+    .bind(id)
+    .execute(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(())
+}
+
+// get /o2o/serviceStaff/locationList —— 人员最新位置总览（定位读侧）。
+// 数据来自阶段三动作打点（接单/取货/送达）与在岗上报（report，C 端新口）：
+// 无骑手端 App 的前提下这是后台可达成的最新位置视图；locationAgeSec 为
+// 距今秒数（无定位记录时为 null），前端据此标示新鲜度。
+async fn h_staff_location_list(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<Pg>,
+) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+    let shop_id: i64 = match tenant.scoped_shop_id() {
+        Some(scope) if scope > 0 => i64::from(scope),
+        Some(_) => -1,
+        None => q.shop_id.unwrap_or(0),
+    };
+    let want_type: i64 = q.r#type.unwrap_or(0);
+    let work_status = q.work_status.unwrap_or(-1);
+    let now = nextrade_common::utils::now_seconds();
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM service_staff s WHERE s.is_delete = 0 AND ($1 = 0 OR s.store_id = $2) AND ($3 = 0 OR s.type = $4) AND ($5 = -1 OR s.work_status = $6) AND (s.name ILIKE $7 OR s.phone ILIKE $8)",
+    )
+    .bind(shop_id)
+    .bind(shop_id)
+    .bind(want_type)
+    .bind(want_type)
+    .bind(work_status)
+    .bind(work_status)
+    .bind(&kw)
+    .bind(&kw)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT json_build_object('staffId', s.id, 'name', s.name, 'phone', s.phone, 'storeId', s.store_id, 'type', s.type, 'status', s.status, 'workStatus', s.work_status, 'longitude', l.longitude, 'latitude', l.latitude, 'locationTime', l.update_time, 'locationAgeSec', CASE WHEN l.update_time IS NULL THEN NULL ELSE $9 - l.update_time END) FROM service_staff s LEFT JOIN staff_location_latest l ON l.staff_id = s.id WHERE s.is_delete = 0 AND ($1 = 0 OR s.store_id = $2) AND ($3 = 0 OR s.type = $4) AND ($5 = -1 OR s.work_status = $6) AND (s.name ILIKE $7 OR s.phone ILIKE $8) ORDER BY s.work_status DESC, l.update_time DESC NULLS LAST, s.id DESC LIMIT $10 OFFSET $11",
+    )
+    .bind(shop_id)
+    .bind(shop_id)
+    .bind(want_type)
+    .bind(want_type)
+    .bind(work_status)
+    .bind(work_status)
+    .bind(&kw)
+    .bind(&kw)
+    .bind(now)
+    .bind(s)
+    .bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(
+        serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}),
+    )
+}
+
+// get /o2o/serviceStaff/trackList —— 轨迹点查询（按人员 / 派送单 / 时间窗）。
+// 轨迹表无 shop 列，店铺账号经人员归属 JOIN 收窄到本店（哨兵 -1 恒空）。
+async fn h_staff_track_list(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<Pg>,
+) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let shop_id: i64 = match tenant.scoped_shop_id() {
+        Some(scope) if scope > 0 => i64::from(scope),
+        Some(_) => -1,
+        None => q.shop_id.unwrap_or(0),
+    };
+    let staff_id = q.staff_id.unwrap_or(0);
+    let delivery_order_id = q.delivery_order_id.unwrap_or(0);
+    let start_time = q.start_time.unwrap_or(0);
+    let end_time = q.end_time.unwrap_or(0);
+    let where_sql = "FROM staff_track_point tp JOIN service_staff s ON s.id = tp.staff_id LEFT JOIN delivery_order d ON d.delivery_order_id = tp.delivery_order_id WHERE s.is_delete = 0 AND ($1 = 0 OR s.store_id = $2) AND ($3 = 0 OR tp.staff_id = $4) AND ($5 = 0 OR tp.delivery_order_id = $6) AND ($7 = 0 OR tp.create_time >= $8) AND ($9 = 0 OR tp.create_time <= $10)";
+    let (total,): (i64,) = sqlx::query_as(&format!("SELECT COUNT(*) {where_sql}"))
+        .bind(shop_id)
+        .bind(shop_id)
+        .bind(staff_id)
+        .bind(staff_id)
+        .bind(delivery_order_id)
+        .bind(delivery_order_id)
+        .bind(start_time)
+        .bind(start_time)
+        .bind(end_time)
+        .bind(end_time)
+        .fetch_one(&pool(&state))
+        .await
+        .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(&format!(
+        "SELECT json_build_object('pointId', tp.point_id, 'staffId', tp.staff_id, 'staffName', s.name, 'staffPhone', s.phone, 'storeId', s.store_id, 'deliveryOrderId', tp.delivery_order_id, 'deliveryOrderSn', COALESCE(d.delivery_order_sn, ''), 'action', tp.action, 'longitude', tp.longitude, 'latitude', tp.latitude, 'createTime', tp.create_time) {where_sql} ORDER BY tp.create_time DESC, tp.point_id DESC LIMIT $11 OFFSET $12"
+    ))
+    .bind(shop_id)
+    .bind(shop_id)
+    .bind(staff_id)
+    .bind(staff_id)
+    .bind(delivery_order_id)
+    .bind(delivery_order_id)
+    .bind(start_time)
+    .bind(start_time)
+    .bind(end_time)
+    .bind(end_time)
+    .bind(s)
+    .bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(
+        serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}),
+    )
 }
 
 // ————————————————————— O2O 区域管理（area_store_manager） —————————————————————
@@ -2289,6 +2485,9 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/serviceStaff/batch", post(h_staff_batch))
         .route("/o2o/serviceStaffApply/list", get(h_apply_list))
         .route("/o2o/serviceStaffApply/audit", post(h_apply_audit))
+        .route("/o2o/serviceStaff/setWorkStatus", post(h_staff_set_work_status))
+        .route("/o2o/serviceStaff/locationList", get(h_staff_location_list))
+        .route("/o2o/serviceStaff/trackList", get(h_staff_track_list))
         .route("/pos/table/cart/list", post(h_22))
         .route("/pos/table/cart/addToCart", post(h_23))
         .route("/pos/table/cart/removeItem", post(h_24))
@@ -2350,4 +2549,29 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/decorate/mobileDecorate/batch", post(h_69))
         .route("/decorate/mobileDecorate/updateField", post(h_70))
         .route("/decorate/decorateRequest/productList", post(h_71))
+}
+
+#[cfg(test)]
+mod rider_admin_tests {
+    use super::admin_work_status_decision;
+
+    #[test]
+    fn work_status_decision_rejects_derived_or_invalid_target() {
+        // 2（忙碌）是系统派生状态，后台不可直写；越界值同样拒绝。
+        assert!(admin_work_status_decision(0, 2).is_err());
+        assert!(admin_work_status_decision(0, -1).is_err());
+        assert!(admin_work_status_decision(0, 9).is_err());
+    }
+
+    #[test]
+    fn work_status_decision_blocks_when_in_transit() {
+        assert!(admin_work_status_decision(1, 0).is_err());
+        assert!(admin_work_status_decision(3, 1).is_err());
+    }
+
+    #[test]
+    fn work_status_decision_allows_idle_staff() {
+        assert_eq!(admin_work_status_decision(0, 0).unwrap(), 0);
+        assert_eq!(admin_work_status_decision(0, 1).unwrap(), 1);
+    }
 }

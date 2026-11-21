@@ -51,6 +51,49 @@ interface StaffRow {
   workStatusName?: string;
   createTime?: string;
   addTime?: string;
+  // 骑手档案（迁移 021，我方新增）
+  idCard?: string;
+  gender?: number;
+  vehicleType?: string;
+  plateNo?: string;
+  emergencyContact?: string;
+  emergencyPhone?: string;
+  entryTime?: number;
+  adminRemark?: string;
+  completedOrderCount?: number;
+  completedOrderAmount?: number;
+  lastLongitude?: number | null;
+  lastLatitude?: number | null;
+  lastLocationTime?: number | null;
+}
+
+/** 派送记录行（配送记录/服务记录页签，数据走 /o2o/deliveryOrder/list）。 */
+interface DeliveryRecordRow {
+  deliveryOrderId: number;
+  deliveryOrderSn: string;
+  orderSn?: string;
+  consignee?: string;
+  mobile?: string;
+  staffName?: string;
+  status: number;
+  orderAmount?: number;
+  createTime?: number;
+  completeTime?: number | null;
+}
+
+const deliveryStatusMap: Record<number, string> = {
+  10: '待派发',
+  20: '待取货',
+  30: '配送中',
+  40: '已完成',
+  50: '已取消',
+};
+
+function fmtEpoch(ts?: number | null): string {
+  if (!ts) return '--';
+  const d = new Date(ts * 1000);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 const workStatusMap: Record<number, { text: string; type: 'success' | 'warning' | 'primary' }> = {
@@ -92,6 +135,31 @@ export function StaffManagement({ staffType }: { staffType: 'deliveryman' | 'ser
       setReloadKey((k) => k + 1);
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : t('更新状态失败') });
+    }
+  };
+
+  /** 后台工作状态管理（帖 487950）：强制下线 / 忙碌卡死重置；有在途单时后端拒绝。 */
+  const handleSetWorkStatus = async (record: StaffRow, target: 0 | 1) => {
+    try {
+      await apiPost('/o2o/serviceStaff/setWorkStatus', { id: record.id, workStatus: target });
+      Toast.success({ content: t(target === 0 ? '已强制下线' : '已重置为空闲') });
+      setReloadKey((k) => k + 1);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('操作失败') });
+    }
+  };
+
+  /** 详情弹窗：先展示行数据，再拉档案全量（档案字段 + 最近定位）合并。 */
+  const openDetail = async (record: StaffRow) => {
+    setCurrentStaff(record);
+    setDetailModalVisible(true);
+    try {
+      const detail = await apiGet<StaffRow>('/o2o/serviceStaff/detail', { id: record.id });
+      if (detail) {
+        setCurrentStaff({ ...record, ...detail });
+      }
+    } catch {
+      // 档案拉取失败不阻塞弹窗，行数据已展示
     }
   };
 
@@ -168,6 +236,59 @@ export function StaffManagement({ staffType }: { staffType: 'deliveryman' | 'ser
               { label: t('禁用'), value: 0 },
             ],
           },
+          {
+            field: 'idCard',
+            label: t('身份证号'),
+            type: 'input',
+            placeholder: t('证件号码（仅留存）'),
+            width: 300,
+          },
+          {
+            field: 'gender',
+            label: t('性别'),
+            type: 'radio',
+            initValue: 0,
+            options: [
+              { label: t('未知'), value: 0 },
+              { label: t('男'), value: 1 },
+              { label: t('女'), value: 2 },
+            ],
+          },
+          {
+            field: 'vehicleType',
+            label: t('交通工具'),
+            type: 'input',
+            placeholder: t('如：电动车 / 摩托车 / 汽车'),
+            width: 300,
+          },
+          {
+            field: 'plateNo',
+            label: t('车牌号'),
+            type: 'input',
+            placeholder: t('请输入车牌号'),
+            width: 300,
+          },
+          {
+            field: 'emergencyContact',
+            label: t('紧急联系人'),
+            type: 'input',
+            placeholder: t('请输入紧急联系人姓名'),
+            width: 300,
+          },
+          {
+            field: 'emergencyPhone',
+            label: t('紧急联系电话'),
+            type: 'input',
+            placeholder: t('请输入紧急联系电话'),
+            width: 300,
+          },
+          {
+            field: 'adminRemark',
+            label: t('管理员备注'),
+            type: 'input',
+            placeholder: t('内部备注，骑手不可见'),
+            width: 300,
+          },
         ],
       },
     ],
@@ -199,6 +320,19 @@ export function StaffManagement({ staffType }: { staffType: 'deliveryman' | 'ser
       dataIndex: 'phone',
       width: 140,
       render: (val: string) => val || '--',
+    },
+    {
+      title: '累计完成',
+      dataIndex: 'completedOrderCount',
+      width: 130,
+      render: (val: number, r) => (
+        <span>
+          {val ?? 0} {t('单')}
+          {r.completedOrderAmount != null ? (
+            <Text type="tertiary" size="small">{` · ¥${Number(r.completedOrderAmount).toFixed(2)}`}</Text>
+          ) : null}
+        </span>
+      ),
     },
     {
       title: '账号状态',
@@ -254,13 +388,73 @@ export function StaffManagement({ staffType }: { staffType: 'deliveryman' | 'ser
         </Tabs>
       </div>
 
+      {activeTab === 'record' ? (
+        <ListPage<DeliveryRecordRow>
+          key={`record-${reloadKey}`}
+          api={`/o2o/deliveryOrder/list?type=${typeId}`}
+          rowKey="deliveryOrderId"
+          pageSize={10}
+          filters={[
+            {
+              field: 'keyword',
+              label: '单号/收货人：',
+              type: 'input',
+              placeholder: '输入派送单号、订单号或收货人',
+              width: 220,
+            },
+            {
+              field: 'status',
+              label: '状态：',
+              type: 'select',
+              placeholder: '全部状态',
+              width: 130,
+              options: Object.entries(deliveryStatusMap).map(([v, label]) => ({ label, value: Number(v) })),
+            },
+          ]}
+          columns={[
+            { title: '派送单号', dataIndex: 'deliveryOrderSn', width: 170 },
+            { title: '订单号', dataIndex: 'orderSn', width: 170, render: (v: string) => v || '--' },
+            {
+              title: '收货人',
+              dataIndex: 'consignee',
+              width: 150,
+              render: (v: string, r) => `${v || '--'}${r.mobile ? ` · ${r.mobile}` : ''}`,
+            },
+            { title: '执行人员', dataIndex: 'staffName', width: 110, render: (v: string) => v || '--' },
+            {
+              title: '状态',
+              dataIndex: 'status',
+              width: 100,
+              render: (v: number) => t(deliveryStatusMap[v] || '未知'),
+            },
+            {
+              title: '订单金额',
+              dataIndex: 'orderAmount',
+              width: 110,
+              render: (v: number) => (v != null ? `¥${Number(v).toFixed(2)}` : '--'),
+            },
+            {
+              title: '创建时间',
+              dataIndex: 'createTime',
+              width: 160,
+              render: (v: number) => fmtEpoch(v),
+            },
+            {
+              title: '完成时间',
+              dataIndex: 'completeTime',
+              width: 160,
+              render: (v: number) => fmtEpoch(v),
+            },
+          ]}
+        />
+      ) : (
       <ListPage<StaffRow>
         key={`${activeTab}-${reloadKey}`}
         api={`/o2o/serviceStaff/list?type=${typeId}`}
         rowKey="id"
         pageSize={10}
         selectable
-        actionWidth={180}
+        actionWidth={280}
         showEdit={true}
         drawer={drawer}
         filters={[
@@ -280,6 +474,18 @@ export function StaffManagement({ staffType }: { staffType: 'deliveryman' | 'ser
             options: [
               { label: '启用', value: 1 },
               { label: '禁用', value: 0 },
+            ],
+          },
+          {
+            field: 'workStatus',
+            label: '工作状态：',
+            type: 'select',
+            placeholder: '全部',
+            width: 130,
+            options: [
+              { label: '已下班', value: 0 },
+              { label: '空闲中', value: 1 },
+              { label: '忙碌中', value: 2 },
             ],
           },
         ]}
@@ -302,13 +508,30 @@ export function StaffManagement({ staffType }: { staffType: 'deliveryman' | 'ser
               theme="borderless"
               size="small"
               type="secondary"
-              onClick={() => {
-                setCurrentStaff(record);
-                setDetailModalVisible(true);
-              }}
+              onClick={() => void openDetail(record)}
             >
               {t('详情')}
             </Button>
+            {record.workStatus === 2 ? (
+              <Popconfirm
+                title={t('该{name}显示忙碌中。若实际已无在途单（状态卡死），可重置为空闲；有在途单时后端会拒绝。', { name: staffTitle })}
+                onConfirm={() => handleSetWorkStatus(record, 1)}
+              >
+                <Button theme="borderless" size="small" type="warning">
+                  {t('重置状态')}
+                </Button>
+              </Popconfirm>
+            ) : null}
+            {record.workStatus !== 0 ? (
+              <Popconfirm
+                title={t('确认强制该{name}下线吗？有在途单时后端会拒绝。', { name: staffTitle })}
+                onConfirm={() => handleSetWorkStatus(record, 0)}
+              >
+                <Button theme="borderless" size="small" type="warning">
+                  {t('强制下线')}
+                </Button>
+              </Popconfirm>
+            ) : null}
             <Popconfirm
               title={t('确认删除该{name}吗？删除后不可恢复！', { name: staffTitle })}
               onConfirm={() => handleDelete(record.id)}
@@ -320,6 +543,7 @@ export function StaffManagement({ staffType }: { staffType: 'deliveryman' | 'ser
           </Space>
         )}
       />
+      )}
 
       {/* 人员详情弹窗 */}
       <Modal
@@ -350,6 +574,33 @@ export function StaffManagement({ staffType }: { staffType: 'deliveryman' | 'ser
                 key: t('{name}状态', { name: staffTitle }),
                 value: currentStaff.workStatusName || t('空闲中'),
               },
+              { key: t('身份证号'), value: currentStaff.idCard || '--' },
+              {
+                key: t('性别'),
+                value: currentStaff.gender === 1 ? t('男') : currentStaff.gender === 2 ? t('女') : '--',
+              },
+              { key: t('交通工具'), value: currentStaff.vehicleType || '--' },
+              { key: t('车牌号'), value: currentStaff.plateNo || '--' },
+              {
+                key: t('紧急联系人'),
+                value:
+                  currentStaff.emergencyContact || currentStaff.emergencyPhone
+                    ? `${currentStaff.emergencyContact || ''}${currentStaff.emergencyPhone ? ` · ${currentStaff.emergencyPhone}` : ''}`
+                    : '--',
+              },
+              { key: t('入职时间'), value: fmtEpoch(currentStaff.entryTime) },
+              {
+                key: t('累计完成'),
+                value: `${currentStaff.completedOrderCount ?? 0} ${t('单')} · ¥${Number(currentStaff.completedOrderAmount ?? 0).toFixed(2)}`,
+              },
+              {
+                key: t('最近定位'),
+                value:
+                  currentStaff.lastLongitude != null && currentStaff.lastLatitude != null
+                    ? `${currentStaff.lastLongitude}, ${currentStaff.lastLatitude}（${fmtEpoch(currentStaff.lastLocationTime)}）`
+                    : t('暂无定位记录'),
+              },
+              { key: t('管理员备注'), value: currentStaff.adminRemark || '--' },
               { key: t('创建时间'), value: currentStaff.createTime || '--' },
             ]}
           />

@@ -61,6 +61,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 36] = [
     ("POST", "/o2o/serviceStaff/apply", "ServiceStaffController.apply"),
     ("GET", "/o2o/serviceStaff/myApplies", "ServiceStaffController.myApplies"),
     ("POST", "/o2o/serviceStaff/updateWorkStatus", "ServiceStaffController.updateWorkStatus"),
+    ("POST", "/o2o/serviceStaff/reportLocation", "ServiceStaffController.reportLocation"),
     ("GET", "/o2o/staffWallet/myWallet", "StaffWalletController.myWallet"),
     ("GET", "/o2o/staffWallet/myLogs", "StaffWalletController.myLogs"),
     ("GET", "/o2o/staffWallet/withdrawConfig", "StaffWalletController.withdrawConfig"),
@@ -103,6 +104,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/o2o/serviceStaff/apply", post(staff_apply))
         .route("/o2o/serviceStaff/myApplies", get(staff_my_applies))
         .route("/o2o/serviceStaff/updateWorkStatus", post(staff_update_work_status))
+        .route("/o2o/serviceStaff/reportLocation", post(staff_report_location))
         .route("/o2o/staffWallet/myWallet", get(staff_wallet))
         .route("/o2o/staffWallet/myLogs", get(staff_wallet_logs))
         .route("/o2o/staffWallet/withdrawConfig", get(staff_withdraw_config))
@@ -559,6 +561,13 @@ struct WorkStatusBody {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+struct ReportLocationBody {
+    longitude: Option<f64>,
+    latitude: Option<f64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 struct StaffApplyDto {
     shop_id: Option<i32>,
     r#type: Option<i32>,
@@ -629,6 +638,32 @@ async fn staff_update_work_status(
     if !ok_flag {
         return Err(nextrade_security::web::AppError(nextrade_core::Error::biz(1001, "当前账号未绑定服务人员")));
     }
+    ok(())
+}
+
+/// 在岗位置上报（帖 487950 完整版，我方新增）：H5 骑手模式在岗期间周期上报
+/// 当前位置，落 staff_track_point（action='report'，delivery_order_id=0）并
+/// 刷新最新位置，供后台定位总览 / 轨迹查询消费。无骑手端 App 前提下的轨迹
+/// 来源 = 动作点（grab/pickup/complete）+ 在岗周期点。坐标缺失时静默成功
+/// （定位授权失败不阻塞骑手作业，与动作打点同口径，仓储层自动跳过）。
+async fn staff_report_location(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(body): Json<ReportLocationBody>,
+) -> ApiResult<()> {
+    let uid = current_user_id(auth)?;
+    let (staff_id, _, _) = delivery_staff_of(&state, uid).await?;
+    let lng = body
+        .longitude
+        .and_then(rust_decimal::Decimal::from_f64_retain);
+    let lat = body
+        .latitude
+        .and_then(rust_decimal::Decimal::from_f64_retain);
+    state
+        .o2o
+        .pickup_client
+        .record_track_point(staff_id, 0, "report", lng, lat)
+        .await?;
     ok(())
 }
 

@@ -65,6 +65,10 @@ export const riderMyInfo = () => request<RiderEnvelope<RiderInfo | null>>({ url:
 export const riderUpdateWorkStatus = (workStatus: number) =>
     request({ url: "o2o/serviceStaff/updateWorkStatus", method: "post", data: { workStatus } });
 
+/** 在岗位置上报（帖 487950 完整版，我方新增）：落轨迹点（report）+ 最新位置，供后台定位总览/轨迹查询。 */
+export const riderReportLocation = (longitude: number, latitude: number) =>
+    request({ url: "o2o/serviceStaff/reportLocation", method: "post", data: { longitude, latitude } });
+
 export const riderStatistics = () =>
     request<RiderEnvelope<{ total: number; pending: number; processing: number; completed: number; cancelled: number }>>({
         url: "o2o/deliveryOrder/statistics",

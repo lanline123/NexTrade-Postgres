@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Text, View } from "@tarojs/components";
 import Taro, { useDidShow } from "@tarojs/taro";
 
-import { riderMyApplies, riderMyInfo, riderStatistics, riderUpdateWorkStatus, type RiderInfo } from "@/api/rider/rider";
+import { riderMyApplies, riderMyInfo, riderReportLocation, riderStatistics, riderUpdateWorkStatus, type RiderInfo } from "@/api/rider/rider";
 import { t } from "@/utils/i18n";
 
 import "./index.scss";
@@ -39,6 +39,26 @@ export default function RiderIndex() {
     useDidShow(() => {
         void load();
     });
+
+    // 在岗位置上报（帖 487950 完整版）：在线期间立即报一次 + 每 60 秒报一次，
+    // 供后台「骑手定位轨迹」页消费；定位授权失败静默，不打扰骑手作业。
+    const reportLocation = useCallback(() => {
+        Taro.getLocation({
+            type: "gcj02",
+            success: (res) => {
+                void riderReportLocation(res.longitude, res.latitude).catch(() => undefined);
+            },
+            fail: () => undefined
+        });
+    }, []);
+
+    const onlineNow = !!info && info.status === 1 && info.workStatus !== 0;
+    useEffect(() => {
+        if (!onlineNow) return;
+        reportLocation();
+        const timer = setInterval(reportLocation, 60000);
+        return () => clearInterval(timer);
+    }, [onlineNow, reportLocation]);
 
     const toggleWork = async () => {
         if (!info || toggling) return;

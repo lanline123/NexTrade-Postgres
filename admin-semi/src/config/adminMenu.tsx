@@ -342,6 +342,10 @@ export const navGroups: NavGroup[] = [
           {
             "key": "deliveryOrderManage",
             "label": "派送单管理"
+          },
+          {
+            "key": "riderTrackManage",
+            "label": "骑手定位轨迹"
           }
         ]
       },
@@ -1757,6 +1761,7 @@ export const pageTitles: Record<string, string> = {
   "deliverymanList": "配送员管理",
   "staffApplyManage": "入驻审核",
   "deliveryOrderManage": "派送单管理",
+  "riderTrackManage": "骑手定位轨迹",
   "servicemanList": "服务员管理",
   "applyManage": "入驻申请",
   "adminMerchantManage": "商户管理",

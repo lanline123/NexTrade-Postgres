@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Button,
+  DatePicker,
   Input,
   Modal,
   Radio,
@@ -22,6 +23,7 @@ const { Text } = Typography;
 /** 骑手 MVP（我方新增页面；地基接口为原版有·我方补齐接线）：
  *  - StaffApplyManage：入驻审核（会员申请 → 审核 → 生成 service_staff）
  *  - DeliveryOrderManage：派送单管理（指派/改派/取消，人员选择走 availableStaff）
+ *  - RiderTrackManage：骑手定位轨迹（帖 487950 完整版新增：最新位置总览 + 轨迹点查询）
  */
 
 function fmtTs(ts?: number): string {
@@ -551,6 +553,315 @@ export function DeliveryOrderManage() {
           </div>
         )}
       </Modal>
+    </div>
+  );
+}
+
+/* ================================================================== */
+
+/** 骑手定位轨迹（帖 487950 完整版，我方新增页面）：
+ *  - 最新位置：全店人员最新一次定位（动作打点 + 在岗上报），含新鲜度；
+ *  - 轨迹查询：按人员 / 派送单 / 日期回放轨迹点（接单/取货/送达/在岗上报）。
+ * 无骑手端 App 前提下轨迹为动作点 + 在岗周期点，非连续 GPS 轨迹。 */
+
+interface LocationRow {
+  staffId: number;
+  name: string;
+  phone: string;
+  storeId: number;
+  type: number;
+  status: number;
+  workStatus: number;
+  longitude?: number | null;
+  latitude?: number | null;
+  locationTime?: number | null;
+  locationAgeSec?: number | null;
+}
+
+interface TrackPointRow {
+  pointId: number;
+  staffId: number;
+  staffName: string;
+  staffPhone?: string;
+  storeId: number;
+  deliveryOrderId: number;
+  deliveryOrderSn?: string;
+  action: string;
+  longitude?: number | null;
+  latitude?: number | null;
+  createTime: number;
+}
+
+const WORK_STATUS_TAG: Record<number, { text: string; color: 'grey' | 'green' | 'amber' }> = {
+  0: { text: '已下班', color: 'grey' },
+  1: { text: '空闲中', color: 'green' },
+  2: { text: '忙碌中', color: 'amber' },
+};
+
+const TRACK_ACTION_TEXT: Record<string, string> = {
+  grab: '接单',
+  pickup: '取货',
+  complete: '送达',
+  report: '在岗上报',
+};
+
+function fmtAge(sec?: number | null): string {
+  if (sec == null) return '-';
+  if (sec < 60) return `${sec}秒前`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}分钟前`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}小时前`;
+  return `${Math.floor(sec / 86400)}天前`;
+}
+
+function fmtCoord(v?: number | null): string {
+  return v == null ? '-' : Number(v).toFixed(6);
+}
+
+export function RiderTrackManage() {
+  const { t } = useI18n();
+  const size = 20;
+
+  // ——— 最新位置 ———
+  const [locRows, setLocRows] = useState<LocationRow[]>([]);
+  const [locTotal, setLocTotal] = useState(0);
+  const [locPage, setLocPage] = useState(1);
+  const [locLoading, setLocLoading] = useState(false);
+  const [locType, setLocType] = useState<number>(0);
+  const [locWorkStatus, setLocWorkStatus] = useState<number>(-1);
+  const [locKeyword, setLocKeyword] = useState('');
+
+  const loadLocations = useCallback(async () => {
+    setLocLoading(true);
+    try {
+      const res = await apiGet<{ records: LocationRow[]; total: number }>('/o2o/serviceStaff/locationList', {
+        type: locType,
+        workStatus: locWorkStatus,
+        keyword: locKeyword,
+        page: locPage,
+        size,
+      });
+      setLocRows(res.records || []);
+      setLocTotal(res.total || 0);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('加载失败') });
+    } finally {
+      setLocLoading(false);
+    }
+  }, [locType, locWorkStatus, locKeyword, locPage, t]);
+
+  useEffect(() => {
+    void loadLocations();
+  }, [loadLocations]);
+
+  // ——— 轨迹查询 ———
+  const [trackRows, setTrackRows] = useState<TrackPointRow[]>([]);
+  const [trackTotal, setTrackTotal] = useState(0);
+  const [trackPage, setTrackPage] = useState(1);
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [qStaffId, setQStaffId] = useState('');
+  const [qDeliveryOrderId, setQDeliveryOrderId] = useState('');
+  const [qStart, setQStart] = useState<Date | null>(null);
+  const [qEnd, setQEnd] = useState<Date | null>(null);
+
+  const loadTracks = useCallback(async () => {
+    setTrackLoading(true);
+    try {
+      const params: Record<string, unknown> = { page: trackPage, size };
+      const sid = Number(qStaffId);
+      if (qStaffId && sid > 0) params.staffId = sid;
+      const did = Number(qDeliveryOrderId);
+      if (qDeliveryOrderId && did > 0) params.deliveryOrderId = did;
+      if (qStart) params.startTime = Math.floor(new Date(qStart).setHours(0, 0, 0, 0) / 1000);
+      if (qEnd) params.endTime = Math.floor(new Date(qEnd).setHours(23, 59, 59, 0) / 1000);
+      const res = await apiGet<{ records: TrackPointRow[]; total: number }>('/o2o/serviceStaff/trackList', params);
+      setTrackRows(res.records || []);
+      setTrackTotal(res.total || 0);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('加载失败') });
+    } finally {
+      setTrackLoading(false);
+    }
+  }, [trackPage, qStaffId, qDeliveryOrderId, qStart, qEnd, t]);
+
+  useEffect(() => {
+    void loadTracks();
+  }, [loadTracks]);
+
+  const locColumns = [
+    {
+      title: t('人员'),
+      width: 170,
+      render: (_: unknown, r: LocationRow) => (
+        <div>
+          <div>{r.name}</div>
+          <Text type="tertiary" size="small">{r.phone}</Text>
+        </div>
+      ),
+    },
+    {
+      title: t('类型'),
+      width: 90,
+      render: (_: unknown, r: LocationRow) => (r.type === 2 ? t('服务员') : t('配送员')),
+    },
+    { title: t('店铺'), width: 90, render: (_: unknown, r: LocationRow) => `#${r.storeId}` },
+    {
+      title: t('工作状态'),
+      width: 110,
+      render: (_: unknown, r: LocationRow) => {
+        if (r.status === 0) return <Tag color="red">{t('已禁用')}</Tag>;
+        const w = WORK_STATUS_TAG[r.workStatus] || WORK_STATUS_TAG[0];
+        return <Tag color={w.color}>{t(w.text)}</Tag>;
+      },
+    },
+    { title: t('经度'), width: 120, render: (_: unknown, r: LocationRow) => fmtCoord(r.longitude) },
+    { title: t('纬度'), width: 120, render: (_: unknown, r: LocationRow) => fmtCoord(r.latitude) },
+    {
+      title: t('定位时间'),
+      width: 170,
+      render: (_: unknown, r: LocationRow) =>
+        r.locationTime ? `${fmtTs(r.locationTime)}（${fmtAge(r.locationAgeSec)}）` : t('暂无定位'),
+    },
+  ];
+
+  const trackColumns = [
+    { title: t('时间'), width: 150, render: (_: unknown, r: TrackPointRow) => fmtTs(r.createTime) },
+    {
+      title: t('人员'),
+      width: 160,
+      render: (_: unknown, r: TrackPointRow) => (
+        <div>
+          <div>{r.staffName}</div>
+          <Text type="tertiary" size="small">#{r.staffId}</Text>
+        </div>
+      ),
+    },
+    {
+      title: t('动作'),
+      width: 100,
+      render: (_: unknown, r: TrackPointRow) => (
+        <Tag color={r.action === 'report' ? 'grey' : 'blue'}>{t(TRACK_ACTION_TEXT[r.action] || r.action)}</Tag>
+      ),
+    },
+    {
+      title: t('派送单'),
+      width: 180,
+      render: (_: unknown, r: TrackPointRow) =>
+        r.deliveryOrderId ? r.deliveryOrderSn || `#${r.deliveryOrderId}` : '-',
+    },
+    { title: t('经度'), width: 120, render: (_: unknown, r: TrackPointRow) => fmtCoord(r.longitude) },
+    { title: t('纬度'), width: 120, render: (_: unknown, r: TrackPointRow) => fmtCoord(r.latitude) },
+  ];
+
+  return (
+    <div>
+      <Typography.Title heading={5} style={{ margin: '4px 0 4px' }}>
+        {t('人员最新位置')}
+      </Typography.Title>
+      <Text type="tertiary" size="small">
+        {t('位置来自接单/取货/送达动作打点与骑手在岗期间的位置上报；超过 30 分钟未更新请留意新鲜度。')}
+      </Text>
+      <div style={{ margin: '12px 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <Select
+          style={{ width: 130 }}
+          value={locType}
+          onChange={(v) => {
+            setLocType(Number(v));
+            setLocPage(1);
+          }}
+          optionList={[
+            { label: t('全部类型'), value: 0 },
+            { label: t('配送员'), value: 1 },
+            { label: t('服务员'), value: 2 },
+          ]}
+        />
+        <Select
+          style={{ width: 130 }}
+          value={locWorkStatus}
+          onChange={(v) => {
+            setLocWorkStatus(Number(v));
+            setLocPage(1);
+          }}
+          optionList={[
+            { label: t('全部状态'), value: -1 },
+            { label: t('空闲中'), value: 1 },
+            { label: t('忙碌中'), value: 2 },
+            { label: t('已下班'), value: 0 },
+          ]}
+        />
+        <Input
+          style={{ width: 240 }}
+          placeholder={t('姓名 / 手机号')}
+          value={locKeyword}
+          onChange={(v) => {
+            setLocKeyword(v);
+            setLocPage(1);
+          }}
+          showClear
+        />
+        <Button onClick={() => void loadLocations()}>{t('刷新')}</Button>
+      </div>
+      <Table
+        columns={locColumns}
+        dataSource={locRows}
+        rowKey="staffId"
+        loading={locLoading}
+        pagination={{ currentPage: locPage, pageSize: size, total: locTotal, onPageChange: setLocPage }}
+      />
+
+      <Typography.Title heading={5} style={{ margin: '24px 0 4px' }}>
+        {t('轨迹点查询')}
+      </Typography.Title>
+      <Text type="tertiary" size="small">
+        {t('按人员、派送单或日期回放轨迹点：在岗上报为周期点，动作点与派送单绑定。')}
+      </Text>
+      <div style={{ margin: '12px 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <Input
+          style={{ width: 150 }}
+          placeholder={t('人员ID')}
+          value={qStaffId}
+          onChange={(v) => {
+            setQStaffId(v);
+            setTrackPage(1);
+          }}
+          showClear
+        />
+        <Input
+          style={{ width: 170 }}
+          placeholder={t('派送单ID')}
+          value={qDeliveryOrderId}
+          onChange={(v) => {
+            setQDeliveryOrderId(v);
+            setTrackPage(1);
+          }}
+          showClear
+        />
+        <DatePicker
+          type="date"
+          placeholder={t('开始日期')}
+          value={qStart ?? undefined}
+          onChange={(d) => {
+            setQStart(d instanceof Date ? d : null);
+            setTrackPage(1);
+          }}
+        />
+        <DatePicker
+          type="date"
+          placeholder={t('结束日期')}
+          value={qEnd ?? undefined}
+          onChange={(d) => {
+            setQEnd(d instanceof Date ? d : null);
+            setTrackPage(1);
+          }}
+        />
+        <Button onClick={() => void loadTracks()}>{t('查询')}</Button>
+      </div>
+      <Table
+        columns={trackColumns}
+        dataSource={trackRows}
+        rowKey="pointId"
+        loading={trackLoading}
+        pagination={{ currentPage: trackPage, pageSize: size, total: trackTotal, onPageChange: setTrackPage }}
+      />
     </div>
   );
 }
