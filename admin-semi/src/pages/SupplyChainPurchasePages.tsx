@@ -436,7 +436,7 @@ function ProductSelectorModal({
 /* ==================================================================
    1. 采购订单管理 (PurchaseOrders / purchaseOrderManage)
    列表字段与单据状态对齐原版 purchaseOrder/List.vue：
-   1 待入库, 2 部分入库, 3 已完成, 4 已关闭；0 草稿为我方新增（原版无草稿）
+   1 待入库, 2 部分入库, 3 已完成, 4 已关闭；0 草稿、5 已发货为我方新增（原版无草稿、无发货状态）
 ================================================================== */
 interface PurchaseOrderItem {
   id?: number;
@@ -1286,11 +1286,17 @@ export function PurchaseOrders() {
   const [editingOrder, setEditingOrder] = useState<PurchaseOrderItem | null>(null);
   const [inboundOrder, setInboundOrder] = useState<PurchaseOrderItem | null>(null);
   const [detailOrder, setDetailOrder] = useState<PurchaseOrderItem | null>(null);
+  // 我方新增（帖 777863 发货环）：发货弹窗（记录供应商发货的物流信息）
+  const [shipOrder, setShipOrder] = useState<PurchaseOrderItem | null>(null);
+  const [shipLogisticsName, setShipLogisticsName] = useState('');
+  const [shipTrackingNo, setShipTrackingNo] = useState('');
+  const [shipSaving, setShipSaving] = useState(false);
 
   const statusName = (status: number) =>
-    ({ 0: t('草稿'), 1: t('待入库'), 2: t('部分入库'), 3: t('已完成'), 4: t('已关闭') })[status] || t('未知状态');
+    // 5 已发货为我方新增（帖 777863 发货环：供应商发货后、门店收货前）
+    ({ 0: t('草稿'), 1: t('待入库'), 2: t('部分入库'), 3: t('已完成'), 4: t('已关闭'), 5: t('已发货') })[status] || t('未知状态');
   const statusColor = (status: number): any =>
-    ({ 0: 'violet', 1: 'orange', 2: 'blue', 3: 'green', 4: 'grey' })[status] || 'grey';
+    ({ 0: 'violet', 1: 'orange', 2: 'blue', 3: 'green', 4: 'grey', 5: 'cyan' })[status] || 'grey';
 
   const columns: ColumnConfig<PurchaseOrderItem>[] = [
     {
@@ -1391,12 +1397,26 @@ export function PurchaseOrders() {
               </Popconfirm>
             </>
           ) : null}
-          {record.status === 1 || record.status === 2 ? (
+          {record.status === 1 ? (
+            <Button
+              theme="borderless"
+              type="primary"
+              size="small"
+              onClick={() => {
+                setShipLogisticsName(String((record as any).logisticsName || ''));
+                setShipTrackingNo(String((record as any).trackingNo || ''));
+                setShipOrder(record);
+              }}
+            >
+              {t('发货')}
+            </Button>
+          ) : null}
+          {record.status === 1 || record.status === 2 || record.status === 5 ? (
             <Button theme="borderless" type="primary" size="small" onClick={() => setInboundOrder(record)}>
               {t('入库')}
             </Button>
           ) : null}
-          {record.status === 2 ? (
+          {record.status === 2 || record.status === 5 ? (
             <Popconfirm
               title={t('确认标记采购完成？')}
               onConfirm={async () => {
@@ -1459,6 +1479,7 @@ export function PurchaseOrders() {
               { label: t('全部'), value: '' },
               { label: t('草稿'), value: 0 },
               { label: t('待入库'), value: 1 },
+              { label: t('已发货'), value: 5 },
               { label: t('部分入库'), value: 2 },
               { label: t('已完成'), value: 3 },
               { label: t('已关闭'), value: 4 },
@@ -1489,6 +1510,55 @@ export function PurchaseOrders() {
         }}
       />
       <PurchaseOrderDetailDrawer order={detailOrder} onClose={() => setDetailOrder(null)} />
+      {/* 我方新增（帖 777863 发货环）：供应商发货弹窗——确认后采购单进入
+          「已发货」，门店在入库（收货）动作里确认收货并自动更新库存。 */}
+      <Modal
+        title={t('供应商发货')}
+        visible={Boolean(shipOrder)}
+        onCancel={() => setShipOrder(null)}
+        onOk={async () => {
+          if (!shipOrder) return;
+          setShipSaving(true);
+          try {
+            await apiPost('/supplyChain/purchaseOrder/ship', {
+              id: orderIdOf(shipOrder),
+              logisticsName: shipLogisticsName.trim() || undefined,
+              trackingNo: shipTrackingNo.trim() || undefined,
+            });
+            Toast.success(t('已发货，等待门店收货'));
+            setShipOrder(null);
+            setReloadKey((k) => k + 1);
+          } catch (error) {
+            Toast.error({ content: errMsg(error, t) });
+          } finally {
+            setShipSaving(false);
+          }
+        }}
+        okText={t('确认发货')}
+        cancelText={t('取消')}
+        confirmLoading={shipSaving}
+        width={440}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Typography.Text type="tertiary">
+            {Number((shipOrder as any)?.shippingMethod ?? 1) === 2
+              ? t('该采购单为无需物流发货，可直接确认发货。')
+              : t('填写物流信息后确认发货，门店收货后库存将自动更新。')}
+          </Typography.Text>
+          <Input
+            placeholder={t('物流公司')}
+            value={shipLogisticsName}
+            onChange={setShipLogisticsName}
+            showClear
+          />
+          <Input
+            placeholder={t('物流单号')}
+            value={shipTrackingNo}
+            onChange={setShipTrackingNo}
+            showClear
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -395,7 +395,7 @@ pub fn build_warning_sql(spec: &WarningQuerySpec) -> String {
         "LEFT JOIN store_product sp ON sp.product_id = p.product_id AND CAST(sp.shop_id AS INT) = ? ",
         "LEFT JOIN store_product_sku sps ON sps.store_product_id = sp.store_product_id AND sps.product_sku_id = ps.sku_id ",
         "LEFT JOIN stock_warning_rule r ON r.product_id = p.product_id AND r.sku_id = COALESCE(ps.sku_id, 0) AND r.shop_id = ? AND r.is_delete = 0 ",
-        "LEFT JOIN ( SELECT poi.product_id AS product_id, poi.sku_id AS sku_id, SUM(GREATEST(poi.quantity - COALESCE(poi.received_quantity, 0), 0)) AS transit_stock FROM purchase_order_item poi INNER JOIN purchase_order po ON po.id = poi.order_id WHERE po.is_del = 0 AND poi.is_del = 0 AND po.type = 1 AND po.status IN (1, 2) AND po.shop_id = ? GROUP BY poi.product_id, poi.sku_id ) pt ON pt.product_id = p.product_id AND pt.sku_id = COALESCE(ps.sku_id, 0) ",
+        "LEFT JOIN ( SELECT poi.product_id AS product_id, poi.sku_id AS sku_id, SUM(GREATEST(poi.quantity - COALESCE(poi.received_quantity, 0), 0)) AS transit_stock FROM purchase_order_item poi INNER JOIN purchase_order po ON po.id = poi.order_id WHERE po.is_del = 0 AND poi.is_del = 0 AND po.type = 1 AND po.status IN (1, 2, 5) AND po.shop_id = ? GROUP BY poi.product_id, poi.sku_id ) pt ON pt.product_id = p.product_id AND pt.sku_id = COALESCE(ps.sku_id, 0) ",
         "WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = ? OR CAST(sp.shop_id AS INT) = ?) ",
     ));
 
@@ -641,6 +641,6 @@ mod tests {
         // 规则 join 必须带 is_delete = 0 与主体条件
         assert!(sql.contains("r.is_delete = 0"));
         // 在途库存只统计 type=1 且状态 1/2 的采购单
-        assert!(sql.contains("po.type = 1 AND po.status IN (1, 2)"));
+        assert!(sql.contains("po.type = 1 AND po.status IN (1, 2, 5)"));
     }
 }

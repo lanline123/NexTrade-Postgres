@@ -72,7 +72,7 @@ pub struct PurchaseOrder {
     pub vendor_contact: String,
     /// 银行账户快照JSON
     pub vendor_account_snapshot: Option<String>,
-    /// 0草稿（我方新增），1待入库，2部分入库，3已完成，4已关闭 [NOT NULL]
+    /// 0草稿（我方新增），1待入库，2部分入库，3已完成，4已关闭，5已发货（我方新增，帖 777863 发货环） [NOT NULL]
     pub status: i32,
     /// 预计送达日期 [NOT NULL]
     pub expected_delivery_date: i64,

@@ -13,8 +13,12 @@ use serde_json::{json, Map, Value};
 use sqlx::postgres::PgRow;
 use sqlx::{Column,Postgres, QueryBuilder, Row, TypeInfo};
 use std::str::FromStr;
+use nextrade_core::models::catalog::product_stock::{
+    record_type as stock_record_type, StockInDTO, StockRecordDetailItem,
+};
 use nextrade_core::Error;
 use nextrade_infrastructure::db::repo::marketing::tenant::TenantScope;
+use nextrade_services::catalog::product_stock::StockOperator;
 use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
@@ -68,6 +72,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/supplyChain/purchaseOrder/submit", post(order_submit))
         .route("/supplyChain/purchaseOrder/delete", post(order_delete))
         .route("/supplyChain/purchaseOrder/finish", post(order_finish))
+        .route("/supplyChain/purchaseOrder/ship", post(order_ship))
         // receipt
         .route("/supplyChain/purchaseReceipt/list", get(receipt_list))
         .route("/supplyChain/purchaseReceipt/detail", get(receipt_detail))
@@ -154,6 +159,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
         ("POST", "/api/supplyChain/purchaseOrder/submit"),
         ("POST", "/api/supplyChain/purchaseOrder/delete"),
         ("POST", "/api/supplyChain/purchaseOrder/finish"),
+        ("POST", "/api/supplyChain/purchaseOrder/ship"),
         ("GET", "/api/supplyChain/purchaseReceipt/list"),
         ("GET", "/api/supplyChain/purchaseReceipt/detail"),
         ("POST", "/api/supplyChain/purchaseReceipt/save"),
@@ -191,6 +197,7 @@ struct Pg {
     ids: Option<Vec<i64>>,
     status: Option<i32>,
     shop_id: Option<i32>,
+    vendor_id: Option<i32>,
 }
 
 fn page_of(q: &Pg) -> (u64, u64, i64) {
@@ -739,8 +746,24 @@ async fn order_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> A
     }
     ok(order)
 }
-/// 采购单明细入参（create / update 共用解析口径，与历史 create 完全一致：
-/// purchasePrice 只按字符串解析，缺失/非法按 0）。
+/// 金额入参双口径解析（我方修复，门店采购全流程批）：历史实现只认字符串，
+/// 而线上抽屉提交的 purchasePrice / returnPrice 均为 JSON 数字 —— 按字符串
+/// 取不到值便恒落 0，采购价/退货价与后续入库、对账金额全线失真。现字符串
+/// 与数字均可解析，缺失/非法按 0（退货价缺失的回退口径在 return_save 单独处理）。
+fn parse_decimal_flex(v: Option<&Value>) -> rust_decimal::Decimal {
+    match v {
+        Some(Value::String(s)) => {
+            rust_decimal::Decimal::from_str(s.trim()).unwrap_or(rust_decimal::Decimal::ZERO)
+        }
+        Some(Value::Number(n)) => {
+            rust_decimal::Decimal::from_str(&n.to_string()).unwrap_or(rust_decimal::Decimal::ZERO)
+        }
+        _ => rust_decimal::Decimal::ZERO,
+    }
+}
+
+/// 采购单明细入参（create / update 共用解析口径；purchasePrice 走
+/// [`parse_decimal_flex`] 双口径，历史为只认字符串、数字恒落 0）。
 #[derive(Debug, Clone)]
 struct OrderItemInput {
     sku_id: i64,
@@ -760,12 +783,7 @@ fn parse_order_items(body: &Value) -> Vec<OrderItemInput> {
                 .and_then(Value::as_i64)
                 .unwrap_or(0),
             qty: item.get("quantity").and_then(Value::as_i64).unwrap_or(0),
-            price: rust_decimal::Decimal::from_str(
-                item.get("purchasePrice")
-                    .and_then(Value::as_str)
-                    .unwrap_or("0"),
-            )
-            .unwrap_or(rust_decimal::Decimal::ZERO),
+            price: parse_decimal_flex(item.get("purchasePrice")),
         })
         .collect()
 }
@@ -943,9 +961,11 @@ async fn order_update(State(state): State<AdminState>, Json(body): Json<Value>) 
     if status == 3 || status == 4 {
         return Err(AppError(Error::biz(400, "已完成或已关闭的采购单不可编辑")));
     }
-    if status == 1 || status == 2 {
+    if status == 1 || status == 2 || status == 5 {
         // 正式单沿用历史口径：仅更新期望送达/发货方式/物流/备注等头部字段，
         // 不动供应商、明细与状态（历史 SQL 的 status NOT IN (3,4) 已由上方校验等价覆盖）。
+        // status=5（已发货，我方新增）同属正式单头部可编辑范围；若落入下方草稿分支，
+        // 其收尾 UPDATE 带 status=0 条件会静默 no-op 而明细却被替换，故必须在此收口。
         sqlx::query(
             "UPDATE purchase_order SET expected_delivery_date=COALESCE($1,expected_delivery_date), shipping_method=COALESCE($2,shipping_method), logistics_id=$3, logistics_name=$4, tracking_no=$5, remark=$6, update_time=$7 WHERE id=$8",
         )
@@ -1150,10 +1170,73 @@ async fn order_delete(State(state): State<AdminState>, Json(body): Json<Value>) 
 async fn order_finish(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
     let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
     let now = nextrade_common::utils::now_seconds() as i64;
-    sqlx::query("UPDATE purchase_order SET status=3, finish_reason=$1, finish_time=$2, update_time=$3 WHERE id=$4 AND status IN (1,2)")
+    // status=5（已发货）同样可完结：语义与从待入库完结一致（放弃剩余收货），
+    // 否则已发货未收货的单除收货外无任何出口（自动结束循环亦覆盖 5，见 scheduler）。
+    sqlx::query("UPDATE purchase_order SET status=3, finish_reason=$1, finish_time=$2, update_time=$3 WHERE id=$4 AND status IN (1,2,5)")
         .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
         .bind(now).bind(now).bind(id)
         .execute(&state.repos.pool).await.map_err(db)?;
+    ok(())
+}
+
+/// 供应商发货（我方新增，论坛帖 777863 门店采购流程的「发货」环）：
+/// 采购单此前只有 待入库→(部分)入库 的状态流，供应商发货无落点 —— 物流
+/// 字段只能在建单时由买方填写、且无任何状态表达。本端点把发货显式化：
+/// 仅 status=1（待入库）可发货，入参物流公司/单号覆盖落库，状态 1→5
+/// （已发货·待收货）；动作写入 purchase_operation_log（该表原版有、我方
+/// 此前全仓零写入，本批起激活）。发货后仍走既有入库（收货）链确认收货。
+async fn order_ship(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let row = sqlx::query(
+        "SELECT status FROM purchase_order WHERE id=$1 AND is_del=0 LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&state.repos.pool)
+    .await
+    .map_err(db)?
+    .ok_or_else(|| AppError(Error::biz(400, "采购订单不存在")))?;
+    let status: i32 = row.try_get("status").unwrap_or(-1);
+    if status != 1 {
+        return Err(AppError(Error::biz(400, "只有待入库的采购单可以发货")));
+    }
+    let now = nextrade_common::utils::now_seconds() as i64;
+    let logistics_name = body
+        .get("logisticsName")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let tracking_no = body
+        .get("trackingNo")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    sqlx::query(
+        "UPDATE purchase_order SET status=5, logistics_id=COALESCE($1,logistics_id), logistics_name=COALESCE($2,logistics_name), tracking_no=COALESCE($3,tracking_no), update_time=$4 WHERE id=$5 AND status=1",
+    )
+    .bind(body.get("logisticsId").and_then(Value::as_i64).map(|v| v as i32))
+    .bind(logistics_name)
+    .bind(tracking_no)
+    .bind(now)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?;
+    sqlx::query(
+        "INSERT INTO purchase_operation_log(business_type,business_id,action,from_status,to_status,remark,create_time,create_by_id,create_by_name,update_time,update_by_id,update_by_name,is_del) VALUES('purchase_order',$1,'ship',1,5,$2,$3,0,'', $3,0,'',0)",
+    )
+    .bind(id)
+    .bind(match (logistics_name, tracking_no) {
+        (Some(name), Some(no)) => format!("供应商发货：{name} {no}"),
+        (Some(name), None) => format!("供应商发货：{name}"),
+        (None, Some(no)) => format!("供应商发货：单号 {no}"),
+        (None, None) => "供应商发货".to_string(),
+    })
+    .bind(now)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?;
+    tx.commit().await.map_err(db)?;
     ok(())
 }
 
@@ -1188,8 +1271,53 @@ async fn receipt_detail(State(state): State<AdminState>, Query(q): Query<Pg>) ->
     }
     ok(receipt)
 }
-async fn receipt_save(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
-    use std::str::FromStr;
+/// 采购设置 `allow_over_receive` 的生效值（组织行优先、平台行兜底、
+/// 空 = 继承）：该设置原版有（purchase_setting），此前全仓无消费方 ——
+/// 设置页可配但入库恒拒超收。本批起由 receipt_save 消费。
+async fn load_allow_over_receive(state: &AdminState, shop_id: i32) -> Result<bool, AppError> {
+    for sid in [shop_id, 0] {
+        let row = sqlx::query(
+            "SELECT allow_over_receive FROM purchase_setting WHERE shop_id=$1 AND is_del=0 ORDER BY id DESC LIMIT 1",
+        )
+        .bind(sid)
+        .fetch_optional(&state.repos.pool)
+        .await
+        .map_err(db)?;
+        if let Some(row) = row {
+            if let Some(v) = row
+                .try_get::<Option<i32>, _>("allow_over_receive")
+                .ok()
+                .flatten()
+            {
+                return Ok(v == 1);
+            }
+        }
+    }
+    Ok(false)
+}
+
+/// 入库校验前置的收齐行（receipt_save 专用）：归属/数量/超收口径全部
+/// 校验通过后才进入库存落点与落库事务，避免半程失败留下脏单。
+struct ReceiptLine {
+    order_item_id: i64,
+    qty: i64,
+    price: rust_decimal::Decimal,
+    amount: rust_decimal::Decimal,
+    product_id: i32,
+    sku_id: i32,
+    product_name: String,
+    sku_name: String,
+    product_sn: String,
+    sku_sn: String,
+    pic_thumb: String,
+    product_unit: String,
+}
+
+async fn receipt_save(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<Value>,
+) -> ApiResult<i64> {
     let mut order_id = body.get("orderId").and_then(Value::as_i64).unwrap_or(0);
     let mut inputs = body
         .get("items")
@@ -1245,29 +1373,21 @@ async fn receipt_save(State(state): State<AdminState>, Json(body): Json<Value>) 
     if status == 0 {
         return Err(AppError(Error::biz(400, "草稿采购单不能入库，请先提交")));
     }
-    if status != 1 && status != 2 {
+    // status=5（已发货，我方新增）与 1/2 同为可收货状态：发货环不改变收货口径。
+    if status != 1 && status != 2 && status != 5 {
         return Err(AppError(Error::biz(400, "采购订单已结束或状态不允许入库")));
     }
     let shop_id: i32 = order.try_get("shop_id").unwrap_or(0);
     let vendor_id: i32 = order.try_get("vendor_id").unwrap_or(0);
     let now = nextrade_common::utils::now_seconds() as i64;
     let receipt_sn = format!("PR{}{:04}", now, rand_suffix());
-    let mut tx = state.repos.pool.begin().await.map_err(db)?;
-    let receipt_id: i64 = sqlx::query_scalar(
-        "INSERT INTO purchase_receipt(receipt_sn,order_id,shop_id,vendor_id,business_date,status,total_quantity,total_amount,remark,confirm_time,version,create_time,update_time) VALUES($1,$2,$3,$4,$5,2,0,0,$6,$7,0,$8,$9) RETURNING id",
-    )
-    .bind(&receipt_sn)
-    .bind(order_id)
-    .bind(shop_id)
-    .bind(vendor_id)
-    .bind(body.get("businessDate").and_then(Value::as_i64).unwrap_or(now))
-    .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
-    .bind(now).bind(now).bind(now)
-    .fetch_one(&mut *tx).await.map_err(db)?;
+    let allow_over = load_allow_over_receive(&state, shop_id).await?;
 
+    // —— 校验前置（无写入）：逐行核对明细归属与可收数量，收齐落库快照 ——
+    let mut lines: Vec<ReceiptLine> = Vec::new();
     let mut total_qty = 0i64;
     let mut total_amount = rust_decimal::Decimal::ZERO;
-    for input in inputs {
+    for input in &inputs {
         let order_item_id = input
             .get("orderItemId")
             .and_then(Value::as_i64)
@@ -1281,61 +1401,108 @@ async fn receipt_save(State(state): State<AdminState>, Json(body): Json<Value>) 
         )
         .bind(order_item_id)
         .bind(order_id)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&state.repos.pool)
         .await
         .map_err(db)?
         .ok_or_else(|| AppError(Error::biz(400, "入库商品不属于采购订单")))?;
         let ordered: i32 = item.try_get("quantity").unwrap_or(0);
         let received: i32 = item.try_get("received_quantity").unwrap_or(0);
-        if received + qty as i32 > ordered {
+        // 超收口径：采购设置 allow_over_receive 生效（组织行→平台行）时放行，
+        // 否则与历史一致拒绝超收（完成判定 received>=quantity 天然兼容超收）。
+        if !allow_over && received + qty as i32 > ordered {
             return Err(AppError(Error::biz(400, "入库数量超过剩余采购数量")));
         }
         let price = item
             .try_get::<rust_decimal::Decimal, _>("purchase_price")
             .unwrap_or_default();
         let amount = price * rust_decimal::Decimal::from(qty);
-        let product_id: i32 = item.try_get("product_id").unwrap_or(0);
-        let sku_id: i32 = item.try_get("sku_id").unwrap_or(0);
+        lines.push(ReceiptLine {
+            order_item_id,
+            qty,
+            price,
+            amount,
+            product_id: item.try_get("product_id").unwrap_or(0),
+            sku_id: item.try_get("sku_id").unwrap_or(0),
+            product_name: item.try_get::<String, _>("product_name").unwrap_or_default(),
+            sku_name: item.try_get::<String, _>("sku_name").unwrap_or_default(),
+            product_sn: item.try_get::<String, _>("product_sn").unwrap_or_default(),
+            sku_sn: item.try_get::<String, _>("sku_sn").unwrap_or_default(),
+            pic_thumb: item.try_get::<String, _>("pic_thumb").unwrap_or_default(),
+            product_unit: item.try_get::<String, _>("product_unit").unwrap_or_default(),
+        });
+        total_qty += qty;
+        total_amount += amount;
+    }
+
+    // —— 库存落点：委托库存体系出入库服务（原版 record_type 11 = 采购入库）——
+    // 此前本链直接 UPDATE product/product_sku 的平台库存：门店采购（组织
+    // shop_id>0）落不到门店分配库存、不生成出入库记录与库存流水、
+    // purchase_receipt.stock_record_id 恒写 0。现按订单组织由库存服务统一
+    // 裁决落点（组织自有商品直落商品库存；平台商品落门店分配库存、未分配
+    // 明确报错），生成的出入库记录 id 回填 stock_record_id。
+    // 顺序口径：上方校验已全部前置通过；库存服务本身为逐行落库（与平台
+    // 自有出入库同口径、非单事务），其后再开单据事务落入库单与订单进度。
+    let stock_record_id = state
+        .catalog
+        .product_stock
+        .stock_in(
+            &StockInDTO {
+                r#type: Some(stock_record_type::PURCHASE_IN),
+                comment: Some(format!("采购入库 {receipt_sn}")),
+                product_stock_record_detail_list: lines
+                    .iter()
+                    .map(|l| StockRecordDetailItem {
+                        record_detail_id: None,
+                        stock_record_id: None,
+                        product_id: Some(l.product_id),
+                        sku_id: if l.sku_id > 0 { Some(l.sku_id) } else { None },
+                        quantity: Some(l.qty as i32),
+                    })
+                    .collect(),
+                product_total: Some(total_qty as i32),
+            },
+            &StockOperator::new(shop_id, Some(auth.username.clone())),
+        )
+        .await?;
+
+    // —— 单据事务：入库单 + 明细 + 订单已收量/状态推进 ——
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let receipt_id: i64 = sqlx::query_scalar(
+        "INSERT INTO purchase_receipt(receipt_sn,order_id,shop_id,vendor_id,business_date,status,total_quantity,total_amount,stock_record_id,remark,confirm_time,version,create_time,update_time) VALUES($1,$2,$3,$4,$5,2,$6,$7,$8,$9,$10,0,$11,$12) RETURNING id",
+    )
+    .bind(&receipt_sn)
+    .bind(order_id)
+    .bind(shop_id)
+    .bind(vendor_id)
+    .bind(body.get("businessDate").and_then(Value::as_i64).unwrap_or(now))
+    .bind(total_qty)
+    .bind(total_amount)
+    .bind(stock_record_id)
+    .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+    .bind(now).bind(now).bind(now)
+    .fetch_one(&mut *tx).await.map_err(db)?;
+    for line in &lines {
         sqlx::query(
             "UPDATE purchase_order_item SET received_quantity=received_quantity+$1 WHERE id=$2",
         )
-        .bind(qty as i32)
-        .bind(order_item_id)
+        .bind(line.qty as i32)
+        .bind(line.order_item_id)
         .execute(&mut *tx)
         .await
         .map_err(db)?;
         sqlx::query(
             "INSERT INTO purchase_receipt_item(receipt_id,order_item_id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,returned_quantity,purchase_price,amount,create_time,update_time) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,0,$12,$13,$14,$15)",
         )
-        .bind(receipt_id).bind(order_item_id).bind(product_id).bind(sku_id)
-        .bind(item.try_get::<String, _>("product_name").unwrap_or_default())
-        .bind(item.try_get::<String, _>("sku_name").unwrap_or_default())
-        .bind(item.try_get::<String, _>("product_sn").unwrap_or_default())
-        .bind(item.try_get::<String, _>("sku_sn").unwrap_or_default())
-        .bind(item.try_get::<String, _>("pic_thumb").unwrap_or_default())
-        .bind(item.try_get::<String, _>("product_unit").unwrap_or_default())
-        .bind(qty as i32).bind(price).bind(amount).bind(now).bind(now)
+        .bind(receipt_id).bind(line.order_item_id).bind(line.product_id).bind(line.sku_id)
+        .bind(&line.product_name)
+        .bind(&line.sku_name)
+        .bind(&line.product_sn)
+        .bind(&line.sku_sn)
+        .bind(&line.pic_thumb)
+        .bind(&line.product_unit)
+        .bind(line.qty as i32).bind(line.price).bind(line.amount).bind(now).bind(now)
         .execute(&mut *tx).await.map_err(db)?;
-        // 平台商品库存增加；SKU 与商品汇总同时更新。
-        sqlx::query("UPDATE product SET product_stock=product_stock+$1 WHERE product_id=$2")
-            .bind(qty as i32)
-            .bind(product_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(db)?;
-        if sku_id > 0 {
-            sqlx::query("UPDATE product_sku SET sku_stock=COALESCE(sku_stock,0)+$1 WHERE sku_id=$2")
-                .bind(qty as i32)
-                .bind(sku_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(db)?;
-        }
-        total_qty += qty;
-        total_amount += amount;
     }
-    sqlx::query("UPDATE purchase_receipt SET total_quantity=$1, total_amount=$2, stock_record_id=0 WHERE id=$3")
-        .bind(total_qty).bind(total_amount).bind(receipt_id).execute(&mut *tx).await.map_err(db)?;
     let (pending,): (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM purchase_order_item WHERE order_id=$1 AND is_del=0 AND received_quantity < quantity",
     ).bind(order_id).fetch_one(&mut *tx).await.map_err(db)?;
@@ -1379,12 +1546,165 @@ async fn reconciliation_detail(
     }
     ok(rec)
 }
+/// 对账候选来源（我方重写，门店采购全流程批）：历史实现直接把
+/// purchase_receipt 原表行当候选返回 —— 与前端选择器契约（sourceType/
+/// sourceId/sn/amount/confirmTime/items）完全不符：前端拼出的 sourceId
+/// 恒为空、退货单永不出现、vendorId 参数被 Pg 结构忽略（无此字段）。
+/// 现口径：入库单（status=2 已确认）与退货单（status=2 已确认）的 UNION
+/// 视图，按 vendorId/shopId 过滤，逐行附明细；且排除已被未作废对账单
+/// 占用的来源（占用判定见 save_reconciliation 的来源占用校验）。
 async fn reconciliation_candidates(
     State(state): State<AdminState>,
     Query(q): Query<Pg>,
 ) -> ApiResult<Value> {
-    ok(list_table(&state, "purchase_receipt", &q, false).await?)
+    let (page, size, offset) = page_of(&q);
+    // 两分支共用的占用排除片段（source_type 在各分支内固定）。
+    let occupied = |source_type: i32, alias: &str| {
+        format!(
+            "NOT EXISTS (SELECT 1 FROM purchase_reconciliation_source s \
+             JOIN purchase_reconciliation rec ON rec.id = s.reconciliation_id \
+             WHERE s.is_del = 0 AND rec.is_del = 0 AND rec.status <> 4 \
+             AND s.source_type = {source_type} AND s.source_id = {alias}.id)"
+        )
+    };
+    let branch = |table: &str, sn_col: &str, source_type: i32| {
+        format!(
+            "SELECT {source_type} AS source_type, d.id AS source_id, d.{sn_col} AS sn, \
+             d.business_date AS business_date, d.total_amount AS amount, \
+             d.total_quantity AS total_quantity, d.vendor_id AS vendor_id, \
+             d.shop_id AS shop_id, d.confirm_time AS confirm_time, v.vendor_name AS vendor_name \
+             FROM {table} d LEFT JOIN vendor v ON v.vendor_id = d.vendor_id \
+             WHERE d.is_del = 0 AND d.status = 2 AND {occupied}",
+            occupied = occupied(source_type, "d")
+        )
+    };
+    let union_sql = format!(
+        "{} UNION ALL {}",
+        branch("purchase_receipt", "receipt_sn", 1),
+        branch("purchase_return", "return_sn", 2)
+    );
+    let mut cq: QueryBuilder<'_, Postgres> =
+        QueryBuilder::new(format!("SELECT COUNT(*) FROM ({union_sql}) c WHERE 1=1"));
+    let mut rq: QueryBuilder<'_, Postgres> =
+        QueryBuilder::new(format!("SELECT * FROM ({union_sql}) c WHERE 1=1"));
+    if let Some(vendor_id) = q.vendor_id {
+        cq.push(" AND c.vendor_id = ").push_bind(vendor_id);
+        rq.push(" AND c.vendor_id = ").push_bind(vendor_id);
+    }
+    if let Some(shop_id) = q.shop_id {
+        cq.push(" AND c.shop_id = ").push_bind(shop_id);
+        rq.push(" AND c.shop_id = ").push_bind(shop_id);
+    }
+    rq.push(" ORDER BY c.business_date DESC, c.source_id DESC LIMIT ")
+        .push_bind(size as i64)
+        .push(" OFFSET ")
+        .push_bind(offset);
+    let (total,): (i64,) = cq
+        .build_query_as()
+        .fetch_one(&state.repos.pool)
+        .await
+        .map_err(db)?;
+    let rows = rq.build().fetch_all(&state.repos.pool).await.map_err(db)?;
+
+    // 明细批量附挂（入库/退货各一次 ANY 查询，避免逐行往返）。
+    let receipt_ids: Vec<i64> = rows
+        .iter()
+        .filter(|r| r.try_get::<i32, _>("source_type").unwrap_or(0) == 1)
+        .map(|r| r.try_get::<i64, _>("source_id").unwrap_or(0))
+        .collect();
+    let return_ids: Vec<i64> = rows
+        .iter()
+        .filter(|r| r.try_get::<i32, _>("source_type").unwrap_or(0) == 2)
+        .map(|r| r.try_get::<i64, _>("source_id").unwrap_or(0))
+        .collect();
+    let mut items_by_source: std::collections::HashMap<(i32, i64), Vec<Value>> =
+        std::collections::HashMap::new();
+    if !receipt_ids.is_empty() {
+        let item_rows = sqlx::query(
+            "SELECT receipt_id, product_id, sku_id, product_name, sku_name, product_sn, sku_sn, pic_thumb, product_unit, quantity, purchase_price, amount FROM purchase_receipt_item WHERE receipt_id = ANY($1) AND is_del=0 ORDER BY id",
+        )
+        .bind(&receipt_ids)
+        .fetch_all(&state.repos.pool)
+        .await
+        .map_err(db)?;
+        for r in &item_rows {
+            let price = r
+                .try_get::<rust_decimal::Decimal, _>("purchase_price")
+                .unwrap_or_default();
+            items_by_source
+                .entry((1, r.try_get::<i64, _>("receipt_id").unwrap_or(0)))
+                .or_default()
+                .push(json!({
+                    "productId": r.try_get::<i32, _>("product_id").unwrap_or(0),
+                    "skuId": r.try_get::<i32, _>("sku_id").unwrap_or(0),
+                    "productName": r.try_get::<String, _>("product_name").unwrap_or_default(),
+                    "skuName": r.try_get::<String, _>("sku_name").unwrap_or_default(),
+                    "productSn": r.try_get::<String, _>("product_sn").unwrap_or_default(),
+                    "skuSn": r.try_get::<String, _>("sku_sn").unwrap_or_default(),
+                    "picThumb": r.try_get::<String, _>("pic_thumb").unwrap_or_default(),
+                    "productUnit": r.try_get::<String, _>("product_unit").unwrap_or_default(),
+                    "quantity": r.try_get::<i32, _>("quantity").unwrap_or(0),
+                    "price": price.to_string(),
+                    "purchasePrice": price.to_string(),
+                    "amount": r.try_get::<rust_decimal::Decimal, _>("amount").unwrap_or_default().to_string(),
+                }));
+        }
+    }
+    if !return_ids.is_empty() {
+        let item_rows = sqlx::query(
+            "SELECT return_id, product_id, sku_id, product_name, sku_name, product_sn, sku_sn, pic_thumb, product_unit, quantity, return_price, amount FROM purchase_return_item WHERE return_id = ANY($1) AND is_del=0 ORDER BY id",
+        )
+        .bind(&return_ids)
+        .fetch_all(&state.repos.pool)
+        .await
+        .map_err(db)?;
+        for r in &item_rows {
+            let price = r
+                .try_get::<rust_decimal::Decimal, _>("return_price")
+                .unwrap_or_default();
+            items_by_source
+                .entry((2, r.try_get::<i64, _>("return_id").unwrap_or(0)))
+                .or_default()
+                .push(json!({
+                    "productId": r.try_get::<i32, _>("product_id").unwrap_or(0),
+                    "skuId": r.try_get::<i32, _>("sku_id").unwrap_or(0),
+                    "productName": r.try_get::<String, _>("product_name").unwrap_or_default(),
+                    "skuName": r.try_get::<String, _>("sku_name").unwrap_or_default(),
+                    "productSn": r.try_get::<String, _>("product_sn").unwrap_or_default(),
+                    "skuSn": r.try_get::<String, _>("sku_sn").unwrap_or_default(),
+                    "picThumb": r.try_get::<String, _>("pic_thumb").unwrap_or_default(),
+                    "productUnit": r.try_get::<String, _>("product_unit").unwrap_or_default(),
+                    "quantity": r.try_get::<i32, _>("quantity").unwrap_or(0),
+                    "price": price.to_string(),
+                    "returnPrice": price.to_string(),
+                    "amount": r.try_get::<rust_decimal::Decimal, _>("amount").unwrap_or_default().to_string(),
+                }));
+        }
+    }
+
+    let records: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            let source_type = r.try_get::<i32, _>("source_type").unwrap_or(1);
+            let source_id = r.try_get::<i64, _>("source_id").unwrap_or(0);
+            json!({
+                "sourceType": source_type,
+                "sourceId": source_id,
+                "sn": r.try_get::<String, _>("sn").unwrap_or_default(),
+                "businessDate": r.try_get::<i64, _>("business_date").unwrap_or(0),
+                "amount": r.try_get::<rust_decimal::Decimal, _>("amount").unwrap_or_default().to_string(),
+                "totalQuantity": r.try_get::<i32, _>("total_quantity").unwrap_or(0),
+                "vendorId": r.try_get::<i32, _>("vendor_id").unwrap_or(0),
+                "vendorName": r.try_get::<Option<String>, _>("vendor_name").ok().flatten().unwrap_or_default(),
+                "shopId": r.try_get::<i32, _>("shop_id").unwrap_or(0),
+                "confirmTime": r.try_get::<Option<i64>, _>("confirm_time").ok().flatten(),
+                "items": items_by_source.get(&(source_type, source_id)).cloned().unwrap_or_default(),
+            })
+        })
+        .collect();
+    ok(json!({"records": records, "total": total, "page": page, "size": size}))
 }
+
 async fn reconciliation_export(
     State(state): State<AdminState>,
     Query(q): Query<Pg>,
@@ -1448,6 +1768,17 @@ async fn save_reconciliation(state: &AdminState, body: Value, is_update: bool) -
         if status != 3 {
             return Err(AppError(Error::biz(400, "只有已驳回采购对账单可以修改")));
         }
+        // 先释放旧来源占用（来源单据 reconciliation_id 回写），再删来源/快照重建。
+        sqlx::query("UPDATE purchase_receipt r SET reconciliation_id=NULL FROM purchase_reconciliation_source s WHERE s.reconciliation_id=$1 AND s.source_type=1 AND s.source_id=r.id")
+            .bind(existing_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        sqlx::query("UPDATE purchase_return pr SET reconciliation_id=NULL FROM purchase_reconciliation_source s WHERE s.reconciliation_id=$1 AND s.source_type=2 AND s.source_id=pr.id")
+            .bind(existing_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
         sqlx::query("DELETE FROM purchase_reconciliation_source WHERE reconciliation_id=$1")
             .bind(existing_id)
             .execute(&mut *tx)
@@ -1479,6 +1810,8 @@ async fn save_reconciliation(state: &AdminState, body: Value, is_update: bool) -
     };
     let mut receipt_amount = rust_decimal::Decimal::ZERO;
     let mut return_amount = rust_decimal::Decimal::ZERO;
+    let mut seen_sources: std::collections::HashSet<(i32, i64)> =
+        std::collections::HashSet::new();
     for source in sources {
         let source_type = source
             .get("sourceType")
@@ -1497,6 +1830,24 @@ async fn save_reconciliation(state: &AdminState, body: Value, is_update: bool) -
         let Some(row) = row else {
             return Err(AppError(Error::biz(400, "对账来源单据不存在或状态不正确")));
         };
+        // 来源占用校验（我方修复）：历史实现对来源占用零校验 —— 同一入库/
+        // 退货单可被多张对账单重复纳入，形成重复应付。现口径：同一来源在
+        // 未作废对账单中只能出现一次（更新自身时排除自身；同批重复亦拒）。
+        if !seen_sources.insert((source_type, source_id)) {
+            return Err(AppError(Error::biz(400, "对账来源单据重复")));
+        }
+        let occupied: Option<(i64,)> = sqlx::query_as(
+            "SELECT rec.id FROM purchase_reconciliation_source s JOIN purchase_reconciliation rec ON rec.id = s.reconciliation_id WHERE s.is_del = 0 AND rec.is_del = 0 AND rec.status <> 4 AND s.source_type = $1 AND s.source_id = $2 AND rec.id <> $3 LIMIT 1",
+        )
+        .bind(source_type)
+        .bind(source_id)
+        .bind(reconciliation_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?;
+        if occupied.is_some() {
+            return Err(AppError(Error::biz(400, "对账来源单据已被其他对账单占用")));
+        }
         let amount: rust_decimal::Decimal = row.try_get("total_amount").unwrap_or_default();
         sqlx::query("INSERT INTO purchase_reconciliation_source(reconciliation_id,source_type,source_id,source_sn,business_date,source_amount,create_time,update_time) VALUES($1,$2,$3,$4,$5,$6,$7,$8)")
             .bind(reconciliation_id).bind(source_type).bind(source_id)
@@ -1504,9 +1855,24 @@ async fn save_reconciliation(state: &AdminState, body: Value, is_update: bool) -
             .bind(row.try_get::<i64,_>("business_date").unwrap_or(0))
             .bind(amount).bind(now).bind(now)
             .execute(&mut *tx).await.map_err(db)?;
+        // 占用回写 + 商品快照（我方补齐）：来源单据 reconciliation_id 此前
+        // 从不回写、purchase_reconciliation_item 快照从不生成（对账详情
+        // items 恒空）。快照单价：入库取 purchase_price、退货取 return_price。
         if source_type == 1 {
+            sqlx::query("UPDATE purchase_receipt SET reconciliation_id=$1 WHERE id=$2")
+                .bind(reconciliation_id).bind(source_id)
+                .execute(&mut *tx).await.map_err(db)?;
+            sqlx::query("INSERT INTO purchase_reconciliation_item(reconciliation_id,source_type,source_id,source_item_id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,price,amount,create_time,update_time) SELECT $1,1,$2,id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,purchase_price,amount,$3,$3 FROM purchase_receipt_item WHERE receipt_id=$2 AND is_del=0")
+                .bind(reconciliation_id).bind(source_id).bind(now)
+                .execute(&mut *tx).await.map_err(db)?;
             receipt_amount += amount;
         } else {
+            sqlx::query("UPDATE purchase_return SET reconciliation_id=$1 WHERE id=$2")
+                .bind(reconciliation_id).bind(source_id)
+                .execute(&mut *tx).await.map_err(db)?;
+            sqlx::query("INSERT INTO purchase_reconciliation_item(reconciliation_id,source_type,source_id,source_item_id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,price,amount,create_time,update_time) SELECT $1,2,$2,id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,return_price,amount,$3,$3 FROM purchase_return_item WHERE return_id=$2 AND is_del=0")
+                .bind(reconciliation_id).bind(source_id).bind(now)
+                .execute(&mut *tx).await.map_err(db)?;
             return_amount += amount;
         }
     }
@@ -1563,9 +1929,25 @@ async fn reconciliation_void(
 ) -> ApiResult<()> {
     let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
     let now = nextrade_common::utils::now_seconds() as i64;
-    sqlx::query("UPDATE purchase_reconciliation SET status=4, review_remark=$1, review_time=$2, update_time=$3 WHERE id=$4 AND status=3")
+    // 作废须同事务释放来源占用（与 save_reconciliation 的占用回写成对），
+    // 否则作废单据的来源永久不可再对账；状态未命中（非已驳回）时不释放。
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let res = sqlx::query("UPDATE purchase_reconciliation SET status=4, review_remark=$1, review_time=$2, update_time=$3 WHERE id=$4 AND status=3")
         .bind(body.get("remark").and_then(Value::as_str).unwrap_or("")).bind(now).bind(now).bind(id)
-        .execute(&state.repos.pool).await.map_err(db)?;
+        .execute(&mut *tx).await.map_err(db)?;
+    if res.rows_affected() == 1 {
+        sqlx::query("UPDATE purchase_receipt r SET reconciliation_id=NULL FROM purchase_reconciliation_source s WHERE s.reconciliation_id=$1 AND s.source_type=1 AND s.source_id=r.id")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        sqlx::query("UPDATE purchase_return pr SET reconciliation_id=NULL FROM purchase_reconciliation_source s WHERE s.reconciliation_id=$1 AND s.source_type=2 AND s.source_id=pr.id")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+    }
+    tx.commit().await.map_err(db)?;
     ok(())
 }
 
@@ -1575,7 +1957,32 @@ async fn return_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> Ap
 async fn return_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
     ok(detail_table(&state, "purchase_return", q.id.unwrap_or(0)).await?)
 }
-async fn return_save(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+/// 退货校验前置的收齐行（return_save 专用，口径同 ReceiptLine）。
+struct ReturnLine {
+    receipt_item_id: i64,
+    qty: i64,
+    original_price: rust_decimal::Decimal,
+    return_price: rust_decimal::Decimal,
+    amount: rust_decimal::Decimal,
+    product_id: i32,
+    sku_id: i32,
+    product_name: String,
+    sku_name: String,
+    product_sn: String,
+    sku_sn: String,
+    pic_thumb: String,
+    product_unit: String,
+    /// 入库行总量 / 已退量（落 returnable 快照用）
+    received_qty: i32,
+    returned_qty: i32,
+    reason: String,
+}
+
+async fn return_save(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<Value>,
+) -> ApiResult<i64> {
     let receipt_id = body.get("receiptId").and_then(Value::as_i64).unwrap_or(0);
     if receipt_id <= 0 {
         return Err(AppError(Error::biz(400, "采购入库单不能为空")));
@@ -1600,19 +2007,12 @@ async fn return_save(State(state): State<AdminState>, Json(body): Json<Value>) -
     }
     let now = nextrade_common::utils::now_seconds() as i64;
     let return_sn = format!("PT{}{:04}", now, rand_suffix());
-    let mut tx = state.repos.pool.begin().await.map_err(db)?;
-    let return_id: i64 = sqlx::query_scalar(
-        "INSERT INTO purchase_return(return_sn,order_id,receipt_id,shop_id,vendor_id,business_date,status,total_quantity,total_amount,reason,remark,confirm_time,version,create_time,update_time) VALUES($1,$2,$3,$4,$5,$6,2,0,0,$7,$8,$9,0,$10,$11) RETURNING id",
-    )
-    .bind(&return_sn).bind(order_id).bind(receipt_id).bind(shop_id).bind(vendor_id)
-    .bind(body.get("businessDate").and_then(Value::as_i64).unwrap_or(now))
-    .bind(body.get("reason").and_then(Value::as_str).unwrap_or(""))
-    .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
-    .bind(now).bind(now).bind(now)
-    .fetch_one(&mut *tx).await.map_err(db)?;
+
+    // —— 校验前置（无写入）——
+    let mut lines: Vec<ReturnLine> = Vec::new();
     let mut total_qty = 0i64;
     let mut total_amount = rust_decimal::Decimal::ZERO;
-    for input in inputs {
+    for input in &inputs {
         let item_id = input
             .get("receiptItemId")
             .and_then(Value::as_i64)
@@ -1626,7 +2026,7 @@ async fn return_save(State(state): State<AdminState>, Json(body): Json<Value>) -
         )
         .bind(item_id)
         .bind(receipt_id)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&state.repos.pool)
         .await
         .map_err(db)?
         .ok_or_else(|| AppError(Error::biz(400, "退货明细不属于入库单")))?;
@@ -1638,79 +2038,163 @@ async fn return_save(State(state): State<AdminState>, Json(body): Json<Value>) -
         let original_price = item
             .try_get::<rust_decimal::Decimal, _>("purchase_price")
             .unwrap_or_default();
-        let return_price = rust_decimal::Decimal::from_str(
-            &input
-                .get("returnPrice")
-                .and_then(Value::as_str)
-                .unwrap_or("0"),
-        )
-        .unwrap_or(original_price);
+        // 退货价双口径解析（我方修复，同 purchasePrice）：线上前端传 JSON
+        // 数字，历史只认字符串且缺失/非法回退不一致 —— 数字恒被解析成 0，
+        // 退货金额全线失真。现：字符串/数字均可，非法回退原采购价，缺失
+        // 亦按原采购价（与「按原价退」的业务直觉一致）。
+        let return_price = match input.get("returnPrice") {
+            Some(Value::String(s)) => rust_decimal::Decimal::from_str(s.trim())
+                .unwrap_or(original_price),
+            Some(Value::Number(n)) => rust_decimal::Decimal::from_str(&n.to_string())
+                .unwrap_or(original_price),
+            _ => original_price,
+        };
         let amount = return_price * rust_decimal::Decimal::from(qty);
-        let product_id: i32 = item.try_get("product_id").unwrap_or(0);
-        let sku_id: i32 = item.try_get("sku_id").unwrap_or(0);
+        lines.push(ReturnLine {
+            receipt_item_id: item_id,
+            qty,
+            original_price,
+            return_price,
+            amount,
+            product_id: item.try_get("product_id").unwrap_or(0),
+            sku_id: item.try_get("sku_id").unwrap_or(0),
+            product_name: item.try_get::<String, _>("product_name").unwrap_or_default(),
+            sku_name: item.try_get::<String, _>("sku_name").unwrap_or_default(),
+            product_sn: item.try_get::<String, _>("product_sn").unwrap_or_default(),
+            sku_sn: item.try_get::<String, _>("sku_sn").unwrap_or_default(),
+            pic_thumb: item.try_get::<String, _>("pic_thumb").unwrap_or_default(),
+            product_unit: item.try_get::<String, _>("product_unit").unwrap_or_default(),
+            received_qty: q,
+            returned_qty: returned,
+            reason: input
+                .get("reason")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+        });
+        total_qty += qty;
+        total_amount += amount;
+    }
+
+    // —— 库存落点：委托库存体系出库服务（原版 record_type 25 = 采购退货出库）——
+    // 此前本链直接扣 product 平台库存（SKU 侧 GREATEST 静默钳 0）：门店库存
+    // 不动、库存不足被掩盖、无出入库记录。现与入库同口径由库存服务按组织
+    // 落点裁决（不足明确报错），记录 id 回填 purchase_return.stock_record_id。
+    let stock_record_id = state
+        .catalog
+        .product_stock
+        .stock_out(
+            &StockInDTO {
+                r#type: Some(stock_record_type::PURCHASE_RETURN_OUT),
+                comment: Some(format!("采购退货 {return_sn}")),
+                product_stock_record_detail_list: lines
+                    .iter()
+                    .map(|l| StockRecordDetailItem {
+                        record_detail_id: None,
+                        stock_record_id: None,
+                        product_id: Some(l.product_id),
+                        sku_id: if l.sku_id > 0 { Some(l.sku_id) } else { None },
+                        quantity: Some(l.qty as i32),
+                    })
+                    .collect(),
+                product_total: Some(total_qty as i32),
+            },
+            &StockOperator::new(shop_id, Some(auth.username.clone())),
+        )
+        .await?;
+
+    // —— 单据事务：退货单 + 明细 + 入库行已退量 ——
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let return_id: i64 = sqlx::query_scalar(
+        "INSERT INTO purchase_return(return_sn,order_id,receipt_id,shop_id,vendor_id,business_date,status,total_quantity,total_amount,stock_record_id,reason,remark,confirm_time,version,create_time,update_time) VALUES($1,$2,$3,$4,$5,$6,2,$7,$8,$9,$10,$11,$12,0,$13,$14) RETURNING id",
+    )
+    .bind(&return_sn).bind(order_id).bind(receipt_id).bind(shop_id).bind(vendor_id)
+    .bind(body.get("businessDate").and_then(Value::as_i64).unwrap_or(now))
+    .bind(total_qty).bind(total_amount).bind(stock_record_id)
+    .bind(body.get("reason").and_then(Value::as_str).unwrap_or(""))
+    .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+    .bind(now).bind(now).bind(now)
+    .fetch_one(&mut *tx).await.map_err(db)?;
+    for line in &lines {
         sqlx::query(
             "INSERT INTO purchase_return_item(return_id,receipt_item_id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,returnable_quantity,available_quantity,returnable_quantity_after,original_price,return_price,amount,reason,create_time,update_time) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)",
         )
-        .bind(return_id).bind(item_id).bind(product_id).bind(sku_id)
-        .bind(item.try_get::<String, _>("product_name").unwrap_or_default())
-        .bind(item.try_get::<String, _>("sku_name").unwrap_or_default())
-        .bind(item.try_get::<String, _>("product_sn").unwrap_or_default())
-        .bind(item.try_get::<String, _>("sku_sn").unwrap_or_default())
-        .bind(item.try_get::<String, _>("pic_thumb").unwrap_or_default())
-        .bind(item.try_get::<String, _>("product_unit").unwrap_or_default())
-        .bind(qty as i32).bind(q).bind(q - returned).bind(q - returned - qty as i32)
-        .bind(original_price).bind(return_price).bind(amount)
-        .bind(input.get("reason").and_then(Value::as_str).unwrap_or(""))
+        .bind(return_id).bind(line.receipt_item_id).bind(line.product_id).bind(line.sku_id)
+        .bind(&line.product_name)
+        .bind(&line.sku_name)
+        .bind(&line.product_sn)
+        .bind(&line.sku_sn)
+        .bind(&line.pic_thumb)
+        .bind(&line.product_unit)
+        .bind(line.qty as i32)
+        .bind(line.received_qty)
+        .bind(line.received_qty - line.returned_qty)
+        .bind(line.received_qty - line.returned_qty - line.qty as i32)
+        .bind(line.original_price).bind(line.return_price).bind(line.amount)
+        .bind(&line.reason)
         .bind(now).bind(now)
         .execute(&mut *tx).await.map_err(db)?;
         sqlx::query(
             "UPDATE purchase_receipt_item SET returned_quantity=returned_quantity+$1 WHERE id=$2",
         )
-        .bind(qty as i32)
-        .bind(item_id)
+        .bind(line.qty as i32)
+        .bind(line.receipt_item_id)
         .execute(&mut *tx)
         .await
         .map_err(db)?;
-        sqlx::query("UPDATE product SET product_stock=product_stock-$1 WHERE product_id=$2")
-            .bind(qty as i32)
-            .bind(product_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(db)?;
-        if sku_id > 0 {
-            sqlx::query("UPDATE product_sku SET sku_stock=GREATEST(COALESCE(sku_stock,0)-$1,0) WHERE sku_id=$2")
-                .bind(qty as i32).bind(sku_id).execute(&mut *tx).await.map_err(db)?;
-        }
-        total_qty += qty;
-        total_amount += amount;
     }
-    sqlx::query("UPDATE purchase_return SET total_quantity=$1, total_amount=$2 WHERE id=$3")
-        .bind(total_qty)
-        .bind(total_amount)
-        .bind(return_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(db)?;
     tx.commit().await.map_err(db)?;
     ok(return_id)
 }
+
 async fn return_confirm(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
-    set_status(
-        &state,
-        "purchase_return",
-        body.get("id").and_then(Value::as_i64).unwrap_or(0),
-        1,
+    // 我方修复（方向性缺陷）：历史实现把退货单状态置为 1（待确认）——
+    // 「确认」动作反而把已确认（2）的退货打回待确认，使其脱离对账候选
+    // 且与已扣库存的事实不一致。现口径：仅 待确认(1) → 已确认(2) 的条件
+    // 更新；本系统退货由 return_save 保存即确认（status=2），对已确认单
+    // 调用本端点为无操作成功（幂等），不存在的单据明确报错。
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let row = sqlx::query(
+        "SELECT status FROM purchase_return WHERE id=$1 AND is_del=0 LIMIT 1",
     )
-    .await?;
+    .bind(id)
+    .fetch_optional(&state.repos.pool)
+    .await
+    .map_err(db)?
+    .ok_or_else(|| AppError(Error::biz(400, "采购退货单不存在")))?;
+    let status: i32 = row.try_get("status").unwrap_or(0);
+    if status == 1 {
+        let now = nextrade_common::utils::now_seconds() as i64;
+        sqlx::query(
+            "UPDATE purchase_return SET status=2, confirm_time=COALESCE(confirm_time,$1), update_time=$1 WHERE id=$2 AND status=1",
+        )
+        .bind(now)
+        .bind(id)
+        .execute(&state.repos.pool)
+        .await
+        .map_err(db)?;
+    }
     ok(())
 }
 async fn return_delete(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
-    soft_delete(
-        &state,
-        "purchase_return",
-        body.get("id").and_then(Value::as_i64).unwrap_or(0),
+    // 我方修复：历史实现对任意状态直接软删 —— 已确认退货（status=2）已扣
+    // 库存、已增入库行 returned_quantity，删除后两处均不回滚，库存与可退
+    // 量永久失真。现仅待确认（status=1，未产生库存事实）可删；已确认退货
+    // 如需冲销应走新的退货/对账口径，不在此开洞。前端未调用本端点。
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let row = sqlx::query(
+        "SELECT status FROM purchase_return WHERE id=$1 AND is_del=0 LIMIT 1",
     )
-    .await?;
+    .bind(id)
+    .fetch_optional(&state.repos.pool)
+    .await
+    .map_err(db)?
+    .ok_or_else(|| AppError(Error::biz(400, "采购退货单不存在")))?;
+    let status: i32 = row.try_get("status").unwrap_or(0);
+    if status != 1 {
+        return Err(AppError(Error::biz(400, "已确认的采购退货单不可删除")));
+    }
+    soft_delete(&state, "purchase_return", id).await?;
     ok(())
 }
 
@@ -1799,5 +2283,55 @@ mod purchase_draft_tests {
         assert!(src.contains(concat!("只有草稿采购单", "可以删除")));
         // 3) create 的状态绑定：草稿落 0、正式落 1
         assert!(src.contains(concat!("if draft { 0 }", " else { 1 }")));
+    }
+
+    // ——— 门店采购全流程批（帖 777863）口径测试 ———
+
+    #[test]
+    fn decimal_flex_accepts_string_and_number() {
+        use rust_decimal::Decimal;
+        assert_eq!(
+            parse_decimal_flex(Some(&json!("12.30"))),
+            Decimal::from_str("12.30").unwrap()
+        );
+        assert_eq!(
+            parse_decimal_flex(Some(&json!(12.3))),
+            Decimal::from_str("12.3").unwrap()
+        );
+        assert_eq!(parse_decimal_flex(Some(&json!(7))), Decimal::from(7));
+        assert_eq!(parse_decimal_flex(Some(&json!("abc"))), Decimal::ZERO);
+        assert_eq!(parse_decimal_flex(Some(&json!(""))), Decimal::ZERO);
+        assert_eq!(parse_decimal_flex(None), Decimal::ZERO);
+        // parse_order_items：数字 purchasePrice 不再恒落 0（历史缺陷）
+        let items = parse_order_items(&json!({
+            "items": [{"vendorProductSkuId": 9, "quantity": 2, "purchasePrice": 3.5}]
+        }));
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].price, Decimal::from_str("3.5").unwrap());
+    }
+
+    #[test]
+    fn procure_flow_invariants_hold_in_source() {
+        // 全流程守卫不变量（源码级断言，同 draft_isolation 手法）。
+        let src = include_str!("supply_chain.rs");
+        // 1) 发货环：端点已注册，且入库放行已发货状态（5）
+        assert!(src.contains(concat!("purchaseOrder", "/ship")));
+        assert!(src.contains(concat!("status != 1 && status != 2 &&", " status != 5")));
+        // 2) 库存落点：入库/退货分别委托库存服务的采购入库/采购退货出库类型
+        assert!(src.contains(concat!("stock_record_type::", "PURCHASE_IN")));
+        assert!(src.contains(concat!("stock_record_type::", "PURCHASE_RETURN_OUT")));
+        // 3) 对账占用：候选排除已占用 + 保存时占用校验文案在位
+        assert!(src.contains(concat!(
+            "NOT EXISTS (SELECT 1 FROM purchase_reconciliation",
+            "_source s"
+        )));
+        assert!(src.contains(concat!("对账来源单据已被其他对账单", "占用")));
+        // 4) 退货确认方向已纠正为 待确认(1) → 已确认(2) 的条件更新
+        assert!(src.contains(concat!(
+            "purchase_return SET status=2",
+            ", confirm_time=COALESCE"
+        )));
+        // 5) 超收设置消费点在位
+        assert!(src.contains(concat!("load_allow_over", "_receive")));
     }
 }

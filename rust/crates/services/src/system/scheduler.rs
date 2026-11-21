@@ -82,6 +82,7 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(auction_loop(repos.clone())),
         tokio::spawn(auto_comment_loop(repos.clone())),
         tokio::spawn(gift_expire_loop(repos.clone())),
+        tokio::spawn(purchase_auto_finish_loop(repos.clone())),
         tokio::spawn(exchange_rate_sync_loop(repos)),
     ]
 }
@@ -110,6 +111,55 @@ async fn gift_expire_loop(repos: Arc<Repositories>) {
             Err(e) => tracing::warn!("定时任务：送礼物到期扫描失败: {e}"),
         }
     }
+}
+
+/// 采购单到期自动结束循环（`NEXTTRADE_SCHEDULER__PURCHASE_FINISH_SECS`，默认 3600s）。
+///
+/// `purchase_setting.auto_finish_days`（预计送达后自动结束天数，空 = 继承）
+/// 此前全仓无消费方：采购设置可配但采购单永不自动结束。本循环按
+/// 「组织行 → 平台行」解析生效天数（均须 > 0，未配则不结束），把预计
+/// 送达日 + 生效天数已过、仍未结束的采购单（待入库 1 / 部分入库 2 /
+/// 已发货 5）置为已完成（3），口径与手动完结（order_finish）一致：
+/// finish_reason 记「到期自动结束」。条件更新幂等，重复执行无副作用。
+async fn purchase_auto_finish_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 45,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "NEXTTRADE_SCHEDULER__PURCHASE_FINISH_SECS",
+        3600,
+    )));
+    loop {
+        ticker.tick().await;
+        match run_purchase_auto_finish(repos.clone()).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：采购单到期自动结束 {n} 笔"),
+            Err(e) => tracing::warn!("定时任务：采购单到期自动结束失败: {e}"),
+        }
+    }
+}
+
+/// 采购单到期自动结束的单轮扫描（供循环调用；返回本轮结束单数）。
+pub async fn run_purchase_auto_finish(repos: Arc<Repositories>) -> Result<u64> {
+    let now = utils::now_seconds();
+    // 生效天数子查询在 WHERE 里求值两次（空值守卫 + 到期比较），避免
+    // NULL 算术把「未配置」误判为到期。
+    let res = sqlx::query(
+        "UPDATE purchase_order po SET status = 3, finish_reason = '到期自动结束', finish_time = $1, update_time = $1 \
+         WHERE po.is_del = 0 AND po.type = 1 AND po.status IN (1, 2, 5) AND po.expected_delivery_date > 0 \
+         AND (SELECT s.auto_finish_days FROM purchase_setting s \
+              WHERE s.is_del = 0 AND s.auto_finish_days > 0 AND s.shop_id IN (0, po.shop_id) \
+              ORDER BY (s.shop_id = po.shop_id) DESC, s.id DESC LIMIT 1) IS NOT NULL \
+         AND $1 > po.expected_delivery_date + (SELECT s.auto_finish_days FROM purchase_setting s \
+              WHERE s.is_del = 0 AND s.auto_finish_days > 0 AND s.shop_id IN (0, po.shop_id) \
+              ORDER BY (s.shop_id = po.shop_id) DESC, s.id DESC LIMIT 1) * 86400",
+    )
+    .bind(now)
+    .execute(&repos.pool)
+    .await
+    .map_err(|e| nextrade_core::Error::Database(e.to_string()))?;
+    Ok(res.rows_affected())
 }
 
 /// 自动评价到期生成循环（`NEXTTRADE_SCHEDULER__AUTO_COMMENT_SECS`，默认 300s）。
