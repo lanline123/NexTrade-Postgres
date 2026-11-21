@@ -12,6 +12,8 @@ interface Props {
     module: any;
     moduleIndex?: number;
     index?: number;
+    /** 店铺装修分发器注入的当前店铺 ID；卡片未配链接时点单入口兜底跳本店点单页 */
+    shopId?: number;
 }
 
 /** 点单卡片单项（契约：原版编辑器 mobilePro/storeOrderCard/types.ts） */
@@ -202,8 +204,10 @@ function CardBox({ item, cardStyle, size, frame }: { item: StoreOrderCardItemDat
  * （customPage、shopModules、会员装修三个分发器均未注册），故布局细节
  * 对齐原版编辑器 Preview.vue（与我方编辑器 Preview.tsx 逐项等价）。
  * 旧实现是「我的订单状态卡」，订单语义已由会员装修 orderEntry 承担，整段移除。
+ * 2026-11-21 补衔接：店铺装修分发器注入 shopId，未配链接的卡片点击跳本店
+ * 完整点单页 pages/shop/quickOrder（帖 127834 点单模式），配了链接仍走链接。
  */
-export default function StoreOrderCard({ module }: Props) {
+export default function StoreOrderCard({ module, shopId }: Props) {
     const d = useMemo<StoreOrderCardData>(() => {
         const data = module?.data && typeof module.data === "object" ? module.data : {};
         return { ...(module ?? {}), ...data };
@@ -248,7 +252,15 @@ export default function StoreOrderCard({ module }: Props) {
             key={key}
             onClick={() => {
                 const url = resolveCardUrl(item?.link);
-                if (url) redirect({ url });
+                if (url) {
+                    redirect({ url });
+                    return;
+                }
+                // 点单卡片衔接完整点单模式（帖 127834）：店铺页内未配链接的
+                // 卡片作为点单入口，跳本店点单页（分类+商品+购物车+下单一体）。
+                if (shopId && shopId > 0) {
+                    redirect({ url: `/pages/shop/quickOrder?shopId=${shopId}` });
+                }
             }}
         >
             <CardBox item={item} cardStyle={cardStyle} size={size} frame={frame} />

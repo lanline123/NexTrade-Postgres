@@ -144,6 +144,7 @@ export default defineAppConfig({
         "pages/article/news/detail",
         "pages/article/news/list",
         "pages/shop/index",
+        "pages/shop/quickOrder",
         "pages/shop/category",
         "pages/shop/info",
         "pages/shop/license",

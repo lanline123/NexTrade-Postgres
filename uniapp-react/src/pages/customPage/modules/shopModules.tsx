@@ -63,7 +63,7 @@ const SHOP_MODULE_TYPES = [
 const SHOP_MODULE_TYPE_SET = new Set(SHOP_MODULE_TYPES);
 
 /** 旧模板里带 :shop-id="props.shopInfo.shopId" 的模块 */
-const SHOP_ID_MODULE_TYPES = new Set(["coupon", "product", "product2", "productA1", "limitedSpecial", "productSlide", "productCarousel", "shopInfo", "storeNav"]);
+const SHOP_ID_MODULE_TYPES = new Set(["coupon", "product", "product2", "productA1", "limitedSpecial", "productSlide", "productCarousel", "shopInfo", "storeNav", "storeOrderCard"]);
 
 interface Props {
     modules: any[];

@@ -1458,6 +1458,11 @@ export default function Check() {
             if (options.deliveryType) {
                 formState.deliveryType = Number(options.deliveryType);
             }
+            // 门店点单页堂食模式（帖 127834）：预填买家备注「堂食」，用户可改；
+            // 履约仍走到店自提（deliveryType=2 + tabDeliveryTypes=1 锁定）。
+            if (options.orderMode === "dinein" && !formState.buyerNote) {
+                formState.buyerNote = "堂食";
+            }
             if (options.lotteryRecordId) {
                 formState.lotteryRecordId = options.lotteryRecordId;
             }
