@@ -1,7 +1,9 @@
 /**
  * AI 助手对话页（我方新增）：类 DeepSeek 三段式。
  * 左：会话列表；中：对话流（流式输出、工具卡、写动作确认卡）；顶：渠道/模型选择器。
- * 服务端是状态源：流式增量只做临时渲染，工具/确认/结束事件后一律回拉消息列表对齐。
+ * 服务端是状态源：流式增量只做临时渲染，工具/确认/结束事件后静默回拉消息列表对齐
+ * （不切整区加载态，流式气泡保留到对齐数据落地才收起，结论原地完成、不整页重载感）。
+ * 助手文本经共享组件 MarkdownText 按 Markdown 基础子集渲染（加粗/标题/列表/代码/链接）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -15,6 +17,7 @@ import {
   Toast,
 } from '@douyinfe/semi-ui';
 import { apiGet, apiPost, getContextHeaders, getToken } from '../api';
+import MarkdownText from '../components/MarkdownText';
 
 interface AiModel {
   modelId: number;
@@ -197,21 +200,27 @@ export default function AiAssistant() {
     }
   }, []);
 
-  const loadMessages = useCallback(async (convId: number) => {
-    setLoadingMsgs(true);
-    try {
-      const res = await apiGet<{ conversation: Conversation; messages: Message[] }>(
-        `/ai/conversations/${convId}/messages`,
-      );
-      setMessages(res.messages || []);
-      setSelChannel(res.conversation.channelId);
-      setSelModel(res.conversation.modelCode);
-    } catch (e) {
-      Toast.error({ content: (e as Error).message || '加载会话失败' });
-    } finally {
-      setLoadingMsgs(false);
-    }
-  }, []);
+  // silent=true：后台对齐刷新——不切整区加载态，现有消息保持显示，数据落地时原地替换；
+  // onAligned 在 setMessages 同一同步段内回调（流式收尾用它收起流式气泡，保证单次渲染完成切换）。
+  const loadMessages = useCallback(
+    async (convId: number, opts?: { silent?: boolean; onAligned?: () => void }) => {
+      if (!opts?.silent) setLoadingMsgs(true);
+      try {
+        const res = await apiGet<{ conversation: Conversation; messages: Message[] }>(
+          `/ai/conversations/${convId}/messages`,
+        );
+        setMessages(res.messages || []);
+        setSelChannel(res.conversation.channelId);
+        setSelModel(res.conversation.modelCode);
+        opts?.onAligned?.();
+      } catch (e) {
+        Toast.error({ content: (e as Error).message || '加载会话失败' });
+      } finally {
+        if (!opts?.silent) setLoadingMsgs(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     void loadChannels();
@@ -293,12 +302,13 @@ export default function AiAssistant() {
       } finally {
         setStreaming(false);
         abortRef.current = null;
-        setLiveText('');
         if (errorMsg) Toast.error({ content: errorMsg });
+        // 收尾对齐一律走静默刷新：流式气泡保留到对齐数据落地、由 onAligned 与
+        // setMessages 同步收起，结论原地完成——不再先清空气泡再整区转圈重拉。
         await loadConversations();
         const target = convIdForReload ?? activeId;
         if (target) {
-          await loadMessages(target);
+          await loadMessages(target, { silent: true, onAligned: () => setLiveText('') });
         } else {
           // 新会话：刷新列表后打开最新一条
           const res = await apiGet<{ conversations: Conversation[] }>('/ai/conversations').catch(
@@ -307,9 +317,14 @@ export default function AiAssistant() {
           const latest = res?.conversations?.[0];
           if (latest) {
             setActiveId(latest.convId);
-            await loadMessages(latest.convId);
+            await loadMessages(latest.convId, {
+              silent: true,
+              onAligned: () => setLiveText(''),
+            });
           }
         }
+        // 兜底：对齐失败时也收起流式气泡，避免残影（成功路径已由 onAligned 同步收起）
+        setLiveText('');
       }
     },
     [activeId, loadConversations, loadMessages],
@@ -545,13 +560,12 @@ export default function AiAssistant() {
                   background: 'var(--semi-color-fill-0)',
                   borderRadius: 8,
                   padding: '10px 12px',
-                  whiteSpace: 'pre-wrap',
                   fontSize: 14,
                   lineHeight: 1.6,
                 }}
               >
-                {liveText}
-                <span style={{ opacity: 0.5 }}>▍</span>
+                <MarkdownText text={liveText} />
+                {streaming && <span style={{ opacity: 0.5 }}>▍</span>}
               </div>
             </div>
           )}
@@ -769,7 +783,7 @@ function MessageRow({
     );
   }
 
-  // role 2：assistant 文本
+  // role 2：assistant 文本（Markdown 基础子集渲染，与流式气泡同一管线）
   if (!msg.content) return null;
   return (
     <div style={{ display: 'flex', marginBottom: 12 }}>
@@ -779,12 +793,11 @@ function MessageRow({
           background: 'var(--semi-color-fill-0)',
           borderRadius: 8,
           padding: '10px 12px',
-          whiteSpace: 'pre-wrap',
           fontSize: 14,
           lineHeight: 1.6,
         }}
       >
-        {msg.content}
+        <MarkdownText text={msg.content} />
         {msg.completionTokens > 0 && (
           <div style={{ marginTop: 6, fontSize: 11, color: 'var(--semi-color-text-2)' }}>
             本次消耗 {msg.promptTokens + msg.completionTokens} tokens（自有密钥 · 不计积分）
