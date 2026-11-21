@@ -1,4 +1,4 @@
-//! 管理端微信直播路由（content::wechat_live，14 条）。
+//! 管理端微信直播路由（content::wechat_live，18 条）。
 //!
 //! 对应原 Java `com.nextrade.adminapi.controller.content.WechatLiveController`
 //! （`@RequestMapping("/adminapi/content/wechatLive")`，类级
@@ -20,18 +20,24 @@
 //! | `POST /content/wechatLive/removeFromRoom` | `WechatLiveController.removeGoods` |
 //! | `GET  /content/wechatLive/room/{roomId}` | `WechatLiveController.getGoods` |
 //! | `GET  /content/wechatLive/finderLiveRecord` | `WechatLiveController.getFinderLiveRecord` |
+//! | `GET  /content/wechatLive/finderLiveRecordList` | 我方新增：落库记录分页查询（无 Java 对应） |
 //!
 //! > **鉴权**：Java 类级 `@PreAuthorize('wechatLive')`；Rust 只校验登录态
 //! > （权限矩阵未实现），全部注册在管理端需登录路由组。
 //!
 //! > **外部微信接口（未迁移）**：`refresh` / `syncFromWechat` / `syncToWechat` /
-//! > `pushUrl` / `finderLiveRecord` 依赖小程序 access_token 与微信开放平台
-//! > HTTP 客户端，当前返回明确业务错误（详见服务层模块头）。
+//! > `pushUrl` 依赖小程序 access_token 与微信开放平台 HTTP 客户端，当前
+//! > 返回明确业务错误（详见服务层模块头）。`finderLiveRecord` 已于
+//! > 2026-11-21 接通：直播小程序凭据 + 视频号助手开放接口真调微信，
+//! > 拉取结果落库 `finder_live_record`（迁移 028）。
 
 use axum::{
     extract::{Path, Query, State},
     routing::{get, post},
     Json, Router,
+};
+use nextrade_core::models::content::api_wechat_live::{
+    FinderLiveRecordListQuery, FinderLiveRecordVO,
 };
 use nextrade_core::models::content::wechat_live::{
     WechatLiveDeleteParam, WechatLiveGoodsAddDTO, WechatLiveGoodsVO, WechatLiveListQuery,
@@ -44,12 +50,13 @@ use nextrade_security::web::{ok, ApiResult};
 
 use crate::AdminState;
 
-/// 本域 17 条路由（`/adminapi` 前缀之后的路径 + 原 Java 方法名）。
+/// 本域 18 条路由（`/adminapi` 前缀之后的路径 + 原 Java 方法名）。
 /// 路径参数使用契约写法 `{roomId}`（axum 注册时为 `{roomId}`）。
 /// 最后 3 条是新版管理端前端契约的 `promotion/wechatLive/*` 路径
 /// （`view/admin/src/api/promotion/live.ts`；Java 控制器只挂
-/// `content/wechatLive`，前端新版本改用 promotion 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 17] = [
+/// `content/wechatLive`，前端新版本改用 promotion 前缀）；
+/// `finderLiveRecordList` 为我方新增的落库查询（无 Java 对应）。
+const ROUTE_TABLE: [(&str, &str, &str); 18] = [
     (
         "GET",
         "/content/wechatLive/list",
@@ -122,6 +129,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 17] = [
     ),
     (
         "GET",
+        "/content/wechatLive/finderLiveRecordList",
+        "WechatLiveController.getFinderLiveRecordList",
+    ),
+    (
+        "GET",
         "/promotion/wechatLive/list",
         "WechatLiveController.list",
     ),
@@ -159,6 +171,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route(
             "/content/wechatLive/finderLiveRecord",
             get(finder_live_record),
+        )
+        .route(
+            "/content/wechatLive/finderLiveRecordList",
+            get(finder_live_record_list),
         )
         // —— 新版前端 promotion 前缀（同一服务，路径别名） ——
         .route("/promotion/wechatLive/list", get(list))
@@ -330,6 +346,18 @@ async fn finder_live_record(
     ok(state.content.wechat_live.finder_live_record(&q.id).await?)
 }
 
+/// `GET /adminapi/content/wechatLive/finderLiveRecordList`：落库直播记录分页（我方新增）。
+async fn finder_live_record_list(
+    State(state): State<AdminState>,
+    Query(q): Query<FinderLiveRecordListQuery>,
+) -> ApiResult<PageResult<FinderLiveRecordVO>> {
+    ok(state
+        .content
+        .wechat_live
+        .finder_live_record_list(&q)
+        .await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,7 +365,11 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 17, "契约 14 条 + 前端契约 promotion 别名 3 条");
+        assert_eq!(
+            docs.len(),
+            18,
+            "契约 14 条 + 前端契约 promotion 别名 3 条 + 我方新增落库查询 1 条"
+        );
         assert_eq!(docs.len(), ROUTE_TABLE.len());
         for (method, path, handler) in ROUTE_TABLE.iter() {
             let full = if path.contains("{roomId}") {
@@ -372,6 +404,7 @@ mod tests {
             ("POST", "/content/wechatLive/removeFromRoom"),
             ("GET", "/content/wechatLive/room/{roomId}"),
             ("GET", "/content/wechatLive/finderLiveRecord"),
+            ("GET", "/content/wechatLive/finderLiveRecordList"),
             ("GET", "/promotion/wechatLive/list"),
             ("GET", "/promotion/wechatLive/refresh"),
             ("POST", "/promotion/wechatLive/refresh"),

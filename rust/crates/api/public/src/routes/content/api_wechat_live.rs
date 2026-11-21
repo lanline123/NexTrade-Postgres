@@ -1,7 +1,10 @@
 ﻿//! 前台微信视频号直播记录路由（content::api_wechat_live）。
 //!
 //! 对应 Java `GET /api/content/wechatVideoAccount/finderLiveRecord`（auth=optional）。
-//! 契约 auth=optional：本文件自带 [`optional_auth`]；接口返回明确「未迁移」业务错误。
+//! 契约 auth=optional：本文件自带 [`optional_auth`]。
+//! 直播记录已接通（2026-11-21）：经直播小程序凭据拉取微信当前直播
+//! 记录并落库后返回单条（未在直播 → `data = null`）；未配置凭据 /
+//! 微信 errcode → 明确业务错误（见 services 层 `wechat_finder`）。
 
 use axum::{
     extract::{Query, Request, State},
@@ -80,11 +83,15 @@ async fn optional_auth(
     Ok(next.run(req).await)
 }
 
-/// `GET /api/content/wechatVideoAccount/finderLiveRecord`：直播记录（未迁移）。
+/// `GET /api/content/wechatVideoAccount/finderLiveRecord?id=`：当前直播记录。
+///
+/// 返回与 Java `LiveRecord` 逐字对齐的单条记录（原占位实现返回的分页
+/// VO 字段为虚构、且从未返回过数据，本批按真实契约改形）；未在直播 →
+/// `data = null`（与 Java 返回 null 同口径，前台空值降级不变）。
 async fn finder_live_record(
     State(state): State<PublicState>,
     Query(q): Query<FinderLiveRecordQuery>,
-) -> ApiResult<PageResult<FinderLiveRecordVO>> {
+) -> ApiResult<Option<FinderLiveRecordVO>> {
     ok(state.content.api_wechat_live.finder_live_record(&q).await?)
 }
 

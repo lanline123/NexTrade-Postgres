@@ -24,9 +24,13 @@
 //!
 //! Java 通过 `WechatApiClient` / `WechatOAuthService` 调用微信开放平台
 //! （小程序 access_token、创建/编辑/删除直播间、推流地址、推广二维码、
-//! 视频号直播记录）。Rust 未迁移 HTTP 客户端与 `appid/secret` 配置，以下
-//! 5 条接口返回与 Java「token 获取失败」同口径的明确错误：
-//! `refresh` / `syncFromWechat` / `syncToWechat` / `pushUrl` / `finderLiveRecord`。
+//! 视频号直播记录）。其中**视频号直播记录 `finderLiveRecord` 已于
+//! 2026-11-21 接通**：经直播小程序凭据的 access_token 调视频号助手
+//! 开放接口拉取当前直播记录并落库（见 [`crate::content::wechat_finder`]
+//! 与 [`crate::content::api_wechat_live`]）。其余 4 条 Rust 未迁移
+//! HTTP 客户端与 `appid/secret` 配置，返回与 Java「token 获取失败」
+//! 同口径的明确错误：
+//! `refresh` / `syncFromWechat` / `syncToWechat` / `pushUrl`。
 //!
 //! 其余偏差：
 //! - `create` 不会在微信侧创建直播间（`room_id = 0`）；
@@ -48,7 +52,7 @@ use nextrade_core::models::content::wechat_live::{
     WechatLivePromoteVO, WechatLivePushUrlVO, WechatLiveRoomCreateDTO, WechatLiveUpdateDTO,
     WechatLiveVO,
 };
-use nextrade_core::types::PageResult;
+use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::marketing::tenant::TenantScope;
 use nextrade_infrastructure::db::Repositories;
@@ -491,11 +495,46 @@ impl WechatLiveService {
 
     /// `GET /adminapi/content/wechatLive/finderLiveRecord?id=`：视频号直播记录。
     ///
-    /// ⚠️ 未迁移：Java 调 `wechatApiClient.getFinderLiveRecordList`。
-    pub async fn finder_live_record(&self, _id: &str) -> Result<serde_json::Value> {
-        Err(wechat_api_error(
-            "获取视频号直播记录失败：access_token获取失败",
-        ))
+    /// 已接通（2026-11-21，与前台同源）：经直播小程序凭据拉取微信当前
+    /// 直播记录、落库后按 id 选取（精确匹配 export_id 优先、未命中回退
+    /// 首条；无记录 → `null`）。未配置凭据 / 微信 errcode → 明确业务
+    /// 错误（详见 [`crate::content::wechat_finder`]）。
+    pub async fn finder_live_record(&self, id: &str) -> Result<serde_json::Value> {
+        let records =
+            crate::content::wechat_finder::fetch_and_persist_live_records(&self.repos).await?;
+        let selected =
+            nextrade_core::models::content::api_wechat_live::select_record(&records, Some(id))
+                .cloned();
+        Ok(serde_json::to_value(selected).unwrap_or(serde_json::Value::Null))
+    }
+
+    /// 视频号直播记录落库分页查询（我方新增，管理端
+    /// `GET /adminapi/content/wechatLive/finderLiveRecordList`，无 Java 对应）。
+    ///
+    /// 只读本地落库（不触发微信拉取）：当前记录优先、最近拉取在前。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn finder_live_record_list(
+        &self,
+        q: &nextrade_core::models::content::api_wechat_live::FinderLiveRecordListQuery,
+    ) -> Result<PageResult<nextrade_core::models::content::api_wechat_live::FinderLiveRecordVO>>
+    {
+        let (page, size) =
+            nextrade_core::models::content::api_wechat_live::page_params(q.page, q.size);
+        let page_query = PageQuery {
+            page,
+            page_size: size,
+        };
+        let offset = (page - 1) * size;
+        let (total, rows) = self
+            .repos
+            .content
+            .api_wechat_live
+            .paginate(q.only_current.unwrap_or(false), size, offset)
+            .await?;
+        let list = rows.iter().map(|r| r.to_vo()).collect();
+        Ok(PageResult::new(total, list, &page_query))
     }
 
     // ————————————————————— 内部辅助 —————————————————————
