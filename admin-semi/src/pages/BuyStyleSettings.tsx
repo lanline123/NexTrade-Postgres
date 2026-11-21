@@ -1,9 +1,12 @@
-import { useEffect, useState, type CSSProperties } from 'react';
-import { Button, Card, ColorPicker, Space, Spin, Toast, Typography } from '@douyinfe/semi-ui';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { Button, Card, ColorPicker, Input, InputNumber, Radio, RadioGroup, Slider, Space, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
 import GalleryPickerModal from '../components/GalleryPickerModal';
+import BuyBtnStylePicker, { H5_BUY_BTN_TYPE_OPTIONS } from '../components/BuyBtnStylePicker';
+import { DEFAULT_OBJ_STYLE, sanitizeObjStyle, type ObjBuyStyle } from '../components/buyStyleObj';
 import { PcBuyButtonVisual, resolvePcBuyBtn } from './decoratePc/previews/shared/PcBuyButton';
+import { BuyBtnTypeIcon } from './decorateEditorH5/shared/BuyButton';
 
 const { Text, Title } = Typography;
 
@@ -36,6 +39,14 @@ const { Text, Title } = Typography;
  * 不加载那份 CSS，色块塌成不成形的细条。改用 Semi ColorPicker（后台
  * DecorateMobilePages 等页同款，自带样式），色块为正常方块，点开取色
  * 交互不变；「重置」保留为独立文字钮。
+ *
+ * 对象型分节（2026-11-21，我方新增）：buyStyle 配置新增 objStyle 子对象，
+ * 字段与移动端对象型模块（商品分组/分组滑动/商品轮播/商品A1）的 buyBtnStyle
+ * 逐字同名，模块开启「跟随全局」时浅合并消费。两条铁律：① 渐变色默认 ""
+ * （=跟随主题色），严禁填 #333333；② objStyle 的 iconColor 与上方顶层
+ * iconColor 分开存（同名语义相反：顶层空=跟随主题，对象型始终显式、空回
+ * 落 #ffffff），严禁合并。对象型预览为本页本地镜像实现（compat BuyButton
+ * 的样式类只存在于装修编辑器 CSS，本页不加载——同上方色块塌陷的教训）。
  */
 
 interface BuyStyleConfig {
@@ -43,6 +54,7 @@ interface BuyStyleConfig {
   customIcon: { picUrl: string; picThumb: string };
   iconColor: string;
   hiddenStyles: number[];
+  objStyle: ObjBuyStyle;
 }
 
 const STYLE_OPTIONS: Array<{ value: number; label: string; short: string }> = [
@@ -72,6 +84,7 @@ const DEFAULT_CFG: BuyStyleConfig = {
   customIcon: { picUrl: '', picThumb: '' },
   iconColor: '',
   hiddenStyles: [],
+  objStyle: { ...DEFAULT_OBJ_STYLE },
 };
 
 /** 清洗隐藏列表：0–18 整数、去重升序、剔除当前全局样式（与后端清洗同口径）。 */
@@ -126,6 +139,90 @@ function pickPcThemeColor(data: { themeStyle?: string | Record<string, any> } | 
   return FALLBACK_THEME_COLOR;
 }
 
+/**
+ * 对象型按钮预览（本页本地镜像）：复刻 compat BuyButton 的内联样式口径
+ * （高度 = paddingTopBottom + 24、渐变空值/历史 #333 视为跟随主题色），
+ * 不 import 编辑器组件本体——其 .goods-btn 类样式只存在于装修编辑器 CSS，
+ * 本页不加载（同图标颜色控件改 Semi ColorPicker 的教训）。主题色在本页以
+ * themeColor 实值代入 var(--general)。
+ */
+function ObjBuyButtonPreview({ obj, themeColor }: { obj: ObjBuyStyle; themeColor: string }) {
+  const isLegacyBg = (v?: string) => {
+    const s = String(v ?? '').trim().toLowerCase();
+    return s === '' || s === '#333333' || s === '#333';
+  };
+  let background: CSSProperties = {};
+  if (obj.gradientType !== 'purity') {
+    const followTheme = isLegacyBg(obj.gradientColorA) && isLegacyBg(obj.gradientColorB);
+    const a = followTheme ? themeColor : obj.gradientColorA;
+    const b = followTheme ? themeColor : obj.gradientColorB;
+    const dir = obj.gradientType === 'upDown' ? 'to bottom' : obj.gradientType === 'diagonal' ? 'to right bottom' : 'to right';
+    background = { backgroundImage: `linear-gradient(${dir}, ${a}, ${b})` };
+  } else {
+    background = { backgroundColor: isLegacyBg(obj.gradientColorA) ? themeColor : obj.gradientColorA };
+  }
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        height: obj.paddingTopBottom + 24,
+        paddingLeft: obj.text ? (obj.btnType ? obj.paddingLeftRight : obj.paddingLeftRight + 10) : 0,
+        paddingRight: obj.text ? obj.paddingLeftRight + 10 : 0,
+        borderRadius: obj.radius,
+        color: obj.textColor,
+        ...background,
+      }}
+    >
+      {obj.btnType ? (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginLeft: obj.text ? 5 : 0,
+            marginRight: obj.text ? -2 : 0,
+            width: Math.max(obj.iconSize, 24),
+          }}
+        >
+          <BuyBtnTypeIcon btnType={obj.btnType} color={obj.iconColor} customIcon={obj.iconImage} size={obj.iconSize} />
+        </span>
+      ) : null}
+      {obj.text ? <span style={{ fontSize: obj.textSize }}>{obj.text}</span> : null}
+    </span>
+  );
+}
+
+/** 对象型分节的一行：固定宽标签 + 控件（与模块设置面的行形态对齐）。 */
+function ObjRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+      <span style={{ width: 130, flexShrink: 0, fontSize: 14, color: '#1f2329' }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>{children}</div>
+    </div>
+  );
+}
+
+/** 对象型分节的数值行：滑杆 + 数字框（模块设置面 RangeField 同形态）。 */
+function ObjRange({
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <>
+      <Slider style={{ width: 180 }} min={min} max={max} value={value} onChange={(v) => onChange(Number(v))} />
+      <InputNumber min={min} max={max} value={value} onChange={(v) => onChange(Number(v ?? min))} style={{ width: 76 }} />
+    </>
+  );
+}
+
 /** 样式 0（不显示）在横排里的占位图形：灰色禁选圈，与「无按钮」语义对应。 */
 function HiddenStyleGlyph() {
   return (
@@ -141,6 +238,7 @@ export default function BuyStyleSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [objPickerOpen, setObjPickerOpen] = useState(false);
   const [cfg, setCfg] = useState<BuyStyleConfig>(DEFAULT_CFG);
   const [themeColor, setThemeColor] = useState(FALLBACK_THEME_COLOR);
 
@@ -169,6 +267,8 @@ export default function BuyStyleSettings() {
             // 已保存过颜色的老配置原样保留，不被覆盖
             iconColor: savedColor || theme,
             hiddenStyles: cleanHiddenStyles(data.hiddenStyles, style),
+            // objStyle 缺失（存量配置）→ 清洗回默认 = 现行对象型渲染口径
+            objStyle: sanitizeObjStyle(data.objStyle),
           });
         } else {
           setCfg((p) => ({ ...p, iconColor: p.iconColor || theme }));
@@ -194,6 +294,7 @@ export default function BuyStyleSettings() {
         customIcon: cfg.customIcon,
         iconColor: effectiveColor,
         hiddenStyles: cleanHiddenStyles(cfg.hiddenStyles, cfg.style),
+        objStyle: sanitizeObjStyle(cfg.objStyle),
       });
       Toast.success(t('保存成功'));
     } catch {
@@ -211,6 +312,11 @@ export default function BuyStyleSettings() {
   const restoreStyle = (v: number) => {
     setCfg((p) => ({ ...p, hiddenStyles: p.hiddenStyles.filter((x) => x !== v) }));
   };
+
+  const obj = cfg.objStyle;
+  const setObj = (patch: Partial<ObjBuyStyle>) =>
+    setCfg((p) => ({ ...p, objStyle: { ...p.objStyle, ...patch } }));
+  const objGradientFollowsTheme = !obj.gradientColorA && !obj.gradientColorB;
 
   // 实时预览走与前台/编辑器相同的解析链（-1 跟随全局 → 本页配置）
   const preview = resolvePcBuyBtn(-1, {
@@ -435,7 +541,7 @@ export default function BuyStyleSettings() {
           ) : null}
 
           <Space align="center" spacing={12}>
-            <Text strong>{t('图标颜色')}</Text>
+            <Text strong>{t('图标颜色（统一/PC 样式）')}</Text>
             {/* Semi ColorPicker 自带方块色块样式，不依赖装修编辑器 CSS（修复色块塌陷）；
                 value 经 toPickerHex 归一仅供控件解析，表单原值不动 */}
             <ColorPicker
@@ -457,6 +563,173 @@ export default function BuyStyleSettings() {
               '说明：商品、商品分组、拼团、秒杀、搜索结果等模块的购买按钮共用同一套样式。模块在装修编辑器里选「跟随全局」时使用这里的设置；模块单独选了样式则以模块为准。',
             )}
           </Text>
+        </Space>
+      </Card>
+
+      <Card title={t('移动端模块购买按钮（对象型）')}>
+        <Space vertical align="start" spacing={14} style={{ width: '100%' }}>
+          <Text type="tertiary">
+            {t(
+              '生效范围：仅移动端装修的「商品分组 / 分组滑动 / 商品轮播 / 商品A1」模块在模块设置里开启「跟随全局」时使用这里的设置；与上方统一枚举样式互不影响，模块未开启跟随时以模块自己的设置为准。',
+            )}
+          </Text>
+
+          <ObjRow label={t('购买按钮图标样式')}>
+            <BuyBtnStylePicker
+              value={obj.btnType}
+              options={H5_BUY_BTN_TYPE_OPTIONS}
+              onChange={(v) => setObj({ btnType: v })}
+              visualSet="h5BtnType"
+              customIcon={obj.iconImage}
+            />
+          </ObjRow>
+
+          {obj.btnType === 5 ? (
+            <ObjRow label={t('自定义图标图片')}>
+              {obj.iconImage.picUrl ? (
+                <span
+                  style={{
+                    width: 44,
+                    height: 44,
+                    border: '1px solid #e3e5e8',
+                    borderRadius: 6,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#fff',
+                  }}
+                >
+                  <img src={obj.iconImage.picThumb || obj.iconImage.picUrl} alt="" style={{ maxWidth: 36, maxHeight: 36, objectFit: 'contain' }} />
+                </span>
+              ) : null}
+              <Button onClick={() => setObjPickerOpen(true)}>{t('从素材库选择')}</Button>
+              {obj.iconImage.picUrl ? (
+                <Button type="danger" theme="borderless" onClick={() => setObj({ iconImage: { picUrl: '', picThumb: '' } })}>
+                  {t('删除')}
+                </Button>
+              ) : null}
+            </ObjRow>
+          ) : null}
+
+          <ObjRow label={t('图标尺寸')}>
+            <ObjRange value={obj.iconSize} min={12} max={40} onChange={(v) => setObj({ iconSize: v })} />
+          </ObjRow>
+
+          <ObjRow label={t('文字内容')}>
+            <Input
+              value={obj.text}
+              placeholder={t('请输入按钮文字内容')}
+              style={{ width: 220 }}
+              onChange={(v) => setObj({ text: v })}
+            />
+          </ObjRow>
+
+          <ObjRow label={t('文字颜色')}>
+            <ColorPicker
+              value={toPickerHex(obj.textColor || '#ffffff') as any}
+              onChange={(v: any) => setObj({ textColor: typeof v === 'string' ? v : String(v?.hex || '') })}
+            />
+            <Button theme="borderless" size="small" onClick={() => setObj({ textColor: '#ffffff' })}>
+              {t('重置')}
+            </Button>
+            <Text>{obj.textColor || '#ffffff'}</Text>
+          </ObjRow>
+
+          <ObjRow label={t('文字字号')}>
+            <ObjRange value={obj.textSize} min={10} max={24} onChange={(v) => setObj({ textSize: v })} />
+          </ObjRow>
+
+          <ObjRow label={t('图标颜色（对象型）')}>
+            <ColorPicker
+              value={toPickerHex(obj.iconColor || '#ffffff') as any}
+              onChange={(v: any) => setObj({ iconColor: typeof v === 'string' ? v : String(v?.hex || '') })}
+            />
+            <Button theme="borderless" size="small" onClick={() => setObj({ iconColor: '#ffffff' })}>
+              {t('重置')}
+            </Button>
+            <Text>{obj.iconColor || '#ffffff'}</Text>
+            <Text type="tertiary">{t('与上方「图标颜色（统一/PC 样式）」分开保存：对象型按钮的图标色始终按此值生效')}</Text>
+          </ObjRow>
+
+          <ObjRow label={t('渐变方向')}>
+            <RadioGroup
+              value={obj.gradientType}
+              onChange={(e: any) => setObj({ gradientType: String(e?.target?.value ?? 'leftRight') })}
+            >
+              <Radio value="upDown">{t('上下')}</Radio>
+              <Radio value="leftRight">{t('左右')}</Radio>
+              <Radio value="diagonal">{t('斜向')}</Radio>
+              <Radio value="purity">{t('纯色')}</Radio>
+            </RadioGroup>
+          </ObjRow>
+
+          <ObjRow label={t('渐变颜色')}>
+            <Text type="tertiary">A</Text>
+            <ColorPicker
+              value={toPickerHex(obj.gradientColorA || themeColor) as any}
+              onChange={(v: any) => setObj({ gradientColorA: typeof v === 'string' ? v : String(v?.hex || '') })}
+            />
+            <Text type="tertiary">B</Text>
+            <ColorPicker
+              value={toPickerHex(obj.gradientColorB || themeColor) as any}
+              onChange={(v: any) => setObj({ gradientColorB: typeof v === 'string' ? v : String(v?.hex || '') })}
+            />
+            {objGradientFollowsTheme ? (
+              <Text type="tertiary">{t('当前：跟随主题色')}</Text>
+            ) : (
+              <Button
+                theme="borderless"
+                size="small"
+                onClick={() => setObj({ gradientColorA: '', gradientColorB: '' })}
+              >
+                {t('改回跟随主题色')}
+              </Button>
+            )}
+            <Text type="tertiary">{t('两色都为空 = 按钮底色跟随主题色渐变')}</Text>
+          </ObjRow>
+
+          <ObjRow label={t('按钮圆角')}>
+            <ObjRange value={obj.radius} min={0} max={20} onChange={(v) => setObj({ radius: v })} />
+          </ObjRow>
+
+          <ObjRow label={t('按钮高度')}>
+            <ObjRange value={obj.paddingTopBottom} min={0} max={10} onChange={(v) => setObj({ paddingTopBottom: v })} />
+          </ObjRow>
+
+          <ObjRow label={t('按钮宽度')}>
+            <ObjRange value={obj.paddingLeftRight} min={0} max={10} onChange={(v) => setObj({ paddingLeftRight: v })} />
+          </ObjRow>
+
+          <ObjRow label={t('效果预览')}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                padding: '10px 14px',
+                border: '1px solid #eef0f3',
+                borderRadius: 8,
+                background: '#fff',
+              }}
+            >
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 6,
+                  background: 'linear-gradient(135deg,#f2f4f7,#e6eaef)',
+                  flexShrink: 0,
+                }}
+              />
+              <div>
+                <div style={{ fontSize: 13, color: '#333', marginBottom: 6 }}>{t('示例商品名称')}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                  <span style={{ color: '#ff3f4f', fontWeight: 600, fontSize: 15 }}>¥6.5万</span>
+                  <ObjBuyButtonPreview obj={obj} themeColor={themeColor} />
+                </div>
+              </div>
+            </div>
+          </ObjRow>
         </Space>
       </Card>
 
@@ -513,6 +786,18 @@ export default function BuyStyleSettings() {
           const url = urls[0] || '';
           setCfg((p) => ({ ...p, customIcon: { picUrl: url, picThumb: url } }));
           setPickerOpen(false);
+        }}
+      />
+
+      <GalleryPickerModal
+        visible={objPickerOpen}
+        multiple={false}
+        limit={1}
+        onCancel={() => setObjPickerOpen(false)}
+        onConfirm={(urls) => {
+          const url = urls[0] || '';
+          setObj({ iconImage: { picUrl: url, picThumb: url } });
+          setObjPickerOpen(false);
         }}
       />
     </div>

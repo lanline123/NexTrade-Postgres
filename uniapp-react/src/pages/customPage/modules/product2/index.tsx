@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Image, Text, View } from "@tarojs/components";
 import { useDidHide, useDidShow } from "@tarojs/taro";
 
@@ -9,6 +9,8 @@ import type { SpecificationRef } from "@/components/product/specification";
 import { cardProductId } from "@/hooks/useProductCardBuy";
 import TigLazyImage from "@/components/tig/tig-lazy-image/TigLazyImage";
 import { getProductsList } from "@/api/common";
+import { useConfigStore } from "@/store/config";
+import { resolveH5BuyBtnStyle } from "@/utils/buyStyle";
 import { useProductStyle } from "@/hooks/useProductStyle";
 import { productImage } from "@/utils/format";
 import { redirect, delay, getElementRect } from "@/utils";
@@ -26,6 +28,12 @@ interface Props {
 
 export default function Product2({ module, shopId = -1 }: Props) {
     const { frame } = module;
+
+    // 购买按钮「跟随全局」解析（读时、不回写）：buyBtnStyle=-1 时取全局样式
+    // 降级到 0–8 后再透传给瀑布流卡；其余值原样，渲染与此前逐字一致。
+    const globalBuyStyle = useConfigStore((s) => s.buyStyle);
+    const buyBtn = resolveH5BuyBtnStyle(module.buyBtnStyle, globalBuyStyle);
+    const resolvedBuyBtnStyle = buyBtn.style ?? module.buyBtnStyle;
 
     const frameFormat = useMemo(() => {
         return formatFrame(frame ?? {});
@@ -98,7 +106,7 @@ export default function Product2({ module, shopId = -1 }: Props) {
     return (
         productList.length > 0 && (
             <View
-                className={`module-ad-con decorate-product2 module-goods_ad ad-style__${module.style} ad-buy_btn_style__${module.buyBtnStyle} ad-goods_style__${module.goodsStyle} ad-goods_radio_style__${module.goodsRadioStyle} ad-text_align__${module.textAlign} ad-text_weight__${module.textWeight} ad-goods_name_row__${module.goodsNameRow} ad-goods_name_padding__${module.goodsNamePadding} ad-goods-title_style__${module.title?.titleStyle}`}
+                className={`module-ad-con decorate-product2 module-goods_ad ad-style__${module.style} ad-buy_btn_style__${resolvedBuyBtnStyle} ad-goods_style__${module.goodsStyle} ad-goods_radio_style__${module.goodsRadioStyle} ad-text_align__${module.textAlign} ad-text_weight__${module.textWeight} ad-goods_name_row__${module.goodsNameRow} ad-goods_name_padding__${module.goodsNamePadding} ad-goods-title_style__${module.title?.titleStyle}`}
                 style={frameFormat.boxPadding + frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom}
             >
                 <View
@@ -114,7 +122,7 @@ export default function Product2({ module, shopId = -1 }: Props) {
                         allFormat.innerPadding
                     }
                 >
-                    {productList.length > 0 && <Product2Masonry commodityList={productList} styleMap={styleMap} buyBtnStyle={module.buyBtnStyle} />}
+                    {productList.length > 0 && <Product2Masonry commodityList={productList} styleMap={styleMap} buyBtnStyle={resolvedBuyBtnStyle} buyBtnIconColor={buyBtn.iconColor} />}
                 </View>
             </View>
         )
@@ -141,12 +149,15 @@ const COLUMN_HEIGHT_TOLERANCE = 20;
 function Product2Masonry({
     commodityList,
     styleMap,
-    buyBtnStyle
+    buyBtnStyle,
+    buyBtnIconColor
 }: {
     commodityList: any[];
     styleMap: Record<number, any>;
-    /** 购买按钮样式（module.buyBtnStyle 透传给内联卡，口径同 Product2MasonryItem） */
+    /** 购买按钮样式（已在模块层完成跟随全局解析，透传给内联卡，口径同 Product2MasonryItem） */
     buyBtnStyle?: number;
+    /** 跟随全局时的全局图标色（非空时以 --general 局部变量作用于按钮元素） */
+    buyBtnIconColor?: string;
 }) {
     const rootRef = useRef<any>(null);
     /** 规格弹窗加购（与 components/masonry 同款链路，替代旧 handleBuy 打开 specification） */
@@ -339,6 +350,7 @@ function Product2Masonry({
                                 item={entry.item}
                                 styleMap={styleMap}
                                 buyBtnStyle={buyBtnStyle}
+                                buyBtnIconColor={buyBtnIconColor}
                                 onClickItem={handleClickItem}
                                 onClickBuy={handleBuy}
                             />
@@ -367,13 +379,16 @@ function Product2MasonryItem({
     item,
     styleMap,
     buyBtnStyle,
+    buyBtnIconColor,
     onClickItem,
     onClickBuy
 }: {
     item: any;
     styleMap: Record<number, any>;
-    /** 购买按钮样式（module.buyBtnStyle）：undefined=沿用旧图标，0=不显示，1~8=对应样式，与通用卡 ProductItem 同口径 */
+    /** 购买按钮样式（已解析）：undefined=沿用旧图标，0=不显示，1~8=对应样式，与通用卡 ProductItem 同口径 */
     buyBtnStyle?: number;
+    /** 跟随全局时的全局图标色（作用于按钮元素本身，不外溢） */
+    buyBtnIconColor?: string;
     onClickItem: (item: any) => void;
     onClickBuy: (item: any) => void;
 }) {
@@ -424,6 +439,7 @@ function Product2MasonryItem({
                     {buyBtnStyle !== 0 && (
                         <View
                             className={`buy_btn ${buyBtnStyle && buyBtnStyle >= 1 && buyBtnStyle <= 8 ? `buy_btn--style${buyBtnStyle}` : ""}`}
+                            style={buyBtnIconColor ? ({ "--general": buyBtnIconColor } as CSSProperties) : undefined}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onClickBuy(item);

@@ -8,12 +8,14 @@
  * demoProductFill 的 usePreviewDemoProducts，纯显示层不落盘；四期补齐，
  * 与创建填充定案个数同源）。
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState , type CSSProperties } from "react";
 import { Swiper, SwiperItem } from "@nutui/nutui-react";
 import CommonTitle from "../../../shared/CommonTitle";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
+import { resolveH5DigitalBuyBtn } from "../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
 import { productDefaults } from "./index";
 import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
 
@@ -27,7 +29,7 @@ import "./Preview.css";
  *   字形分别为 icon-gouwuche / icon-gouwuche1 / icon-jia / icon-jia1 四个不同字形；
  *   本实现以语义对应的内联 SVG 承接：购物车 / 购物车变体（篮筐） / 加号（方） / 加号变体（圆）。
  */
-function LegacyBuyButton({ style }: { style: number }) {
+function LegacyBuyButton({ style, colorVar }: { style: number; colorVar?: string }) {
     const cartPath = "M401.3 829.9c-35.8 0-64.9 29.1-64.9 64.9s29.1 64.9 64.9 64.9 64.9-29.1 64.9-64.9-29.1-64.9-64.9-64.9z m400.4 0c-35.8 0-64.9 29.1-64.9 64.9s29.1 64.9 64.9 64.9 64.9-29.1 64.9-64.9-29.1-64.9-64.9-64.9z m211.9-622.1c-11-12.7-27.2-19.9-44.1-19.9H238.9l-17.4-96.8C217.4 55.4 185.5 29 149.5 29H63.4C37.8 29 17 49.8 17 75.4s20.8 46.4 46.4 46.4h86.1c3.2 0 5.9 2.3 6.5 5.4l76.7 425.7c8.5 47.6 49.8 82.1 98.2 82.1h438.3c46.4 0 86.9-33 96.2-78.5l54.7-270.4c3.4-18.1-1.3-36.6-13.5-50.3z";
     const cartVariantPath = "M896 149.3H725.3l-27.7-55.5c-8.1-16.2-24.6-26.5-42.7-26.5H369.1c-18.1 0-34.6 10.2-42.7 26.5l-27.7 55.5H128c-35.3 0-64 28.7-64 64v618.7c0 35.3 28.7 64 64 64h768c35.3 0 64-28.7 64-64V213.3c0-35.3-28.7-64-64-64z m-64 576H192V320h640v405.3z";
     const plusPath = "M448 128h128v320h320v128H576v320H448V576H128V448h320V128z";
@@ -48,7 +50,7 @@ function LegacyBuyButton({ style }: { style: number }) {
         if (style === 4) return iconSpan(plusVariantPath);
         return null;
     };
-    return <a className="buy-btn lyecs-buyBtn">{render()}</a>;
+    return <a className="buy-btn lyecs-buyBtn" style={colorVar ? ({ "--general": colorVar } as CSSProperties) : undefined}>{render()}</a>;
 }
 export default function ProductPreview({ data }: { data: Record<string, any> }) {
     const { t } = useI18n();
@@ -57,6 +59,13 @@ export default function ProductPreview({ data }: { data: Record<string, any> }) 
         mergeDefaultModule(merged, productDefaults);
         return merged;
     }, [data]);
+
+    // 跟随全局解析（读时、不回写）：buyBtnStyle=-1 时取全局样式降级到 0–8，
+    // 与前台 uniapp 同口径（components/buyStyleObj）；其余值原样透传。
+    const globalBuyStyle = usePcGlobalBuyStyle();
+    const buyBtn = resolveH5DigitalBuyBtn(module.buyBtnStyle, globalBuyStyle);
+    const buyBtnStyleVal = buyBtn.style ?? module.buyBtnStyle;
+
 
     const fetched = useDecorateProductList(module.products);
     // 来源无结果时随机真实商品兜底展示（纯显示层，不落盘）
@@ -110,7 +119,7 @@ export default function ProductPreview({ data }: { data: Record<string, any> }) 
                     </div>
                     {/* 样式7 的 .item-buy 在原版为空（无购买按钮），其余样式才渲染购买区 */}
                     <div className="item-buy">
-                        {Number(module.style) === 7 ? null : <LegacyBuyButton style={Number(module.buyBtnStyle)} />}
+                        {Number(module.style) === 7 ? null : <LegacyBuyButton style={Number(buyBtnStyleVal)} colorVar={buyBtn.iconColor} />}
                     </div>
                 </div>
             ) : null}
@@ -121,7 +130,7 @@ export default function ProductPreview({ data }: { data: Record<string, any> }) 
         <div
             className={
                 "module-ad-con module-goods_ad ad-style__" + module.style +
-                " ad-buy_btn_style__" + module.buyBtnStyle +
+                " ad-buy_btn_style__" + buyBtnStyleVal +
                 " ad-goods_style__" + module.goodsStyle +
                 " ad-goods_radio_style__" + module.goodsRadioStyle +
                 " ad-text_align__" + module.textAlign +

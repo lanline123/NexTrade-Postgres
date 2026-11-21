@@ -4,6 +4,8 @@ import { Image, View } from "@tarojs/components";
 import { designPxToRpx, formatFrame } from "@/components/modules";
 import CommonTitle from "@/pages/customPage/modules/commonTitle/index";
 import { getHomeSeckill } from "@/api/home/home";
+import { useConfigStore } from "@/store/config";
+import { resolveH5BuyBtnStyle } from "@/utils/buyStyle";
 import { redirect } from "@/utils";
 import { isShowB2bPriceText } from "@/utils/b2bPrice";
 import { useProductStyle } from "@/hooks/useProductStyle";
@@ -21,6 +23,13 @@ interface Props {
 
 export default function Seckill2({ module }: Props) {
     const { frame } = module;
+
+    // 购买按钮「跟随全局」解析（读时、不回写）：buyBtnStyle=-1 时取全局样式
+    // 降级到 0–8；其余值原样透传，渲染与此前逐字一致。本模块无独立按钮
+    // 宿主元素（按钮由根类名驱动 CSS），仅解析类名值。
+    const globalBuyStyle = useConfigStore((s) => s.buyStyle);
+    const buyBtn = resolveH5BuyBtnStyle(module?.buyBtnStyle, globalBuyStyle);
+    const resolvedBuyBtnStyle = buyBtn.style ?? module?.buyBtnStyle;
 
     const frameFormat = useMemo(() => {
         return formatFrame(frame ?? {});
@@ -92,7 +101,7 @@ export default function Seckill2({ module }: Props) {
                     "module-ad-con decorate-seckill2 module-goods_ad module-seckill-goods_ad ad-style__" +
                     module?.style +
                     " ad-buy_btn_style__" +
-                    module?.buyBtnStyle +
+                    resolvedBuyBtnStyle +
                     " ad-goods_style__" +
                     module?.goodsStyle +
                     " ad-goods_radio_style__" +

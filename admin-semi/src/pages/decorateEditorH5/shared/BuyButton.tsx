@@ -3,7 +3,14 @@
  *
  * 类名 goods-btn/btn-icon/btn-text 与样式表达式逐一致；图标用内联 SVG 替代
  * iconfont-h5（购物车/加号），视觉与 uniapp 端 iconfont 字形对齐。
+ *
+ * 跟随全局（2026-11-21，我方新增）：模块对象开启 followGlobal 时，入口先经
+ * resolveObjBuyButton 把 13 个外观字段换成全局「购买按钮样式」的 objStyle
+ * （读时解析、不回写模块数据；全局配置走 PcBuyButton 的会话级懒加载缓存），
+ * 与前台 uniapp CommonBuyButton 同口径。未开启时原样透传，渲染逐字不变。
  */
+import { resolveObjBuyButton } from "../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../decoratePc/previews/shared/PcBuyButton";
 import { cssText, imageFormat, pickPic } from "./format";
 
 export const gradientMap: Record<string, string> = {
@@ -81,6 +88,7 @@ export function BuyBtnTypeIcon({
 
 interface BuyButtonStyle {
     showBtn?: number;
+    followGlobal?: number;
     btnType?: number;
     iconImage?: { picUrl?: string; picThumb?: string };
     iconSize?: number;
@@ -97,8 +105,15 @@ interface BuyButtonStyle {
     [key: string]: any;
 }
 
+/** 跟随解析钩子：供 Preview 里需要按生效值做版式判断的调用方（如商品分组的
+ * 换行文案判断）与 BuyButton 本体共用同一解析，避免口径漂移。 */
+export function useResolvedBuyButton(styleOptions: BuyButtonStyle | undefined | null): BuyButtonStyle {
+    const global = usePcGlobalBuyStyle();
+    return resolveObjBuyButton(styleOptions ?? {}, global);
+}
+
 export default function BuyButton({ styleOptions }: { styleOptions: BuyButtonStyle }) {
-    const options = styleOptions ?? {};
+    const options = useResolvedBuyButton(styleOptions);
     const iconSizeVal = options.iconSize ?? 14;
     const textSizeVal = options.textSize ?? 12;
     const iconBoxWidth = Math.max(iconSizeVal, 24);

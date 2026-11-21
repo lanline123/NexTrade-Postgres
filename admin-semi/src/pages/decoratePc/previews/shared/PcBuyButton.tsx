@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiGet } from '../../../../api';
+import { DEFAULT_OBJ_STYLE, sanitizeObjStyle, type ObjBuyStyle } from '../../../../components/buyStyleObj';
 import './pcBuyButton.css';
 
 /**
@@ -16,6 +17,9 @@ import './pcBuyButton.css';
  *
  * 全局配置的 hiddenStyles（设置页隐藏的样式）只供选择器过滤选项，本文件
  * 仅透传不消费：解析/渲染对已保存的样式 id 一律照常（隐藏不影响存量渲染）。
+ * objStyle（对象型字段组）同理只透传：PC 渲染不消费它，但 H5 编辑器的
+ * 跟随解析经本文件的全局缓存读取，sanitizeGlobal 必须原样带出（经
+ * components/buyStyleObj 的 sanitizeObjStyle 清洗），洗掉即断 H5 链路。
  *
  * resolvePcBuyBtn 做读时归一化（不回写数据）：数字/字符串原样；PC 商品分组
  * 旧对象型 {showBtn, btnType} 按 1→3、2→1、3→9 映射；H5 对象型同前台映射表。
@@ -42,6 +46,10 @@ export interface GlobalBuyStyle {
   /** 设置页隐藏的样式 id（仅选择器过滤用，渲染不消费）；可选——存量调用方
    * 手工构造的全局对象可不带此字段，消费方按空列表处理。 */
   hiddenStyles?: number[];
+  /** 对象型字段组（H5 对象型模块跟随全局时消费）；PC 侧只透传不消费——
+   * 本文件的 sanitize 若把它洗掉，H5 编辑器经此缓存就读不到全局原值。
+   * 可选——存量调用方手工构造的全局对象可不带，消费方走默认组。 */
+  objStyle?: ObjBuyStyle;
 }
 
 const DEFAULT_GLOBAL: GlobalBuyStyle = {
@@ -49,6 +57,7 @@ const DEFAULT_GLOBAL: GlobalBuyStyle = {
   customIcon: { picUrl: '', picThumb: '' },
   iconColor: '',
   hiddenStyles: [],
+  objStyle: DEFAULT_OBJ_STYLE,
 };
 
 /* ---------- 全局配置懒加载（解析 -1 时用；整个编辑器会话只拉一次） ---------- */
@@ -73,6 +82,7 @@ function sanitizeGlobal(input: unknown): GlobalBuyStyle {
     },
     iconColor: String(raw.iconColor ?? '').trim(),
     hiddenStyles: hidden,
+    objStyle: sanitizeObjStyle(raw.objStyle),
   };
 }
 

@@ -14,11 +14,13 @@
  * 名称前成团人数 chip 由 getMinGroupNum 逐字复刻（groupNum 为 JSON 数组串时取最小 groupNum，否则 0）；
  * 价格 minGroupPrice + 划线原价（仅 style 1/5），海外版价格色 #555（isOverseas 时）。
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState , type CSSProperties } from "react";
 import { apiGet } from "../../../../../api";
 import CommonTitle from "../../../shared/CommonTitle";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
+import { resolveH5DigitalBuyBtn } from "../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
 import { isOverseas } from "../../../contract/version";
 import { grouponDefaults } from "./index";
 import { fetchOnSaleProductPool } from "../../../../../components/demoProductFill";
@@ -39,7 +41,7 @@ function getMinGroupNum(item: any): number | undefined {
 
 const TAG_CLASS: Record<number, string> = { 1: "big", 2: "small flex-end", 5: "list flex-end", 6: "small flex-end" };
 
-function GrouponBuyButton({ style }: { style: number }) {
+function GrouponBuyButton({ style, colorVar }: { style: number; colorVar?: string }) {
     const cartPath = "M401.3 829.9c-35.8 0-64.9 29.1-64.9 64.9s29.1 64.9 64.9 64.9 64.9-29.1 64.9-64.9-29.1-64.9-64.9-64.9z m400.4 0c-35.8 0-64.9 29.1-64.9 64.9s29.1 64.9 64.9 64.9 64.9-29.1 64.9-64.9-29.1-64.9-64.9-64.9z m211.9-622.1c-11-12.7-27.2-19.9-44.1-19.9H238.9l-17.4-96.8C217.4 55.4 185.5 29 149.5 29H63.4C37.8 29 17 49.8 17 75.4s20.8 46.4 46.4 46.4h86.1c3.2 0 5.9 2.3 6.5 5.4l76.7 425.7c8.5 47.6 49.8 82.1 98.2 82.1h438.3c46.4 0 86.9-33 96.2-78.5l54.7-270.4c3.4-18.1-1.3-36.6-13.5-50.3z";
     const cartVariantPath = "M896 149.3H725.3l-27.7-55.5c-8.1-16.2-24.6-26.5-42.7-26.5H369.1c-18.1 0-34.6 10.2-42.7 26.5l-27.7 55.5H128c-35.3 0-64 28.7-64 64v618.7c0 35.3 28.7 64 64 64h768c35.3 0 64-28.7 64-64V213.3c0-35.3-28.7-64-64-64z m-64 576H192V320h640v405.3z";
     const plusPath = "M448 128h128v320h320v128H576v320H448V576H128V448h320V128z";
@@ -61,7 +63,7 @@ function GrouponBuyButton({ style }: { style: number }) {
         return null;
     };
     return (
-        <a className="buy-btn lyecs-buyBtn" style={{ color: "#555" }}>
+        <a className="buy-btn lyecs-buyBtn" style={{ color: "#555", ...(colorVar ? ({ "--general": colorVar } as CSSProperties) : {}) }}>
             {render()}
         </a>
     );
@@ -73,6 +75,13 @@ export default function GrouponPreview({ data }: { data: Record<string, any> }) 
         mergeDefaultModule(merged, grouponDefaults);
         return merged;
     }, [data]);
+
+    // 跟随全局解析（读时、不回写）：buyBtnStyle=-1 时取全局样式降级到 0–8，
+    // 与前台 uniapp 同口径（components/buyStyleObj）；其余值原样透传。
+    const globalBuyStyle = usePcGlobalBuyStyle();
+    const buyBtn = resolveH5DigitalBuyBtn(module.buyBtnStyle, globalBuyStyle);
+    const buyBtnStyleVal = buyBtn.style ?? module.buyBtnStyle;
+
 
     const style = Number(module.style ?? 1);
     const size = style < 5 ? style : style === 5 ? 1 : 1;
@@ -135,7 +144,7 @@ export default function GrouponPreview({ data }: { data: Record<string, any> }) 
                 "module-ad-con module-goods_ad module-seckill-goods_ad module-promotion-groupon ad-style__" +
                 module.style +
                 " ad-buyBtnStyle__" +
-                module.buyBtnStyle +
+                buyBtnStyleVal +
                 " ad-goods_style__" +
                 module.goodsStyle +
                 " ad-goods_radio_style__" +
@@ -209,7 +218,7 @@ export default function GrouponPreview({ data }: { data: Record<string, any> }) 
                                                         ) : null}
                                                     </div>
                                                     <div className="item-buy">
-                                                        <GrouponBuyButton style={Number(module.buyBtnStyle)} />
+                                                        <GrouponBuyButton style={Number(buyBtnStyleVal)} colorVar={buyBtn.iconColor} />
                                                     </div>
                                                 </div>
                                             ) : null}

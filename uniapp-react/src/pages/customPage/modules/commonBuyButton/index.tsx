@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { Image, View } from "@tarojs/components";
 
 import { designPxToRpx, gradientMap } from "@/components/modules";
+import { useConfigStore } from "@/store/config";
+import { resolveObjBuyButton } from "@/utils/buyStyle";
 import { imageFormat, pickPic } from "@/utils/format";
 import { t } from "@/utils/i18n";
 
@@ -9,6 +11,7 @@ import "./index.scss";
 
 interface StyleOptions {
     showBtn?: number; // 是否显示按钮
+    followGlobal?: number; // 1 = 跟随全局「购买按钮样式」的对象型字段组（读时解析，不回写）
     btnType?: number; // 按钮类型
     text?: string; // 按钮文字
     textColor?: string; // 按钮文字颜色
@@ -44,16 +47,22 @@ export default function CommonBuyButton({
         paddingLeftRight: 10 // 按钮宽度
     }
 }: Props) {
+    // 跟随全局解析（读时、不回写模块数据）：followGlobal=1 时 13 个外观字段取
+    // 全局 objStyle，showBtn/wrap/wrapAlign 等模块语境字段保留模块值；未开启
+    // 跟随时 resolveObjBuyButton 原样返回入参，渲染与此前逐字一致。全局配置
+    // 未拉到时回落默认组（= 出厂行为），到达后自动重渲。
+    const globalBuyStyle = useConfigStore((s) => s.buyStyle);
+    const options = resolveObjBuyButton(styleOptions, globalBuyStyle);
     // 新增字段对历史草稿做兜底：旧 buyBtnStyle 对象可能缺这些子字段（与 admin commonBuyButton 同源）
-    const iconSizeVal = styleOptions.iconSize ?? 14;
-    const textSizeVal = styleOptions.textSize ?? 12;
+    const iconSizeVal = options.iconSize ?? 14;
+    const textSizeVal = options.textSize ?? 12;
     const iconBoxWidth = Math.max(iconSizeVal, 24);
-    const iconStyle = `color: ${styleOptions.iconColor}; font-weight: 400; font-size: ${designPxToRpx(iconSizeVal)};`;
+    const iconStyle = `color: ${options.iconColor}; font-weight: 400; font-size: ${designPxToRpx(iconSizeVal)};`;
     const iconImageSrc = useMemo(() => {
-        const img = styleOptions.iconImage;
+        const img = options.iconImage;
         if (!img || typeof img !== "object") return "";
         return pickPic(img);
-    }, [styleOptions.iconImage]);
+    }, [options.iconImage]);
 
     const background = useMemo(() => {
         let str = "";
@@ -65,31 +74,31 @@ export default function CommonBuyButton({
                 .toLowerCase();
             return s === "" || s === "#333333" || s === "#333";
         };
-        const colorA = styleOptions.gradientColorA;
-        const colorB = styleOptions.gradientColorB;
-        if (styleOptions.gradientType !== "purity") {
+        const colorA = options.gradientColorA;
+        const colorB = options.gradientColorB;
+        if (options.gradientType !== "purity") {
             const followTheme = isLegacyBg(colorA) && isLegacyBg(colorB);
             const a = followTheme ? "var(--general)" : colorA;
             const b = followTheme ? "var(--general)" : colorB;
-            str = `background-image: linear-gradient(${gradientMap[styleOptions.gradientType]}, ${a}, ${b});`;
+            str = `background-image: linear-gradient(${gradientMap[options.gradientType]}, ${a}, ${b});`;
         } else {
             str = `background-color:${isLegacyBg(colorA) ? "var(--general)" : colorA};`;
         }
         return str;
-    }, [styleOptions.gradientType, styleOptions.gradientColorA, styleOptions.gradientColorB]);
+    }, [options.gradientType, options.gradientColorA, options.gradientColorB]);
 
     const paddingLeft = useMemo(() => {
         let str = "padding-left:0";
-        if (styleOptions.text) {
-            str = `padding-left: ${designPxToRpx(styleOptions.paddingLeftRight)};`;
-            if (!styleOptions.btnType) {
-                str = `padding-left: ${designPxToRpx(Number(styleOptions.paddingLeftRight || 0) + 10)};`;
+        if (options.text) {
+            str = `padding-left: ${designPxToRpx(options.paddingLeftRight)};`;
+            if (!options.btnType) {
+                str = `padding-left: ${designPxToRpx(Number(options.paddingLeftRight || 0) + 10)};`;
             }
         }
         return str;
-    }, [styleOptions.text, styleOptions.btnType, styleOptions.paddingLeftRight]);
+    }, [options.text, options.btnType, options.paddingLeftRight]);
 
-    if (!(styleOptions.btnType || styleOptions.text)) {
+    if (!(options.btnType || options.text)) {
         return null;
     }
 
@@ -97,26 +106,26 @@ export default function CommonBuyButton({
         <View
             className="goods-btn decorate-common-buy-button"
             style={
-                `height: ${designPxToRpx(Number(styleOptions.paddingTopBottom || 0) + 24)}; padding-right: ${
-                    styleOptions.text ? designPxToRpx(Number(styleOptions.paddingLeftRight || 0) + 10) : 0
-                }; border-radius: ${designPxToRpx(styleOptions.radius)}; color: ${styleOptions.textColor}; font-weight: 400;` +
+                `height: ${designPxToRpx(Number(options.paddingTopBottom || 0) + 24)}; padding-right: ${
+                    options.text ? designPxToRpx(Number(options.paddingLeftRight || 0) + 10) : 0
+                }; border-radius: ${designPxToRpx(options.radius)}; color: ${options.textColor}; font-weight: 400;` +
                 background +
                 paddingLeft
             }
         >
-            {styleOptions.btnType ? (
+            {options.btnType ? (
                 <View
                     className="btn-icon"
-                    style={`margin-left: ${styleOptions.text ? "10rpx" : 0}; margin-right: ${
-                        styleOptions.text ? "-4rpx" : 0
+                    style={`margin-left: ${options.text ? "10rpx" : 0}; margin-right: ${
+                        options.text ? "-4rpx" : 0
                     }; width: ${designPxToRpx(iconBoxWidth)}; background: none;`}
                 >
                     {/* color/font-size 必须打在 .iconfont-h5 上：父级 .item-buy .iconfont-h5 与 iconfont.css 会覆盖继承样式 */}
-                    {styleOptions.btnType == 1 && <View className="iconfont-h5 icon-gouwuche" style={iconStyle} />}
-                    {styleOptions.btnType == 2 && <View className="iconfont-h5 icon-gouwuche1" style={iconStyle} />}
-                    {styleOptions.btnType == 3 && <View className="iconfont-h5 icon-jia" style={iconStyle} />}
-                    {styleOptions.btnType == 4 && <View className="iconfont-h5 icon-jia1" style={iconStyle} />}
-                    {styleOptions.btnType == 5 && iconImageSrc && (
+                    {options.btnType == 1 && <View className="iconfont-h5 icon-gouwuche" style={iconStyle} />}
+                    {options.btnType == 2 && <View className="iconfont-h5 icon-gouwuche1" style={iconStyle} />}
+                    {options.btnType == 3 && <View className="iconfont-h5 icon-jia" style={iconStyle} />}
+                    {options.btnType == 4 && <View className="iconfont-h5 icon-jia1" style={iconStyle} />}
+                    {options.btnType == 5 && iconImageSrc && (
                         <Image
                             className="btn-icon-img"
                             src={imageFormat(iconImageSrc)}
@@ -126,9 +135,9 @@ export default function CommonBuyButton({
                     )}
                 </View>
             ) : null}
-            {styleOptions.text ? (
+            {options.text ? (
                 <View className="btn-text" style={`font-size: ${designPxToRpx(textSizeVal)};`}>
-                    {t(styleOptions.text)}
+                    {t(options.text)}
                 </View>
             ) : null}
         </View>

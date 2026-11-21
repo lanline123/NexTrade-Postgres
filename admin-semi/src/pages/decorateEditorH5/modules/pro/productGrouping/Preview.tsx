@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { cssText, productImage } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule, formatCommonStyle, gradientMap } from "../../../contract/sharedDefaults";
-import BuyButton from "../../../shared/BuyButton";
+import BuyButton, { useResolvedBuyButton } from "../../../shared/BuyButton";
 import { apiGet } from "../../../../../api";
 import { productGroupingDefaults } from "./index";
 import "./Preview.css";
@@ -91,7 +91,10 @@ export default function ProductGroupingPreview({ data }: { data: Record<string, 
         ];
     }, [list, activeBannerPic]);
 
-    const hasBuyBtnText = Number(module.buyBtnStyle?.showBtn) === 1 && !!module.buyBtnStyle?.text && Number(module.buyBtnStyle?.wrap) === 1;
+    // 版式判断（文字是否换行）按生效按钮值走：跟随全局时 text 来自全局 objStyle，
+    // 与 BuyButton 本体的解析同口径。
+    const resolvedBuyBtn = useResolvedBuyButton(module.buyBtnStyle);
+    const hasBuyBtnText = Number(resolvedBuyBtn?.showBtn) === 1 && !!resolvedBuyBtn?.text && Number(resolvedBuyBtn?.wrap) === 1;
 
     const goodsItemStyle = (() => {
         let str = `margin:${(module.cardMargin ?? 0) / 2}px;padding:${module.cardPadding}px;border:${Number(module.productCardStyle) === 3 ? 1 : 0}px solid rgb(238, 238, 238);border-radius:${module.cardRadius}px;`;

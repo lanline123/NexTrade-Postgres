@@ -1,8 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { View, Text, Image } from "@tarojs/components";
 import dayjs from "dayjs";
 
 import { productImage } from "@/utils/format";
+import { useConfigStore } from "@/store/config";
+import { resolveH5BuyBtnStyle } from "@/utils/buyStyle";
 import ActivityCard, { isActivityVisible } from "./ActivityCard";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import TigLazyImage from "@/components/tig/tig-lazy-image/TigLazyImage";
@@ -31,7 +33,7 @@ interface Props {
     productTitleLine?: number;
     /** 是否显示商品名称 */
     showName?: boolean;
-    /** 购买按钮样式：undefined=沿用旧图标，0=不显示，1~8=对应样式 */
+    /** 购买按钮样式：undefined=沿用旧图标，0=不显示，1~8=对应样式，-1=跟随全局（读时解析） */
     buyBtnStyle?: number;
     /** 是否显示优惠券活动；undefined 表示沿用其他页面原有行为 */
     showCoupon?: boolean;
@@ -81,7 +83,13 @@ export default function ProductItem({
     }, [productTitleColor, priceColor, themeColor, itemBackgroundColor, productImageRadius]);
 
     const productCardRadius = productImageRadius == null ? undefined : `${Math.max(0, productImageRadius) * 2}rpx`;
-    const showBuyBtn = buyBtnStyle !== 0;
+    // 跟随全局解析：buyBtnStyle=-1 时取全局样式降级到 0–8（读时、不回写）；
+    // undefined/0–8 原样透传，行为与此前逐字一致。全局 iconColor 以 --general
+    // 局部变量作用于按钮元素本身。
+    const globalBuyStyle = useConfigStore((s) => s.buyStyle);
+    const resolvedBuyBtn = resolveH5BuyBtnStyle(buyBtnStyle, globalBuyStyle);
+    const effBuyBtnStyle = resolvedBuyBtn.style;
+    const showBuyBtn = effBuyBtnStyle !== 0;
 
     const itemClasses = useMemo(() => {
         const cls: string[] = [];
@@ -197,7 +205,8 @@ export default function ProductItem({
 
                     {showBuyBtn && (
                         <View
-                            className={`buy_btn ${buyBtnStyle && buyBtnStyle >= 1 && buyBtnStyle <= 8 ? `buy_btn--style${buyBtnStyle}` : ""}`}
+                            className={`buy_btn ${effBuyBtnStyle && effBuyBtnStyle >= 1 && effBuyBtnStyle <= 8 ? `buy_btn--style${effBuyBtnStyle}` : ""}`}
+                            style={resolvedBuyBtn.iconColor ? ({ "--general": resolvedBuyBtn.iconColor } as CSSProperties) : undefined}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onClickBuy?.(item);
@@ -205,17 +214,17 @@ export default function ProductItem({
                         >
                             {item.isCheck ? (
                                 <Text className="buy_btn_text">…</Text>
-                            ) : buyBtnStyle === 5 || buyBtnStyle === 6 ? (
+                            ) : effBuyBtnStyle === 5 || effBuyBtnStyle === 6 ? (
                                 <Text className="buy_btn_text">{t("购买")}</Text>
-                            ) : buyBtnStyle === 7 || buyBtnStyle === 8 ? (
+                            ) : effBuyBtnStyle === 7 || effBuyBtnStyle === 8 ? (
                                 <Text className="buy_btn_text">{t("马上抢")}</Text>
-                            ) : buyBtnStyle === 1 ? (
+                            ) : effBuyBtnStyle === 1 ? (
                                 <Text className="iconfont-h5 buy_btn_icon icon-gouwuche" />
-                            ) : buyBtnStyle === 2 ? (
+                            ) : effBuyBtnStyle === 2 ? (
                                 <Text className="iconfont-h5 buy_btn_icon icon-gouwuche1" />
-                            ) : buyBtnStyle === 3 ? (
+                            ) : effBuyBtnStyle === 3 ? (
                                 <Text className="iconfont-h5 buy_btn_icon icon-jia" />
-                            ) : buyBtnStyle === 4 ? (
+                            ) : effBuyBtnStyle === 4 ? (
                                 <Text className="iconfont-h5 buy_btn_icon icon-jia1" />
                             ) : type !== "exchange" ? (
                                 // 未传 buyBtnStyle 时沿用旧图标（其他场景不受影响）

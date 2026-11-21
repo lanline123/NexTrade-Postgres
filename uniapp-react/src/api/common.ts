@@ -1,6 +1,7 @@
 import type { ApiEnvelope } from "@/types/api";
 import request from "@/utils/request";
 import type { PriceDisplayConfig } from "@/utils/priceDisplay";
+import type { BuyStyleConfig } from "@/utils/buyStyle";
 import { repairPreviewPriceList } from "@/utils/previewProductData";
 import type {
     GuessLikeDataResponse,
@@ -121,6 +122,21 @@ export const getAuthGateConfig = () => {
 export const getPriceDisplayConfig = () => {
     return request<{ code: number; message: string; data: PriceDisplayConfig }>({
         url: "common/config/priceDisplay",
+        method: "get"
+    });
+};
+
+/**
+ * @description 获取购买按钮样式配置（后台「购买按钮样式」，与 PC 前台同一公开端点）
+ * 含统一枚举 style/iconColor 与对象型字段组 objStyle；基础配置拉取时一并
+ * 取回写入 config store，供装修模块购买按钮的「跟随全局」解析消费
+ * （对象型 followGlobal / 数字型 buyBtnStyle=-1）。未保存过设置时后端
+ * 返回内置默认。
+ * @returns 购买按钮样式配置
+ */
+export const getBuyStyleConfig = () => {
+    return request<{ code: number; message: string; data: BuyStyleConfig }>({
+        url: "common/config/buyStyle",
         method: "get"
     });
 };

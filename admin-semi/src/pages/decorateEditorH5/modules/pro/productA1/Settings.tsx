@@ -26,6 +26,9 @@ DecDivider
 import { TemplateIconRadioField} from "../../../shared/templateIcon";
 import { SettingsTabs} from "../../../shared/styleEdits";
 import { cloneDeep, defaultProductA1} from "../../../contract/sharedDefaults";
+import { resolveObjBuyButton } from "../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
+import BuyBtnFollowRow from "../../../shared/BuyBtnFollowRow";
 import ProductsSourceField from "../../../shared/ProductsSourceField";
 import { useI18n} from "../../../../../i18n";
 
@@ -46,7 +49,12 @@ const ALIGN_OPTIONS = [
 
 function BuyBtnSettings({ data, onChange}: Props) {
 const btn = data?.buyBtnStyle && typeof data.buyBtnStyle === "object"? data.buyBtnStyle: cloneDeep(defaultProductA1.buyBtnStyle);
-const sub: Props = { data: btn, onChange: (patch: Patch) => onChange({ buyBtnStyle: {...btn,...patch}})};
+// 跟随全局：开启时下方字段显示全局当前值并置灰只读；写回永远合并进 btn
+// （模块原值），全局值绝不写进模块数据——切回自定义即恢复模块原设置。
+const global = usePcGlobalBuyStyle();
+const following = Number(btn.followGlobal) === 1;
+const effBtn = following? resolveObjBuyButton(btn, global): btn;
+const sub: Props = { data: effBtn, onChange: (patch: Patch) => onChange({ buyBtnStyle: {...btn,...patch}})};
 return (
 <SettingGroup title="购买按钮">
 <RadioRowField
@@ -60,12 +68,15 @@ options={[
 />
 {Number(btn.showBtn) === 1? (
 <>
+<BuyBtnFollowRow data={btn} onChange={(patch: Patch) => onChange({ buyBtnStyle: {...btn,...patch}})} />
+<div style={following? { opacity: 0.55, pointerEvents: "none" }: undefined}>
 <SettingRow label="购买按钮图标样式" block>
-<BuyBtnStyleField {...sub} field="btnType" visualSet="h5BtnType" customIcon={btn.iconImage} />
+<BuyBtnStyleField {...sub} field="btnType" visualSet="h5BtnType" customIcon={effBtn.iconImage} />
 </SettingRow>
-{Number(btn.btnType) === 5? <PicSelectField {...sub} field="iconImage" label="自定义图标图片" />: null}
+{Number(effBtn.btnType) === 5? <PicSelectField {...sub} field="iconImage" label="自定义图标图片" />: null}
 <RangeField {...sub} field="iconSize" label="图标尺寸" min={12} max={40} />
 <TextField {...sub} field="text" label="文字内容" placeholder="请输入按钮文字" />
+</div>
 <RadioRowField
 {...sub}
 field="wrap"
@@ -87,6 +98,7 @@ options={[
 ]}
 />
 ): null}
+<div style={following? { opacity: 0.55, pointerEvents: "none" }: undefined}>
 <RangeField {...sub} field="textSize" label="文字字号" min={10} max={24} />
 <ColorField {...sub} field="textColor" label="文字颜色" resetValue="#ffffff" />
 <ColorField {...sub} field="iconColor" label="图标颜色" resetValue="#ffffff" />
@@ -106,6 +118,7 @@ options={[
 <RangeField {...sub} field="radius" label="按钮圆角" max={20} />
 <RangeField {...sub} field="paddingTopBottom" label="按钮高度" max={10} />
 <RangeField {...sub} field="paddingLeftRight" label="按钮宽度" max={10} />
+</div>
 </>
 ): null}
 </SettingGroup>

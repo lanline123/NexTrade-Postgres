@@ -11,6 +11,8 @@ import { useMemo } from "react";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
+import { resolveH5DigitalBuyBtn } from "../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
 import { product2Defaults } from "./index";
 import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
 import "./Preview.css";
@@ -24,6 +26,13 @@ export default function Product2Preview({ data }: { data: Record<string, any> })
         mergeDefaultModule(merged, product2Defaults);
         return merged;
     }, [data]);
+
+    // 跟随全局解析（读时、不回写）：buyBtnStyle=-1 时取全局样式降级到 0–8，
+    // 与前台 uniapp 同口径（components/buyStyleObj）；其余值原样透传。
+    const globalBuyStyle = usePcGlobalBuyStyle();
+    const buyBtn = resolveH5DigitalBuyBtn(module.buyBtnStyle, globalBuyStyle);
+    const buyBtnStyleVal = buyBtn.style ?? module.buyBtnStyle;
+
 
     const fetched = useDecorateProductList(module.products);
     // 来源无结果时随机真实商品兜底展示（纯显示层，不落盘）
@@ -43,7 +52,7 @@ export default function Product2Preview({ data }: { data: Record<string, any> })
         <div
             className={
                 "module-ad-con module-goods_ad ad-style__2 " +
-                " ad-buy_btn_style__" + module.buyBtnStyle +
+                " ad-buy_btn_style__" + buyBtnStyleVal +
                 " ad-goods_style__" + module.goodsStyle +
                 " ad-goods_radio_style__" + module.goodsRadioStyle +
                 " ad-text_align__" + module.textAlign +

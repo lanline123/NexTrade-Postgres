@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Image, Swiper, SwiperItem, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
@@ -7,6 +7,8 @@ import SwiperDots from "@/components/SwiperDots";
 import InquiryPrice from "@/components/inquiry-price/InquiryPrice";
 import TigImage from "@/components/tig/tig-image/TigImage";
 import { getProductsList } from "@/api/common";
+import { useConfigStore } from "@/store/config";
+import { resolveH5BuyBtnStyle } from "@/utils/buyStyle";
 import CommonTitle from "@/pages/customPage/modules/commonTitle/index";
 import { useProductStyle } from "@/hooks/useProductStyle";
 import { productImage, pickPic, urlFormat } from "@/utils/format";
@@ -27,6 +29,13 @@ const nextTick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 export default function Product({ module, shopId = -1 }: Props) {
     const { frame } = module;
+
+    // 购买按钮「跟随全局」解析（读时、不回写）：buyBtnStyle=-1 时取全局样式
+    // 降级到 0–8；其余值原样透传，渲染与此前逐字一致。全局 iconColor 非空时
+    // 以 --general 局部变量作用于按钮宿主元素（不外溢到整模块的价格等元素）。
+    const globalBuyStyle = useConfigStore((s) => s.buyStyle);
+    const buyBtn = resolveH5BuyBtnStyle(module.buyBtnStyle, globalBuyStyle);
+    const buyBtnVarStyle = buyBtn.iconColor ? ({ "--general": buyBtn.iconColor } as CSSProperties) : undefined;
 
     const frameFormat = useMemo(() => {
         return formatFrame(frame ?? {});
@@ -179,7 +188,7 @@ export default function Product({ module, shopId = -1 }: Props) {
         productList.length > 0 && (
             <View
                 ref={rootRef as any}
-                className={`module-ad-con decorate-product module-goods_ad ad-style__${module.style} ad-buy_btn_style__${module.buyBtnStyle} ad-goods_style__${module.goodsStyle} ad-goods_radio_style__${module.goodsRadioStyle} ad-text_align__${module.textAlign} ad-text_weight__${module.textWeight} ad-goods_name_row__${module.goodsNameRow} ad-goods_name_padding__${module.goodsNamePadding} ad-goods-title_style__${module.title?.titleStyle}${
+                className={`module-ad-con decorate-product module-goods_ad ad-style__${module.style} ad-buy_btn_style__${buyBtn.style ?? module.buyBtnStyle} ad-goods_style__${module.goodsStyle} ad-goods_radio_style__${module.goodsRadioStyle} ad-text_align__${module.textAlign} ad-text_weight__${module.textWeight} ad-goods_name_row__${module.goodsNameRow} ad-goods_name_padding__${module.goodsNamePadding} ad-goods-title_style__${module.title?.titleStyle}${
                     isWaterfall ? " ad-waterfall__1" : ""
                 }`}
                 style={frameFormat.boxPadding + frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom}
@@ -288,7 +297,7 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                                                             }
                                                                                         />
                                                                                     </View>
-                                                                                    <View className="item-buy" />
+                                                                                    <View className="item-buy" style={buyBtnVarStyle} />
                                                                                 </View>
                                                                             )}
                                                                         </View>
@@ -363,12 +372,13 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                                             </View>
                                                                             <View
                                                                                 className="item-buy"
+                                                                                style={buyBtnVarStyle}
                                                                                 onClick={() => redirect({ url: `/pages/product/index?id=${item.productId}` })}
                                                                             >
                                                                                 <View className="buy-btn">
-                                                                                    {module.buyBtnStyle == 5 || module.buyBtnStyle == 6 ? (
+                                                                                    {buyBtn.style == 5 || buyBtn.style == 6 ? (
                                                                                         <View>{t("购买")}</View>
-                                                                                    ) : module.buyBtnStyle == 7 || module.buyBtnStyle == 8 ? (
+                                                                                    ) : buyBtn.style == 7 || buyBtn.style == 8 ? (
                                                                                         <View>{t("马上抢")}</View>
                                                                                     ) : (
                                                                                         <View className="iconfont-h5" />
@@ -435,12 +445,13 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                                     </View>
                                                                     <View
                                                                         className="item-buy"
+                                                                                style={buyBtnVarStyle}
                                                                         onClick={() => redirect({ url: `/pages/product/index?id=${item.productId}` })}
                                                                     >
                                                                         <View className="buy-btn">
-                                                                            {module.buyBtnStyle == 5 || module.buyBtnStyle == 6 ? (
+                                                                            {buyBtn.style == 5 || buyBtn.style == 6 ? (
                                                                                 <View>{t("购买")}</View>
-                                                                            ) : module.buyBtnStyle == 7 || module.buyBtnStyle == 8 ? (
+                                                                            ) : buyBtn.style == 7 || buyBtn.style == 8 ? (
                                                                                 <View>{t("马上抢")}</View>
                                                                             ) : (
                                                                                 <View className="iconfont-h5" />

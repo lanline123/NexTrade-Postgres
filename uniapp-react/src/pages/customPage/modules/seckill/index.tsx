@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState , type CSSProperties } from "react";
 import { Image, Text, View } from "@tarojs/components";
 
 import { designPxToRpx, formatFrame } from "@/components/modules";
@@ -6,6 +6,8 @@ import FormatPrice from "@/components/format-price/FormatPrice";
 import TigImage from "@/components/tig/tig-image/TigImage";
 import CommonTitle from "@/pages/customPage/modules/commonTitle/index";
 import { getHomeSeckill } from "@/api/home/home";
+import { useConfigStore } from "@/store/config";
+import { resolveH5BuyBtnStyle } from "@/utils/buyStyle";
 import { useProductStyle } from "@/hooks/useProductStyle";
 import { pickPic } from "@/utils/format";
 import { redirect } from "@/utils";
@@ -91,6 +93,14 @@ function TigCountdown({ endTime }: { endTime: string }) {
 export default function Seckill({ module }: Props) {
     const { frame } = module;
 
+    // 购买按钮「跟随全局」解析（读时、不回写）：buyBtnStyle=-1 时取全局样式
+    // 降级到 0–8；其余值原样透传，渲染与此前逐字一致。全局 iconColor 非空时
+    // 以 --general 局部变量作用于按钮宿主元素（不外溢到整模块）。
+    const globalBuyStyle = useConfigStore((s) => s.buyStyle);
+    const buyBtn = resolveH5BuyBtnStyle(module?.buyBtnStyle, globalBuyStyle);
+    const resolvedBuyBtnStyle = buyBtn.style ?? module?.buyBtnStyle;
+    const buyBtnVarStyle = buyBtn.iconColor ? ({ "--general": buyBtn.iconColor } as CSSProperties) : undefined;
+
     const frameFormat = useMemo(() => {
         return formatFrame(frame ?? {});
     }, [frame]);
@@ -155,7 +165,7 @@ export default function Seckill({ module }: Props) {
                     "module-ad-con decorate-seckill module-goods_ad module-seckill-goods_ad ad-style__" +
                     styleValue +
                     " ad-buy_btn_style__" +
-                    module?.buyBtnStyle +
+                    resolvedBuyBtnStyle +
                     " ad-goods_style__" +
                     module?.goodsStyle +
                     " ad-goods_radio_style__" +
@@ -239,11 +249,11 @@ export default function Seckill({ module }: Props) {
                                                                 priceData={item.seckillPrice}
                                                             />
                                                         </View>
-                                                        <View className="item-buy">
+                                                        <View className="item-buy" style={buyBtnVarStyle}>
                                                             <View className="buy-btn" onClick={() => buy(item.productId)}>
-                                                                {module.buyBtnStyle == 5 || module.buyBtnStyle == 6 ? (
+                                                                {buyBtn.style == 5 || buyBtn.style == 6 ? (
                                                                     <View>{t("购买")}</View>
-                                                                ) : module.buyBtnStyle == 7 || module.buyBtnStyle == 8 ? (
+                                                                ) : buyBtn.style == 7 || buyBtn.style == 8 ? (
                                                                     <View>{t("马上抢")}</View>
                                                                 ) : (
                                                                     <View className="iconfont-h5" />

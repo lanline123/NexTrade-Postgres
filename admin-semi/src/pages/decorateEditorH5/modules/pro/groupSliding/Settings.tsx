@@ -32,6 +32,9 @@ import { SettingsTabs, ModuleStyleSettingsField } from "../../../shared/styleEdi
 import GroupListEditor from "../../../shared/GroupListEditor";
 import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 import { defaultBuyButtonStyle } from "../../../contract/sharedDefaults";
+import { resolveObjBuyButton } from "../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
+import BuyBtnFollowRow from "../../../shared/BuyBtnFollowRow";
 
 type NestedProps = { data: Record<string, any>; onChange: (patch: Record<string, any>) => void };
 function nested(data: Record<string, any>, onChange: (patch: Record<string, any>) => void, key: string): NestedProps {
@@ -52,6 +55,12 @@ const EMPTY_GROUP = {
 function BuyBtnSettingsField({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     const bb = nested(data, onChange, "buyBtnStyle");
     const sub = bb.data;
+    // 跟随全局：开启时下方字段显示全局当前值（effSub）并置灰只读；写回仍走
+    // bb.onChange 合并进模块原对象，全局值绝不写进模块数据。
+    const global = usePcGlobalBuyStyle();
+    const following = Number(sub.followGlobal) === 1;
+    const effSub = following ? resolveObjBuyButton(sub, global) : sub;
+    const bbEff = { data: effSub, onChange: bb.onChange };
     return (
         <SettingGroup title="购买按钮">
             <RadioRowField
@@ -65,12 +74,14 @@ function BuyBtnSettingsField({ data, onChange }: { data: Record<string, any>; on
             />
             {Number(sub.showBtn) === 1 ? (
                 <>
-                    <BuyBtnStyleRowField {...bb} field="btnType" label="购买按钮图标样式" visualSet="h5BtnType" customIcon={sub.iconImage} />
-                    {Number(sub.btnType) === 5 ? <PicSelectField {...bb} field="iconImage" label="自定义图标图片" /> : null}
-                    <RangeField {...bb} field="iconSize" label="图标尺寸" min={12} max={40} />
-                    <TextField {...bb} field="text" label="文字内容" placeholder="请输入按钮文字内容" />
+                    <BuyBtnFollowRow data={sub} onChange={bb.onChange} />
+                    <div style={following ? { opacity: 0.55, pointerEvents: "none" } : undefined}>
+                    <BuyBtnStyleRowField {...bbEff} field="btnType" label="购买按钮图标样式" visualSet="h5BtnType" customIcon={effSub.iconImage} />
+                    {Number(effSub.btnType) === 5 ? <PicSelectField {...bbEff} field="iconImage" label="自定义图标图片" /> : null}
+                    <RangeField {...bbEff} field="iconSize" label="图标尺寸" min={12} max={40} />
+                    <TextField {...bbEff} field="text" label="文字内容" placeholder="请输入按钮文字内容" />
                     <RadioRowField
-                        {...bb}
+                        {...bbEff}
                         field="wrap"
                         label="按钮换行"
                         options={[
@@ -80,7 +91,7 @@ function BuyBtnSettingsField({ data, onChange }: { data: Record<string, any>; on
                     />
                     {Number(sub.wrap) === 1 ? (
                         <RadioRowField
-                            {...bb}
+                            {...bbEff}
                             field="wrapAlign"
                             label="换行后对齐"
                             options={[
@@ -90,11 +101,11 @@ function BuyBtnSettingsField({ data, onChange }: { data: Record<string, any>; on
                             ]}
                         />
                     ) : null}
-                    <RangeField {...bb} field="textSize" label="文字字号" min={10} max={24} />
-                    <ColorField {...bb} field="textColor" label="文字颜色" resetValue={defaultBuyButtonStyle.textColor} />
-                    <ColorField {...bb} field="iconColor" label="图标颜色" resetValue={defaultBuyButtonStyle.iconColor} />
+                    <RangeField {...bbEff} field="textSize" label="文字字号" min={10} max={24} />
+                    <ColorField {...bbEff} field="textColor" label="文字颜色" resetValue={defaultBuyButtonStyle.textColor} />
+                    <ColorField {...bbEff} field="iconColor" label="图标颜色" resetValue={defaultBuyButtonStyle.iconColor} />
                     <RadioRowField
-                        {...bb}
+                        {...bbEff}
                         field="gradientType"
                         label="背景渐变方向"
                         options={[
@@ -114,18 +125,19 @@ function BuyBtnSettingsField({ data, onChange }: { data: Record<string, any>; on
                                     重置
                                 </a>
                                 <span className="dec-color-trigger">
-                                    <AlphaColorInput value={String(sub.gradientColorA ?? "")} onChange={(v) => bb.onChange({ gradientColorA: v })} />
+                                    <AlphaColorInput value={String(effSub.gradientColorA ?? "")} onChange={(v) => bb.onChange({ gradientColorA: v })} />
                                 </span>
                                 <span style={{ margin: "0 6px", color: "#969799" }}>-</span>
                                 <span className="dec-color-trigger">
-                                    <AlphaColorInput value={String(sub.gradientColorB ?? "")} onChange={(v) => bb.onChange({ gradientColorB: v })} />
+                                    <AlphaColorInput value={String(effSub.gradientColorB ?? "")} onChange={(v) => bb.onChange({ gradientColorB: v })} />
                                 </span>
                             </div>
                         </div>
                     </SettingRow>
-                    <RangeField {...bb} field="radius" label="按钮圆角" max={20} />
-                    <RangeField {...bb} field="paddingTopBottom" label="按钮高度" max={10} />
-                    {sub.text !== "" && sub.text !== undefined ? <RangeField {...bb} field="paddingLeftRight" label="按钮宽度" max={10} /> : null}
+                    <RangeField {...bbEff} field="radius" label="按钮圆角" max={20} />
+                    <RangeField {...bbEff} field="paddingTopBottom" label="按钮高度" max={10} />
+                    {effSub.text !== "" && effSub.text !== undefined ? <RangeField {...bbEff} field="paddingLeftRight" label="按钮宽度" max={10} /> : null}
+                    </div>
                 </>
             ) : null}
         </SettingGroup>

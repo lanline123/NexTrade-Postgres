@@ -62,10 +62,16 @@ export const BUY_BTN_STYLE_OPTIONS_UNIFIED: BuyBtnStyleOption[] = [
   { value: 18, label: '“立即购买”（实心）', short: '立即购买·实心' },
 ];
 
-/** H5 数字型 buyBtnStyle 选项 0–8（值与存量数据逐字一致，仅形态换可视化）。 */
-export const H5_BUY_BTN_STYLE_OPTIONS: BuyBtnStyleOption[] = BUY_BTN_STYLE_OPTIONS_UNIFIED.filter(
-  (o) => o.value >= 0 && o.value <= 8,
-);
+/**
+ * H5 数字型 buyBtnStyle 选项：-1 跟随全局（2026-11-21 新增档位，渲染时取
+ * 全局 style 降级到 0–8，见 components/buyStyleObj 的降级表）+ 0–8（值与
+ * 存量数据逐字一致，仅形态换可视化）。-1 卡的视觉与统一集同画法（解析
+ * 当前全局样式），由下方 renderVisual 的 unified 路径承接。
+ */
+export const H5_BUY_BTN_STYLE_OPTIONS: BuyBtnStyleOption[] = [
+  { value: -1, label: '跟随全局', short: '跟随全局' },
+  ...BUY_BTN_STYLE_OPTIONS_UNIFIED.filter((o) => o.value >= 0 && o.value <= 8),
+];
 
 /** H5 对象型 buyBtnStyle.btnType 选项 1–5（值与原版 buyBtn/Edit.vue 一致）。 */
 export const H5_BUY_BTN_TYPE_OPTIONS: BuyBtnStyleOption[] = [

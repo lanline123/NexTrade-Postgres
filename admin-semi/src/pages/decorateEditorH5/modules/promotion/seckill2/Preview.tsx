@@ -21,6 +21,8 @@ import { apiGet } from "../../../../../api";
 import H5Countdown from "../../../shared/H5Countdown";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { formatTitle, mergeDefaultModule } from "../../../contract/sharedDefaults";
+import { resolveH5DigitalBuyBtn } from "../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
 import { seckill2Defaults } from "./index";
 import { usePreviewDemoProducts, demoEndTimeString } from "../../../../../components/demoProductFill";
 import "./Preview.css";
@@ -46,6 +48,13 @@ export default function Seckill2Preview({ data }: { data: Record<string, any> })
         mergeDefaultModule(merged, seckill2Defaults);
         return merged;
     }, [data]);
+
+    // 跟随全局解析（读时、不回写）：buyBtnStyle=-1 时取全局样式降级到 0–8，
+    // 与前台 uniapp 同口径（components/buyStyleObj）；其余值原样透传。
+    const globalBuyStyle = usePcGlobalBuyStyle();
+    const buyBtn = resolveH5DigitalBuyBtn(module.buyBtnStyle, globalBuyStyle);
+    const buyBtnStyleVal = buyBtn.style ?? module.buyBtnStyle;
+
 
     const [list, setList] = useState<any[]>([]);
     useEffect(() => {
@@ -92,7 +101,7 @@ export default function Seckill2Preview({ data }: { data: Record<string, any> })
                 "module-ad-con module-goods_ad module-seckill-goods_ad module-promotion-seckill2 ad-style__" +
                 module.style +
                 " ad-buyBtnStyle__" +
-                module.buyBtnStyle +
+                buyBtnStyleVal +
                 " ad-goods_style__" +
                 module.goodsStyle +
                 " ad-goods_radio_style__" +

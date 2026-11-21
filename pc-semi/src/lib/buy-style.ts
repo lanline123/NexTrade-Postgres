@@ -26,6 +26,31 @@ export interface BuyStylePic {
   picThumb: string;
 }
 
+/**
+ * 对象型字段组（2026-11-21 字段补齐，我方新增）：H5 对象型一族（分组滑动/
+ * 商品分组/商品轮播/商品A1）模块级外观字段的全局超集，字段名与模块侧逐字
+ * 一致。PC 不消费本组（PC 模块外观全由样式号 CSS 决定），此处仅做类型与
+ * 清洗透传——bootstrap 链路若把它洗掉，配置往返即丢字段。
+ * 两条铁律（与后端 buy_style.rs 同口径）：渐变色默认 ""（跟随主题色），
+ * 严禁 #333333；本组 iconColor 与顶层 iconColor 语义相反（恒显式色），
+ * 分开存、空回落 #ffffff，严禁合并。
+ */
+export interface ObjBuyStyle {
+  btnType: number;
+  iconImage: BuyStylePic;
+  iconSize: number;
+  text: string;
+  textColor: string;
+  textSize: number;
+  iconColor: string;
+  gradientType: string;
+  gradientColorA: string;
+  gradientColorB: string;
+  radius: number;
+  paddingTopBottom: number;
+  paddingLeftRight: number;
+}
+
 export interface BuyStyleConfig {
   /** 全局默认样式（统一枚举 0–18）。 */
   style: number;
@@ -33,6 +58,8 @@ export interface BuyStyleConfig {
   customIcon: BuyStylePic;
   /** 全局图标色覆盖；空串 = 跟随模块/主题色。 */
   iconColor: string;
+  /** 对象型字段组（仅透传，PC 不消费）。 */
+  objStyle: ObjBuyStyle;
 }
 
 /** 模块值：跟随全局。 */
@@ -62,11 +89,29 @@ export const BUY_BUTTON_OPTIONS: Array<{ value: number; label: string }> = [
   { value: 18, label: '立即购买（实心）' },
 ];
 
+/** objStyle 内置默认（与后端 default_obj_style 逐字一致）。 */
+export const DEFAULT_OBJ_STYLE: ObjBuyStyle = {
+  btnType: 1,
+  iconImage: { picUrl: '', picThumb: '' },
+  iconSize: 14,
+  text: '',
+  textColor: '#ffffff',
+  textSize: 12,
+  iconColor: '#ffffff',
+  gradientType: 'leftRight',
+  gradientColorA: '',
+  gradientColorB: '',
+  radius: 16,
+  paddingTopBottom: 0,
+  paddingLeftRight: 10,
+};
+
 /** 内置默认（与后端 default_buy_style、admin 设置页默认一致）。 */
 export const DEFAULT_BUY_STYLE: BuyStyleConfig = {
   style: 1,
   customIcon: { picUrl: '', picThumb: '' },
   iconColor: '',
+  objStyle: DEFAULT_OBJ_STYLE,
 };
 
 let buyStyleState: BuyStyleConfig = DEFAULT_BUY_STYLE;
@@ -78,6 +123,40 @@ function cleanPic(input: unknown): BuyStylePic {
   return {
     picUrl: String(raw.picUrl ?? '').trim().slice(0, 1024),
     picThumb: String(raw.picThumb ?? '').trim().slice(0, 1024),
+  };
+}
+
+function clampNum(v: unknown, min: number, max: number, dflt: number): number {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return dflt;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+const OBJ_GRADIENT_TYPES = ['upDown', 'leftRight', 'diagonal', 'purity'];
+
+/** objStyle 透传清洗（与后端 sanitize_obj_style 同口径；PC 只透传不消费）。 */
+function cleanObjStyle(input: unknown): ObjBuyStyle {
+  if (!input || typeof input !== 'object') return DEFAULT_OBJ_STYLE;
+  const raw = input as Record<string, unknown>;
+  const btn = Number(raw.btnType);
+  const requiredColor = (v: unknown) => {
+    const s = String(v ?? '').trim().slice(0, 32);
+    return s === '' ? '#ffffff' : s;
+  };
+  return {
+    btnType: Number.isInteger(btn) && btn >= 1 && btn <= 5 ? btn : 1,
+    iconImage: cleanPic(raw.iconImage),
+    iconSize: clampNum(raw.iconSize, 12, 40, 14),
+    text: String(raw.text ?? '').trim().slice(0, 32),
+    textColor: requiredColor(raw.textColor),
+    textSize: clampNum(raw.textSize, 10, 24, 12),
+    iconColor: requiredColor(raw.iconColor),
+    gradientType: OBJ_GRADIENT_TYPES.includes(String(raw.gradientType)) ? String(raw.gradientType) : 'leftRight',
+    gradientColorA: String(raw.gradientColorA ?? '').trim().slice(0, 32),
+    gradientColorB: String(raw.gradientColorB ?? '').trim().slice(0, 32),
+    radius: clampNum(raw.radius, 0, 20, 16),
+    paddingTopBottom: clampNum(raw.paddingTopBottom, 0, 10, 0),
+    paddingLeftRight: clampNum(raw.paddingLeftRight, 0, 10, 10),
   };
 }
 
@@ -93,6 +172,7 @@ function sanitizeBuyStyle(input: unknown): BuyStyleConfig | null {
     style,
     customIcon: cleanPic(raw.customIcon),
     iconColor: String(raw.iconColor ?? '').trim().slice(0, 32),
+    objStyle: cleanObjStyle(raw.objStyle),
   };
 }
 
