@@ -3,6 +3,9 @@
  *
  * 按 rowNum 分行（flex space-around），每项图标 14×14 + 文案 12px，间隔由 itemGap 半距驱动，
  * showDivider=1 时非末项右侧出竖线（颜色同 titleColor）；空态为居中提示文案。
+ * 条目级标题颜色（我方新增 2026-11-21）：条目 titleColor 在场时该条目标题
+ * 用条目色，否则回退模块级 titleColor（原版口径）；竖线属模块装帧，仍走
+ * 模块级色、不随条目变。
  */
 import { useMemo } from "react";
 import { cssText, productImage } from "../../../shared/format";
@@ -68,7 +71,7 @@ export default function ShopTipsPreview({ data }: { data: Record<string, any> })
                                                 ...(module.itemBackgroundColor ? { backgroundColor: module.itemBackgroundColor } : {})
                                             }}
                                         >
-                                            <div className="shop-tips-content" style={{ color: textColor }}>
+                                            <div className="shop-tips-content" style={{ color: item.titleColor || textColor }}>
                                                 {item.picUrl || item.picThumb ? <img className="shop-tips-icon" src={productImage(item)} alt="" /> : null}
                                                 <span className="shop-tips-text">{item.picTitle}</span>
                                             </div>

@@ -6,6 +6,11 @@
  * + 参数设置（每行显示/提示间距 max30/间隔竖线/标题颜色/提示背景色）；
  * 扩展页：ModuleStyleEdit（type="shopTips"，含模块左右外间距项）。
  * 注：原版「标题颜色」重置按钮写回 #333333（与默认值 #00C455 不同，为原版 @click 口径），此处照原版。
+ * 条目级标题颜色（我方新增 2026-11-21，用户指令）：PicListEditorField 开
+ * showTitleColor——条目在「编辑图片」弹窗里可单独选标题颜色（预设色块 +
+ * 自定义取色，写 PicItem.titleColor），未设时回退上方模块级「标题颜色」。
+ * 原版条目无此字段（原版 PicList 的 showColor 是背景渐变对、shopTips 未
+ * 启用），模块级标题颜色仍为原版口径保留作回退层。
  */
 import { SettingGroup, RadioRowField, RangeField, ColorField, PicListEditorField, SegmentedRadio, SettingRow } from "../../../shared/settingWidgets";
 import { SettingsTabs, ModuleStyleSettingsField } from "../../../shared/styleEdits";
@@ -17,7 +22,7 @@ export default function ShopTipsSettings({ data, onChange }: { data: Record<stri
                 <>
                     <SettingGroup title="基本设置">
                         <div style={{ color: "#999", fontSize: 12, lineHeight: 1.6, padding: "0 16px 4px" }}>提示：您可以通过拖拽进行排序，最多添加4个</div>
-                        <PicListEditorField data={data} onChange={onChange} field="picList" label="" max={4} addText="添加提示" />
+                        <PicListEditorField data={data} onChange={onChange} field="picList" label="" max={4} addText="添加提示" showTitleColor />
                     </SettingGroup>
                     <SettingGroup title="参数设置">
                         <SettingRow label="每行显示" block>

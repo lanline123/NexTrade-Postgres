@@ -54,6 +54,11 @@
  * application/octet-stream，严格引擎不渲染、卡片图裂；改 picThumb 优先、
  * picUrl 兜底，纯显示层、数据零变化。编辑弹窗内的图仍以 picUrl 为准
  * （编辑对象本体）。
+ * 条目级标题颜色（2026-11-21，我方新增，用户指令）：可选 prop
+ * showTitleColor（缺省 false）透传 PicItemEditModal 的同名开关，开启后
+ * 条目可在编辑弹窗里单独设标题颜色（PicItem.titleColor，缺失 = 跟随
+ * 模块级标题颜色）；卡片标题在字段在场时同步以该色呈现。首个启用方
+ * 为商品提示 shopTips，既有全部调用点行为与落盘逐字不变。
  * 通用组件登记：~/workspace/shared-components.md 第 1 条。
  */
 import { useRef, useState } from 'react';
@@ -76,6 +81,8 @@ export interface PicItem {
   /** 逐项渐变色 A/B（原版 PicList showColor 字段，小图滑动等模块逐项消费） */
   gradientColorA?: string;
   gradientColorB?: string;
+  /** 条目级标题颜色（我方新增 2026-11-21，用户指令；缺失/空串 = 不设条目色、消费方回退模块级标题颜色，商品提示 shopTips 首个消费方） */
+  titleColor?: string;
   picLink?: { link?: string; name?: string; title?: string };
 }
 
@@ -89,6 +96,7 @@ export function PicListEditor({
   showImage = true,
   showColor = false,
   colorPalette,
+  showTitleColor = false,
   max,
   onPickManyProducts,
 }: {
@@ -108,6 +116,8 @@ export function PicListEditor({
   showColor?: boolean;
   /** showColor 时新条目的渐变色播种调色板（[A, B] 对，按条目下标循环取） */
   colorPalette?: Array<[string, string]>;
+  /** true 时编辑弹窗多一条目级「标题颜色」行（写 item.titleColor，我方新增）；缺省 false，既有调用点零变化 */
+  showTitleColor?: boolean;
   max?: number;
   onPickManyProducts?: (items: PickedImage[]) => void;
 }) {
@@ -283,7 +293,8 @@ export function PicListEditor({
               </>
             )}
             <div className="dec-pic-grid__meta">
-              <div className="dec-pic-grid__title">{item.picTitle || t('未命名')}</div>
+              {/* 条目级标题颜色在场时卡片标题同步以该色呈现（设置列表所见即所得）；无字段零变化 */}
+              <div className="dec-pic-grid__title" style={item.titleColor ? { color: item.titleColor } : undefined}>{item.picTitle || t('未命名')}</div>
               {showDesc && item.picDesc ? (
                 <div className="dec-pic-grid__desc">{item.picDesc}</div>
               ) : linkText ? (
@@ -308,6 +319,7 @@ export function PicListEditor({
         showLink={showLink}
         showColor={showColor}
         colorFallback={editIndex !== null ? palettePair(editIndex) : undefined}
+        showTitleColor={showTitleColor}
         onPatch={(patch) => {
           if (editIndex !== null) updateItem(editIndex, patch);
         }}

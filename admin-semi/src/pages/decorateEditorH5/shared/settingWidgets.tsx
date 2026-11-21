@@ -914,6 +914,7 @@ export function PicListEditorField({
     showImage = true,
     showColor = false,
     colorPalette,
+    showTitleColor = false,
     showAddButton = true,
     addText = "添加图片"
 }: FieldProps & {
@@ -929,6 +930,8 @@ export function PicListEditorField({
     showColor?: boolean;
     /** showColor 时新条目的渐变色播种调色板（[A, B] 对，按条目下标循环取） */
     colorPalette?: Array<[string, string]>;
+    /** 条目级标题颜色（我方新增，透传 PicListEditor 同名开关）；缺省 false，仅商品提示启用 */
+    showTitleColor?: boolean;
     /** false 时冻结添加（固定入口列表），与 PicListField 的 showAddButton 同义 */
     showAddButton?: boolean;
     addText?: string;
@@ -998,6 +1001,7 @@ export function PicListEditorField({
                     showImage={showImage}
                     showColor={showColor}
                     colorPalette={colorPalette}
+                    showTitleColor={showTitleColor}
                     max={effectiveMax}
                     addText={addText}
                     onPickManyProducts={showImage ? handlePickManyProducts : undefined}

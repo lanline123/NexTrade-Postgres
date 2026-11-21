@@ -43,9 +43,9 @@ export default function ShopTips({ module }: Props) {
         return marginStyle + bgStyle;
     }, [halfGap, module.itemBackgroundColor]);
 
-    const textStyle = useMemo(() => {
-        return `color: ${module.titleColor || "#333333"};`;
-    }, [module.titleColor]);
+    // 条目级标题颜色（我方新增 2026-11-21）：item.titleColor 优先，未设回退模块级
+    // titleColor（原版口径，快照仓 v5.8.61 同路径渲染器只有模块级一份）；竖线仍走模块级色
+    const itemTextStyle = (item: any) => `color: ${item.titleColor || module.titleColor || "#333333"};`;
 
     const dividerStyle = useMemo(() => {
         const color = module.titleColor || "#333333";
@@ -87,7 +87,7 @@ export default function ShopTips({ module }: Props) {
                                                 urlFormat(item.picLink) && redirect({ url: urlFormat(item.picLink) });
                                             }}
                                         >
-                                            <View className="shop-tips-content" style={textStyle}>
+                                            <View className="shop-tips-content" style={itemTextStyle(item)}>
                                                 {(item.picUrl || item.picThumb) && (
                                                     <Image className="shop-tips-icon" src={productImage(item)} mode="aspectFit" />
                                                 )}

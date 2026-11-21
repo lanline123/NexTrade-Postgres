@@ -2049,6 +2049,26 @@
 .dec-pic-modal__dialog .dec-pic-modal__field .link-field-clear {
   border-radius: 0;
 }
+/* 条目级标题颜色（PicItemEditModal showTitleColor，我方新增）：预设色块一排
+   （24px 直角方块、选中出双层描边环）+ 末位自定义取色槽（AlphaColorInput
+   触发器，非预设色时槽位出同款选中环）+ 重置链与跟随提示，色板/字阶与
+   弹窗既有灰阶一致（描边 #e4e7ec / 标签 #344054 / 提示 #98a2b3）。 */
+.dec-pic-modal__swatches { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dec-pic-modal__swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  flex: none;
+  border: 1px solid #e4e7ec;
+  border-radius: 0;
+  cursor: pointer;
+}
+.dec-pic-modal__swatch.is-active { box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #344054; }
+.dec-pic-modal__swatch-custom { display: inline-flex; flex: none; }
+.dec-pic-modal__swatch-custom.is-active { box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #344054; }
+.dec-pic-modal__color-reset { color: #98a2b3; font-size: 12px; cursor: pointer; }
+.dec-pic-modal__color-reset:hover { color: #344054; }
+.dec-pic-modal__color-hint { color: #98a2b3; font-size: 12px; }
 
 /* 营销通栏卡位设置：复刻 pc-home-hero/Settings.vue 自定义结构 */
 .dec-hero-card-editor {

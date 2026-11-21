@@ -18,6 +18,8 @@ export interface PicItem {
   picDesc?: string;
   /** 分类导航3 卡片级图片背景色（原版 PcCategoryNav3Item） */
   imageBackgroundColor?: string;
+  /** 条目级标题颜色（我方新增 2026-11-21；与 components/PicListEditor 的 PicItem 同形，缺失 = 跟随模块级标题颜色） */
+  titleColor?: string;
   picLink?: { link?: string; name?: string; title?: string };
 }
 

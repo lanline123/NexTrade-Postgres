@@ -42,6 +42,18 @@
  * 对齐原版 PicList showColor 的逐项选色器；条目缺色时以宿主给的
  * colorFallback 显示（渲染端同口径兜底，见小图滑动修复）。缺省关，全部
  * 既有调用点零改动；首个使用方为经 PicListEditor 的 H5 小图滑动。
+ *
+ * 条目级标题颜色（2026-11-21，我方新增，用户指令：商品提示的标题应能
+ * 按条目单独设颜色，给几种默认色、最后一个是自定义颜色，放在编辑图
+ * 片弹窗里）：新增可选 prop showTitleColor（缺省 false，既有全部调用
+ * 点零变化），开启后字段列在「标题」下方多一行「标题颜色」——一排
+ * 预设色块（6 色）+ 末位自定义取色（复用共享 AlphaColorInput），写
+ * 入条目字段 titleColor（PicItem 契约新增可选字段，缺失/空串 = 不设
+ * 条目色、消费方回退模块级颜色，存量零变化）；已设色时行尾出「重置」
+ * 清回跟随模块。原版核查：原版 PicList 条目编辑唯一的颜色能力是
+ * showColor 背景渐变对（gradientColorA/B），且 shopTips 未启用、非
+ * 标题色——条目级标题颜色原版无。首个启用方：商品提示 shopTips
+ * （经 PicListEditor / PicListEditorField 同名 prop 透传开启）。
  * 样式：pages/decorate-editor.css 的 .dec-pic-modal*（PC 与 H5 编辑器入口
  * 均已引入该样式表，独立调用方需保证该样式表在场）。
  * 通用组件登记：~/workspace/shared-components.md 第 16 条。
@@ -71,6 +83,10 @@ export interface PicItemEditModalProps {
   showColor?: boolean;
   /** 条目本身缺渐变色时选色器的显示兜底（宿主按条目下标给的调色板一对）；不写回，除非用户改色 */
   colorFallback?: [string, string];
+   * 条目级标题颜色行（预设色块 + 末位自定义取色，写 item.titleColor，我方新增）；
+   * 缺省 false 不渲染，既有调用点零变化。仅商品提示 shopTips 启用。
+   */
+  showTitleColor?: boolean;
   /** 字段 / 图片即时回写：宿主对当前条目做展开合并 patch（与 PicItem 契约一致） */
   onPatch: (patch: Partial<PicItem>) => void;
   /** 删除当前条目；不传则不渲染「删除」按钮 */
@@ -84,6 +100,46 @@ export interface PicItemEditModalProps {
   onRequestProductPick?: () => void;
 }
 
+/** 条目级标题颜色预设（用户口径：几种常用默认色平铺 + 末位自定义取色） */
+const TITLE_COLOR_PRESETS = ['#00c455', '#f53f3f', '#ff7d00', '#165dff', '#722ed1', '#333333'];
+
+/**
+ * 标题颜色行（showTitleColor 开启时渲染）：预设色块一排（选中描边环）
+ * + 末位自定义取色（共享 AlphaColorInput，非预设色时其外框出选中环）
+ * + 已设色时「重置」清回空串（= 跟随模块级标题颜色）。
+ */
+function TitleColorField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useI18n();
+  const current = String(value || '').trim().toLowerCase();
+  const isPreset = TITLE_COLOR_PRESETS.includes(current);
+  return (
+    <div className="dec-pic-modal__field">
+      <span>{t('标题颜色')}</span>
+      <div className="dec-pic-modal__swatches">
+        {TITLE_COLOR_PRESETS.map((color) => (
+          <button
+            type="button"
+            key={color}
+            className={`dec-pic-modal__swatch${current === color ? ' is-active' : ''}`}
+            style={{ background: color }}
+            title={color}
+            onClick={() => onChange(color)}
+          />
+        ))}
+        <span className={`dec-pic-modal__swatch-custom${current && !isPreset ? ' is-active' : ''}`} title={t('自定义颜色')}>
+          <AlphaColorInput value={value || ''} onChange={onChange} />
+        </span>
+        {current ? (
+          <a className="dec-pic-modal__color-reset" onClick={() => onChange('')}>
+            {t('重置')}
+          </a>
+        ) : null}
+      </div>
+      <div className="dec-pic-modal__color-hint">{t('未设置时跟随模块的标题颜色')}</div>
+    </div>
+  );
+}
+
 export function PicItemEditModal({
   visible,
   item,
@@ -93,6 +149,7 @@ export function PicItemEditModal({
   showLink = true,
   showColor = false,
   colorFallback,
+  showTitleColor = false,
   onPatch,
   onRemove,
   onClose,
@@ -112,6 +169,9 @@ export function PicItemEditModal({
             onChange={(v) => onPatch({ picTitle: v })}
           />
         </label>
+      )}
+      {showTitleColor && (
+        <TitleColorField value={item?.titleColor || ''} onChange={(v) => onPatch({ titleColor: v })} />
       )}
       {showDesc && (
         <label className="dec-pic-modal__field">
