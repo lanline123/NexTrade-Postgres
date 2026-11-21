@@ -33,6 +33,7 @@ import {
 } from '@/lib/guide-api';
 import { gateCopyForPayload, hasAccessToken } from '@/lib/price-gate';
 import { formatDisplayPrice } from '@/lib/currency';
+import GuideMarkdown from './GuideMarkdown';
 import './guide-chat.scss';
 
 interface DisplayMsg {
@@ -291,7 +292,11 @@ export default function GuideChatPanel({ open, onClose }: GuideChatPanelProps) {
                 >
                   <div className="guide-bubble">
                     {m.content ? (
-                      m.content
+                      m.role === 2 ? (
+                        <GuideMarkdown text={m.content} />
+                      ) : (
+                        m.content
+                      )
                     ) : m.pending ? (
                       <span className="guide-thinking">{t('正在为你查找…')}</span>
                     ) : null}

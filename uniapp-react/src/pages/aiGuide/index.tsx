@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Image, Input, ScrollView, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
@@ -58,6 +58,157 @@ function toDisplay(rows: GuideMessage[]): DisplayMsg[] {
         }
     }
     return out;
+}
+
+/* ---------- GFM 表格段（导购回复的表格原先随纯文本裸渲染、竖线原样显示错版，
+   本批把表格段解析为结构化网格；文本段仍走 <Text> 直出，全量 Markdown 渲染
+   仍属既登记的独立立项，不在本批） ---------- */
+
+type GuideAlign = "left" | "center" | "right" | undefined;
+
+type GuideSegment =
+    | { type: "text"; text: string }
+    | { type: "table"; header: string[]; aligns: GuideAlign[]; rows: string[][] };
+
+/** 拆一行表格为单元格：处理首尾竖线与 \| 转义（与 PC GuideMarkdown 同口径）。 */
+function splitTableRow(line: string): string[] {
+    let t = line.trim();
+    if (t.startsWith("|")) t = t.slice(1);
+    if (t.endsWith("|") && !t.endsWith("\\|")) t = t.slice(0, -1);
+    const cells: string[] = [];
+    let cur = "";
+    for (let i = 0; i < t.length; i += 1) {
+        if (t[i] === "\\" && t[i + 1] === "|") {
+            cur += "|";
+            i += 1;
+            continue;
+        }
+        if (t[i] === "|") {
+            cells.push(cur.trim());
+            cur = "";
+            continue;
+        }
+        cur += t[i];
+    }
+    cells.push(cur.trim());
+    return cells;
+}
+
+function parseSepAlign(cell: string): GuideAlign | null {
+    const c = cell.trim();
+    if (!/^:?-+:?$/.test(c)) return null;
+    const left = c.startsWith(":");
+    const right = c.endsWith(":");
+    if (left && right) return "center";
+    if (right) return "right";
+    if (left) return "left";
+    return undefined;
+}
+
+function isTableSepRow(line: string): boolean {
+    if (!line.includes("-")) return false;
+    const cells = splitTableRow(line);
+    return cells.length > 0 && cells.every((c) => parseSepAlign(c) !== null);
+}
+
+function isTableStart(lines: string[], i: number): boolean {
+    if (i + 1 >= lines.length) return false;
+    if (!lines[i].includes("|")) return false;
+    if (!isTableSepRow(lines[i + 1])) return false;
+    return splitTableRow(lines[i]).length === splitTableRow(lines[i + 1]).length;
+}
+
+/** 把助手回复按行拆为文本段与表格段（表格 = 表头行 + 分隔行 + 数据行）。 */
+function splitGuideSegments(content: string): GuideSegment[] {
+    const lines = content.replace(/\r\n/g, "\n").split("\n");
+    const segs: GuideSegment[] = [];
+    let buf: string[] = [];
+    const flush = () => {
+        const text = buf.join("\n").trim();
+        if (text) segs.push({ type: "text", text });
+        buf = [];
+    };
+    let i = 0;
+    while (i < lines.length) {
+        if (isTableStart(lines, i)) {
+            flush();
+            const header = splitTableRow(lines[i]);
+            const aligns = splitTableRow(lines[i + 1]).map((c) => parseSepAlign(c) ?? undefined);
+            const rows: string[][] = [];
+            i += 2;
+            while (i < lines.length && lines[i].trim() && lines[i].includes("|")) {
+                const cells = splitTableRow(lines[i]);
+                while (cells.length < header.length) cells.push("");
+                rows.push(cells.slice(0, header.length));
+                i += 1;
+            }
+            segs.push({ type: "table", header, aligns, rows });
+            continue;
+        }
+        buf.push(lines[i]);
+        i += 1;
+    }
+    flush();
+    return segs;
+}
+
+/** 单元格行内格式：仅 **加粗** 与 `代码` 两类（导购表格内的实际用法），其余原文。 */
+function renderGuideInline(text: string, keyPrefix: string): ReactNode[] {
+    const parts = text.split(/(\*\*[^*\n]+\*\*|`[^`\n]+`)/g).filter((p) => p !== "");
+    return parts.map((p, idx) => {
+        if (p.startsWith("**") && p.endsWith("**") && p.length > 4) {
+            return (
+                <Text key={`${keyPrefix}-${idx}`} className="guide-md-bold">
+                    {p.slice(2, -2)}
+                </Text>
+            );
+        }
+        if (p.startsWith("`") && p.endsWith("`") && p.length > 2) {
+            return (
+                <Text key={`${keyPrefix}-${idx}`} className="guide-md-code">
+                    {p.slice(1, -1)}
+                </Text>
+            );
+        }
+        return <Text key={`${keyPrefix}-${idx}`}>{p}</Text>;
+    });
+}
+
+/** 列宽估算：全角字按 1 单位、半角按 0.55 单位，24rpx 字号下约 25rpx/单位，夹在 120~440rpx。 */
+function guideCellUnits(s: string): number {
+    let u = 0;
+    for (const ch of s) u += /[^\x00-\xff]/.test(ch) ? 1 : 0.55;
+    return u;
+}
+
+function GuideTable({ seg }: { seg: Extract<GuideSegment, { type: "table" }> }) {
+    const widths = seg.header.map((h, j) => {
+        const maxU = Math.max(guideCellUnits(h), ...seg.rows.map((r) => guideCellUnits(r[j] || "")));
+        return Math.min(440, Math.max(120, Math.ceil(maxU * 25) + 28));
+    });
+    const total = widths.reduce((a, b) => a + b, 0);
+    const renderRow = (cells: string[], rowIdx: number, isHead: boolean) => (
+        <View key={rowIdx} className={`guide-table__row${isHead ? " guide-table__row--head" : ""}`}>
+            {cells.map((c, j) => (
+                <View key={j} className="guide-table__cell" style={{ width: `${widths[j]}rpx` }}>
+                    <Text
+                        className={`guide-table__celltext${isHead ? " guide-table__celltext--head" : ""}`}
+                        style={{ textAlign: seg.aligns[j] || "left" }}
+                    >
+                        {renderGuideInline(c, `r${rowIdx}c${j}`)}
+                    </Text>
+                </View>
+            ))}
+        </View>
+    );
+    return (
+        <ScrollView className="guide-tablewrap" scrollX>
+            <View className="guide-table" style={{ width: `${total}rpx` }}>
+                {renderRow(seg.header, -1, true)}
+                {seg.rows.map((r, i) => renderRow(r, i, false))}
+            </View>
+        </ScrollView>
+    );
 }
 
 function GuideProductCard({ card }: { card: GuideCard }) {
@@ -245,7 +396,13 @@ export default function AiGuide() {
                             <View className="guide-row guide-row--assistant">
                                 <View className="guide-bubble guide-bubble--assistant">
                                     {m.content ? (
-                                        <Text>{m.content}</Text>
+                                        splitGuideSegments(m.content).map((seg, si) =>
+                                            seg.type === "text" ? (
+                                                <Text key={si}>{seg.text}</Text>
+                                            ) : (
+                                                <GuideTable key={si} seg={seg} />
+                                            ),
+                                        )
                                     ) : (
                                         <Text className="guide-thinking">{t("正在为你查找…")}</Text>
                                     )}

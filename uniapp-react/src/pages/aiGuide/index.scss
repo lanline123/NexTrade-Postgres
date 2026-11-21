@@ -75,6 +75,54 @@ page {
     color: #999;
 }
 
+/* 导购回复 GFM 表格段（GuideTable）：结构化网格 + 横向滚动，直角扁平与全页一致 */
+.guide-tablewrap {
+    width: 100%;
+    margin: 8rpx 0;
+}
+
+.guide-table {
+    border-top: 1rpx solid #e5e5e5;
+    border-left: 1rpx solid #e5e5e5;
+    background-color: #fff;
+
+    &__row {
+        display: flex;
+
+        &--head {
+            background-color: #f7f7f7;
+        }
+    }
+
+    &__cell {
+        box-sizing: border-box;
+        border-right: 1rpx solid #e5e5e5;
+        border-bottom: 1rpx solid #e5e5e5;
+        padding: 10rpx 12rpx;
+    }
+
+    &__celltext {
+        display: block;
+        font-size: 24rpx;
+        line-height: 1.4;
+        color: #333;
+
+        &--head {
+            font-weight: 600;
+        }
+    }
+}
+
+.guide-md-bold {
+    font-weight: 700;
+}
+
+.guide-md-code {
+    font-family: monospace;
+    background-color: #f0f0f0;
+    padding: 0 6rpx;
+}
+
 .guide-cards {
     width: 100%;
     margin: 4rpx 0 24rpx;

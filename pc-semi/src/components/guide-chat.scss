@@ -210,3 +210,117 @@
     margin-bottom: 8px;
   }
 }
+
+/* 导购助手回复 Markdown（GuideMarkdown）：气泡内排版，直角扁平、灰阶与面板一致。
+   表格与代码块外层横向滚动，宽内容不撑破 420 抽屉气泡。 */
+.guide-md {
+  > :last-child {
+    margin-bottom: 0;
+  }
+
+  p {
+    margin: 0 0 6px;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+    color: #1d2129;
+    line-height: 1.4;
+    margin: 8px 0 4px;
+  }
+
+  h1 {
+    font-size: 15px;
+  }
+
+  h2 {
+    font-size: 14.5px;
+  }
+
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: 14px;
+  }
+
+  ul,
+  ol {
+    margin: 4px 0 6px;
+    padding-left: 18px;
+  }
+
+  li {
+    margin: 2px 0;
+  }
+
+  a {
+    color: var(--general);
+    word-break: break-all;
+  }
+
+  code {
+    font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    background: #e8eaed;
+    padding: 1px 4px;
+    font-size: 0.92em;
+  }
+
+  pre {
+    background: #e8eaed;
+    padding: 8px 10px;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.55;
+    margin: 4px 0 8px;
+    white-space: pre;
+  }
+
+  pre code {
+    background: transparent;
+    padding: 0;
+  }
+
+  blockquote {
+    border-left: 3px solid #d4d7dc;
+    padding-left: 10px;
+    margin: 4px 0 8px;
+    color: #4e5969;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid #dde0e4;
+    margin: 8px 0;
+  }
+}
+
+.guide-md-tablewrap {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 6px 0 8px;
+}
+
+.guide-md-table {
+  border-collapse: collapse;
+  background: #fff;
+  font-size: 12.5px;
+  line-height: 1.5;
+
+  th,
+  td {
+    border: 1px solid #dde0e4;
+    padding: 4px 8px;
+    white-space: nowrap;
+  }
+
+  th {
+    background: #eceef1;
+    font-weight: 600;
+  }
+}
