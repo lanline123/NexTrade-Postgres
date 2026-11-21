@@ -402,7 +402,7 @@ impl KitchenService {
                     code: 1001,
                     msg: format!(
                         "已催过啦，商家正在赶工，请 {} 分钟后再催",
-                        remain_seconds.div_ceil(60)
+                        (remain_seconds + 59) / 60
                     ),
                 });
             }
