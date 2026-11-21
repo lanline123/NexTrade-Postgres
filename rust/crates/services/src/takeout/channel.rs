@@ -1,14 +1,23 @@
 //! 渠道适配抽象（takeout::channel，我方新增）：A 向订单汇入的渠道
 //! 适配器契约 + 注册表，以及 B 向配送聚合的接口位。
 //!
-//! # A 向（一期）
+//! # A 向
 //! 渠道差异（验签规则、推送载荷、回调用法）全部收敛在
 //! [`OrderChannelAdapter`] 实现内，接入服务（`ingest`）只面对归一模型：
 //! - [`PushEvent`]：一次推送解析后的统一事件；
 //! - 出站动作：确认接单 / 自配送物流同步 / 退款应答，均为「调用渠道
-//!   API」语义，失败必须以 Err 返回真实原因，禁止假成功。
-//! 本期只有美团闪购有真实适配器（`meituan` 模块）；淘宝闪购 / 抖音
-//! 在注册表中返回 `None`（未接入），后台如实展示。
+//!   API」语义，失败必须以 Err 返回真实原因，禁止假成功；渠道在
+//!   平台侧根本不存在该动作时（如抖音团购无接单/物流/退款应答
+//!   接口），实现返回**说明性 Err**，不伪造调用、不冒认成功。
+//! 一期美团闪购（`meituan` 模块）；二期补齐淘宝闪购（`eleme`）与
+//! 抖音生活服务（`douyin`），三渠道均在注册表中实装。
+//!
+//! 二期为两个渠道的推送形态新增两个默认钩子（美团走默认实现，
+//! 行为逐字不变）：
+//! - [`OrderChannelAdapter::verify_and_parse_signed`]：签名在请求头
+//!   而非 body 的渠道（抖音 `X-Douyin-Signature`）经此入口验签；
+//! - [`OrderChannelAdapter::enrich_event`]：推送只带订单号的渠道
+//!   （饿了么轻推送）在落库前凭门店授权 token 回查订单详情补全。
 //!
 //! # B 向（只留接口位，设计 §二）
 //! [`DeliveryAggregator`] 是配送聚合的出站契约。麦芽田的开放能力
@@ -22,9 +31,13 @@
 use async_trait::async_trait;
 use serde_json::Value;
 
-use nextrade_core::models::takeout::{ChannelConfig, ExternalOrder, CHANNEL_MEITUAN};
+use nextrade_core::models::takeout::{
+    ChannelConfig, ExternalOrder, CHANNEL_DOUYIN, CHANNEL_ELEME, CHANNEL_MEITUAN,
+};
 use nextrade_core::{Error, Result};
 
+use super::douyin::DouyinAdapter;
+use super::eleme::ElemeAdapter;
 use super::meituan::MeituanAdapter;
 
 /// 推送事件类型（回调日志 `event_type` 同口径）。
@@ -73,6 +86,45 @@ pub trait OrderChannelAdapter: Send + Sync {
         raw_body: &str,
     ) -> Result<PushEvent>;
 
+    /// 带请求头签名的验签解析入口（二期）。签名随请求头到达的渠道
+    /// （抖音 WebHooks 的 `X-Douyin-Signature`）覆写本方法；默认实现
+    /// 忽略头签名、走 body 验签（美团/饿了么签名都在 body 内）。
+    /// 签名在头部的渠道其 [`Self::verify_and_parse`] 必须失败关闭
+    /// （无头签名即拒绝），不得回落到「只解析不验签」。
+    ///
+    /// # Errors
+    /// 验签失败 / 载荷不可解析 → Err（文案进回调日志）。
+    fn verify_and_parse_signed(
+        &self,
+        cfg: &ChannelConfig,
+        event_hint: &str,
+        raw_body: &str,
+        header_signature: Option<&str>,
+    ) -> Result<PushEvent> {
+        let _ = header_signature;
+        self.verify_and_parse(cfg, event_hint, raw_body)
+    }
+
+    /// 推送补全钩子（二期，默认恒等）。推送只带订单号、订单详情需
+    /// 回查渠道 API 的渠道（饿了么轻推送）覆写本方法：凭绑定门店的
+    /// 商家授权令牌（`access_token`，未绑定时为空串）拉取权威订单
+    /// 并替换事件中的归一订单。未绑定（令牌为空）时实现应原样返回
+    /// 事件——接入层会走 pending_binding 兜底，补绑后「重新处理」
+    /// 时本钩子会再次被调用。已有绑定却回查失败必须 Err（接入层
+    /// 不向平台确认成功、等平台重推），禁止以残缺订单冒充完整。
+    ///
+    /// # Errors
+    /// 已绑定门店的订单回查失败 → Err（真实原因）。
+    async fn enrich_event(
+        &self,
+        cfg: &ChannelConfig,
+        access_token: &str,
+        event: PushEvent,
+    ) -> Result<PushEvent> {
+        let _ = (cfg, access_token);
+        Ok(event)
+    }
+
     /// 确认接单（出站调用渠道 API）。
     ///
     /// # Errors
@@ -117,12 +169,14 @@ pub trait OrderChannelAdapter: Send + Sync {
     ) -> Result<()>;
 }
 
-/// 按渠道 id 取适配器（注册表）。未接入的渠道返回 None —— 调用方
+/// 按渠道 id 取适配器（注册表）。未登记的渠道返回 None —— 调用方
 /// 必须据此给出「渠道未接入」而不是降级假处理。
 #[must_use]
 pub fn adapter_for(channel: &str) -> Option<std::sync::Arc<dyn OrderChannelAdapter>> {
     match channel {
         CHANNEL_MEITUAN => Some(std::sync::Arc::new(MeituanAdapter::default())),
+        CHANNEL_ELEME => Some(std::sync::Arc::new(ElemeAdapter::default())),
+        CHANNEL_DOUYIN => Some(std::sync::Arc::new(DouyinAdapter::default())),
         _ => None,
     }
 }

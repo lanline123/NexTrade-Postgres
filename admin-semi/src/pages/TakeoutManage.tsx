@@ -101,8 +101,8 @@ const STATUS_TAG: Record<string, { color: string; label: string }> = {
 
 const CHANNEL_OPTIONS = [
   { value: 'meituan', label: '美团闪购' },
-  { value: 'eleme', label: '淘宝闪购（二期）' },
-  { value: 'douyin', label: '抖音生活服务（二期）' },
+  { value: 'eleme', label: '淘宝闪购' },
+  { value: 'douyin', label: '抖音生活服务' },
 ];
 
 export default function TakeoutManage() {
@@ -237,8 +237,9 @@ export default function TakeoutManage() {
         外卖聚合
       </Title>
       <Paragraph type="tertiary" style={{ margin: 0 }}>
-        第三方渠道订单汇入本系统统一履约（一期：美团闪购）。凭据未配置时渠道为未启用状态，回调会被诚实拒绝并留日志；
-        外部订单资金在渠道侧结算，不进入平台结算与分销。配送聚合（麦芽田）等商务对接完成后另行开通。
+        第三方渠道订单汇入本系统统一履约（美团闪购、淘宝闪购、抖音生活服务三渠道）。凭据未配置时渠道为未启用状态，回调会被诚实拒绝并留日志；
+        外部订单资金在渠道侧结算，不进入平台结算与分销。抖音为团购核销模型（待核销/已核销），无接单、物流同步与退款应答动作，操作会返回平台侧真实说明。
+        配送聚合（麦芽田）等商务对接完成后另行开通。
       </Paragraph>
 
       <Card title="渠道配置" loading={loading}>
@@ -251,7 +252,7 @@ export default function TakeoutManage() {
               <Text strong style={{ width: 130 }}>
                 {ch.channelName}
               </Text>
-              {!ch.adapterReady && <Tag color="grey">二期未接入</Tag>}
+              {!ch.adapterReady && <Tag color="grey">未接入</Tag>}
               {ch.adapterReady && ch.active && <Tag color="green">已启用</Tag>}
               {ch.adapterReady && !ch.active && <Tag color="amber">未启用</Tag>}
               <Switch
@@ -289,6 +290,16 @@ export default function TakeoutManage() {
           <Text type="tertiary">
             美团回调地址（在美团开放平台应用后台按事件分别配置）：订单 {overview?.callbackBase ?? '/api/takeout/callback'}
             /meituan/order、取消 …/meituan/cancel、退款 …/meituan/refund，状态 …/meituan/status（前缀为商城站点域名）。
+          </Text>
+          <Text type="tertiary">
+            淘宝闪购推送地址（在饿了么开放平台应用后台配置单一推送 URL）：{overview?.callbackBase ?? '/api/takeout/callback'}
+            /eleme（订单/取消/退款/状态共用一个地址）；配置 app_id 位填应用 app_key，门店绑定 app_poi_code 填饿了么 shopId，
+            授权令牌填商家 OAuth 授权 token（推送为轻通知，系统凭令牌回查订单详情）。
+          </Text>
+          <Text type="tertiary">
+            抖音回调地址（在抖音开放平台应用后台 Webhooks 配置中填写单一地址）：{overview?.callbackBase ?? '/api/takeout/callback'}
+            /douyin，并订阅订单通知事件（life_trade_order_notify）；配置 app_id 位填应用 client_key，
+            门店绑定 app_poi_code 填抖音商户根账户 account_id，授权令牌填商家授权 token。
           </Text>
         </div>
       </Card>

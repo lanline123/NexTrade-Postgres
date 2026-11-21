@@ -107,6 +107,31 @@ impl TakeoutIngestService {
         event_hint: &str,
         raw_body: &str,
     ) -> CallbackOutcome {
+        self.handle_callback_inner(channel, event_hint, raw_body, None)
+            .await
+    }
+
+    /// 处理一次签名在请求头的渠道回调（抖音 WebHooks 的
+    /// `X-Douyin-Signature`）；其余处理链与 [`Self::handle_callback`]
+    /// 完全一致。
+    pub async fn handle_callback_signed(
+        &self,
+        channel: &str,
+        event_hint: &str,
+        raw_body: &str,
+        header_signature: Option<&str>,
+    ) -> CallbackOutcome {
+        self.handle_callback_inner(channel, event_hint, raw_body, header_signature)
+            .await
+    }
+
+    async fn handle_callback_inner(
+        &self,
+        channel: &str,
+        event_hint: &str,
+        raw_body: &str,
+        header_signature: Option<&str>,
+    ) -> CallbackOutcome {
         let settings = match self.settings().await {
             Ok(s) => s,
             Err(e) => {
@@ -136,7 +161,12 @@ impl TakeoutIngestService {
             .await;
             return CallbackOutcome::NotConfigured;
         }
-        let event = match adapter.verify_and_parse(&cfg, event_hint, raw_body) {
+        let event = match adapter.verify_and_parse_signed(
+            &cfg,
+            event_hint,
+            raw_body,
+            header_signature,
+        ) {
             Ok(ev) => ev,
             Err(e) => {
                 self.log(
@@ -150,6 +180,26 @@ impl TakeoutIngestService {
                 )
                 .await;
                 return CallbackOutcome::Rejected(format!("{e}"));
+            }
+        };
+        // 推送补全（饿了么轻推送凭绑定令牌回查订单详情；其余渠道
+        // 默认恒等）。已绑定却补全失败时不确认成功，等平台重推。
+        let parsed_type = event.event_type.clone();
+        let parsed_order_id = event.external_order_id.clone();
+        let event = match self.enrich(channel, &cfg, &adapter, event).await {
+            Ok(ev) => ev,
+            Err(e) => {
+                self.log(
+                    channel,
+                    &parsed_type,
+                    &parsed_order_id,
+                    1,
+                    1,
+                    &format!("推送补全失败：{e}"),
+                    raw_body,
+                )
+                .await;
+                return CallbackOutcome::ProcessingFailed(format!("{e}"));
             }
         };
         match self.apply_event(channel, &cfg, &adapter, &event).await {
@@ -180,6 +230,32 @@ impl TakeoutIngestService {
                 CallbackOutcome::ProcessingFailed(format!("{e}"))
             }
         }
+    }
+
+    /// 推送补全调度：按事件订单的 `app_poi_code` 解析绑定令牌后调
+    /// 适配器钩子。无订单体 / 无绑定键时原样返回；绑定不存在时令牌
+    /// 为空串（钩子据此跳过回查、走待绑定兜底）。
+    async fn enrich(
+        &self,
+        channel: &str,
+        cfg: &ChannelConfig,
+        adapter: &Arc<dyn OrderChannelAdapter>,
+        event: PushEvent,
+    ) -> Result<PushEvent> {
+        let Some(order) = &event.order else {
+            return Ok(event);
+        };
+        if order.app_poi_code.trim().is_empty() {
+            return Ok(event);
+        }
+        let binding = self
+            .repos
+            .takeout
+            .binding
+            .find_by_poi(channel, &order.app_poi_code)
+            .await?;
+        let token = binding.map(|b| b.access_token).unwrap_or_default();
+        adapter.enrich_event(cfg, &token, event).await
     }
 
     /// 把已验签的统一事件落库（回调与后台「重新处理」共用）。
@@ -379,6 +455,9 @@ impl TakeoutIngestService {
             refund_id: String::new(),
             note: String::new(),
         };
+        // 补绑后重处理同样走补全钩子：轻推送（如饿了么）落库时只有
+        // 订单号，此时已有绑定令牌，可回查完整订单再补单。
+        let event = self.enrich(&row.channel, &cfg, &adapter, event).await?;
         self.apply_event(&row.channel, &cfg, &adapter, &event).await
     }
 

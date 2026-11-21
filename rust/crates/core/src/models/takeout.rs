@@ -1,8 +1,10 @@
 //! 外卖聚合（takeout）DTO / 归一模型 / 纯逻辑（我方新增）。
 //!
 //! 论坛 C 类第 ③ 项（帖 697900 / 127866 / 417810），设计见
-//! `~/workspace/takeout-aggregation/DESIGN.md`。一期范围：A 向「订单汇入」
-//! 聚合框架 + 美团闪购直连；B 向（麦芽田配送聚合）只在服务层留接口位。
+//! `~/workspace/takeout-aggregation/DESIGN.md`。一期：A 向「订单汇入」
+//! 聚合框架 + 美团闪购直连；二期（2026-11-21）：淘宝闪购（饿了么）与
+//! 抖音生活服务直连补齐，三渠道同深度；B 向（麦芽田配送聚合）只在
+//! 服务层留接口位。
 //!
 //! # 口径（设计 §1.4 共性结论）
 //! - 三家渠道都是「ISV 应用 + 商家逐店授权」，凭据走 `config` 表
@@ -10,8 +12,11 @@
 //! - 外部订单资金不过我方：落内部单时 `order_type = 13` + `external_channel`
 //!   标记，排除在平台结算 / 分销佣金 / 礼品卡 / 主动退款之外；
 //! - 退款主导权在渠道侧：我方只同步状态，不走财务审核出款链；
-//! - 金额一律以渠道推送为准落库，不按我方口径重算；美团推送金额单位为
-//!   **分**，在本层统一换算为元（[`fen_to_yuan`]）。
+//! - 金额一律以渠道推送为准落库，不按我方口径重算；美团/抖音金额单位
+//!   为**分**（[`fen_to_yuan`]），饿了么 API 金额为**元（浮点）**
+//!   （[`yuan_amount`]），在本层统一换算为元。
+
+use std::str::FromStr;
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -23,9 +28,10 @@ use serde_json::{json, Value};
 
 /// 渠道：美团闪购（一期已接入）。
 pub const CHANNEL_MEITUAN: &str = "meituan";
-/// 渠道：淘宝闪购（饿了么）——二期，本期仅注册表占位、无适配器。
+/// 渠道：淘宝闪购（饿了么）——二期已接入（NOP 协议 + 轻推送回查补全）。
 pub const CHANNEL_ELEME: &str = "eleme";
-/// 渠道：抖音生活服务——二期（团购券核销模型，与配送订单不同构），仅占位。
+/// 渠道：抖音生活服务——二期已接入（团购券核销模型，与配送订单不同构：
+/// paid = 待核销 / completed = 已核销，见服务层 douyin 适配器）。
 pub const CHANNEL_DOUYIN: &str = "douyin";
 /// 全部已登记渠道（注册表顺序即后台展示顺序）。
 pub const CHANNELS: [&str; 3] = [CHANNEL_MEITUAN, CHANNEL_ELEME, CHANNEL_DOUYIN];
@@ -48,10 +54,10 @@ pub fn channel_name(channel: &str) -> &'static str {
     }
 }
 
-/// 该渠道本期是否有真实适配器（只有美团；其余为注册表占位，诚实未接入）。
+/// 该渠道是否有真实适配器（二期起三渠道均已接入；未知渠道为 false）。
 #[must_use]
 pub fn channel_adapter_ready(channel: &str) -> bool {
-    channel == CHANNEL_MEITUAN
+    CHANNELS.contains(&channel)
 }
 
 // ---------------------------------------------------------------------------
@@ -92,9 +98,9 @@ impl ChannelConfig {
 pub struct TakeoutSettings {
     /// 美团闪购。
     pub meituan: ChannelConfig,
-    /// 淘宝闪购（占位）。
+    /// 淘宝闪购（app_id 位填饿了么开放平台 app_key）。
     pub eleme: ChannelConfig,
-    /// 抖音生活服务（占位）。
+    /// 抖音生活服务（app_id 位填抖音开放平台 client_key）。
     pub douyin: ChannelConfig,
 }
 
@@ -268,10 +274,78 @@ pub fn internal_pay_status(ext: &str) -> i32 {
     }
 }
 
-/// 渠道金额（分）→ 元。美团推送/接口金额单位为分，落库统一为元。
+/// 渠道金额（分）→ 元。美团推送/接口、抖音生活服务金额单位为分，
+/// 落库统一为元。
 #[must_use]
 pub fn fen_to_yuan(fen: i64) -> Decimal {
     Decimal::new(fen, 2)
+}
+
+/// 淘宝闪购（饿了么）订单状态字符串 → 归一状态。依据饿了么开放
+/// 平台官方 SDK 订单实体（OOrder）的状态枚举：`status` ∈
+/// unpaid 未支付 / unprocessed 待接单 / valid 已生效（已确认）/
+/// invalid 已取消 / settled 已完成；`refundStatus` ∈ noRefund
+/// 无退款 / applied 已申请 / arbitrating 仲裁中 / rejected 已驳回 /
+/// failed 退款失败 / successful 退款成功。退款进程优先于订单状态
+/// 表达（与美团退款单独推送的口径等价）；rejected / failed /
+/// noRefund 不改变订单状态。unpaid 与未知值 → None（适配器侧
+/// 保守处理：未支付单不落履约，未知状态不冒认）。
+#[must_use]
+pub fn eleme_status_normalize(status: &str, refund_status: &str) -> Option<&'static str> {
+    match refund_status.trim().to_ascii_lowercase().as_str() {
+        "applied" | "arbitrating" => return Some(EXT_STATUS_REFUNDING),
+        "successful" => return Some(EXT_STATUS_REFUNDED),
+        _ => {}
+    }
+    match status.trim().to_ascii_lowercase().as_str() {
+        "unprocessed" => Some(EXT_STATUS_PAID),
+        "valid" => Some(EXT_STATUS_CONFIRMED),
+        "settled" => Some(EXT_STATUS_COMPLETED),
+        "invalid" => Some(EXT_STATUS_CANCELLED),
+        _ => None,
+    }
+}
+
+/// 抖音生活服务订单通知 `action` → 归一状态。依据官方 WebHooks
+/// 文档示例（`action = "pay_success"`，content.order 载荷）与交易
+/// 系统动作命名约定做包含匹配：含 pay → 已支付（团购口径 = 待
+/// 核销）；含 verify / fulfil / consume → 已完成（已核销）；含
+/// refund → 退款中，带 success / finish / complete 后缀 → 已退款；
+/// 含 cancel / close / expire → 已取消（过期未核销后平台自动退款，
+/// 后续 refund 动作再推进到 refunded）。未知动作 → None。
+#[must_use]
+pub fn douyin_action_normalize(action: &str) -> Option<&'static str> {
+    let a = action.trim().to_ascii_lowercase();
+    if a.is_empty() {
+        return None;
+    }
+    if a.contains("refund") {
+        if a.contains("success") || a.contains("finish") || a.contains("complete") {
+            return Some(EXT_STATUS_REFUNDED);
+        }
+        return Some(EXT_STATUS_REFUNDING);
+    }
+    if a.contains("pay") {
+        return Some(EXT_STATUS_PAID);
+    }
+    if a.contains("verif") || a.contains("fulfil") || a.contains("consume") {
+        return Some(EXT_STATUS_COMPLETED);
+    }
+    if a.contains("cancel") || a.contains("close") || a.contains("expire") {
+        return Some(EXT_STATUS_CANCELLED);
+    }
+    None
+}
+
+/// 渠道金额（元，浮点）→ 元 Decimal。饿了么 API 金额为元的浮点数
+/// （如 12.5），经两位小数格式化再解析，避免二进制浮点尾差直接
+/// 落库；非有限值回落 0。
+#[must_use]
+pub fn yuan_amount(value: f64) -> Decimal {
+    if !value.is_finite() {
+        return Decimal::new(0, 0);
+    }
+    Decimal::from_str(&format!("{value:.2}")).unwrap_or_else(|_| Decimal::new(0, 0))
 }
 
 /// 归一订单行（渠道商品行 + 映射结果位）。
@@ -631,6 +705,50 @@ mod tests {
         assert_eq!(form_get(&pairs, "status"), Some("2"));
         assert_eq!(form_get(&pairs, "empty"), Some(""));
         assert_eq!(form_get(&pairs, "missing"), None);
+    }
+
+    #[test]
+    fn adapter_ready_covers_all_channels() {
+        assert!(channel_adapter_ready(CHANNEL_MEITUAN));
+        assert!(channel_adapter_ready(CHANNEL_ELEME));
+        assert!(channel_adapter_ready(CHANNEL_DOUYIN));
+        assert!(!channel_adapter_ready("nope"));
+    }
+
+    #[test]
+    fn eleme_status_map_matches_sdk_enums() {
+        assert_eq!(eleme_status_normalize("unprocessed", ""), Some(EXT_STATUS_PAID));
+        assert_eq!(eleme_status_normalize("valid", "noRefund"), Some(EXT_STATUS_CONFIRMED));
+        assert_eq!(eleme_status_normalize("settled", ""), Some(EXT_STATUS_COMPLETED));
+        assert_eq!(eleme_status_normalize("invalid", ""), Some(EXT_STATUS_CANCELLED));
+        // 未支付不落履约；未知值不冒认。
+        assert_eq!(eleme_status_normalize("unpaid", ""), None);
+        assert_eq!(eleme_status_normalize("whatever", ""), None);
+        // 退款进程优先于订单状态；驳回/失败不改变订单状态。
+        assert_eq!(eleme_status_normalize("valid", "applied"), Some(EXT_STATUS_REFUNDING));
+        assert_eq!(eleme_status_normalize("valid", "arbitrating"), Some(EXT_STATUS_REFUNDING));
+        assert_eq!(eleme_status_normalize("valid", "successful"), Some(EXT_STATUS_REFUNDED));
+        assert_eq!(eleme_status_normalize("valid", "rejected"), Some(EXT_STATUS_CONFIRMED));
+        assert_eq!(eleme_status_normalize("Valid", "APPLIED"), Some(EXT_STATUS_REFUNDING));
+    }
+
+    #[test]
+    fn douyin_action_map() {
+        assert_eq!(douyin_action_normalize("pay_success"), Some(EXT_STATUS_PAID));
+        assert_eq!(douyin_action_normalize("refund_apply"), Some(EXT_STATUS_REFUNDING));
+        assert_eq!(douyin_action_normalize("refund_success"), Some(EXT_STATUS_REFUNDED));
+        assert_eq!(douyin_action_normalize("order_cancel"), Some(EXT_STATUS_CANCELLED));
+        assert_eq!(douyin_action_normalize("certificate_verify"), Some(EXT_STATUS_COMPLETED));
+        assert_eq!(douyin_action_normalize(""), None);
+        assert_eq!(douyin_action_normalize("something_new"), None);
+    }
+
+    #[test]
+    fn yuan_amount_avoids_float_tail() {
+        assert_eq!(yuan_amount(12.5), Decimal::new(1250, 2));
+        assert_eq!(yuan_amount(0.1 + 0.2), Decimal::new(30, 2));
+        assert_eq!(yuan_amount(25.9), Decimal::new(2590, 2));
+        assert_eq!(yuan_amount(f64::NAN), Decimal::new(0, 0));
     }
 
     #[test]
