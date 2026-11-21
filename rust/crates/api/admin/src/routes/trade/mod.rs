@@ -1,6 +1,7 @@
 //! 管理端 trade 路由。
 
 pub mod aftersales;
+pub mod kitchen;
 pub mod offline_claim;
 pub mod order_admin;
 pub mod order_log;
@@ -23,6 +24,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
         .merge(aftersales::routes(state))
+        .merge(kitchen::routes(state))
         .merge(offline_claim::routes(state))
         .merge(order_admin::routes(state))
         .merge(order_log::routes(state))
@@ -48,6 +50,7 @@ pub fn public_routes(state: &AdminState) -> Router<AdminState> {
 pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(aftersales::implemented_routes());
+    out.extend(kitchen::implemented_routes());
     out.extend(offline_claim::implemented_routes());
     out.extend(order_admin::implemented_routes());
     out.extend(order_log::implemented_routes());

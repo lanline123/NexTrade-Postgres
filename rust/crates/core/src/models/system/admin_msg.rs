@@ -74,13 +74,14 @@ pub const MSG_CATEGORIES: [(i32, &str); 6] = [
 
 /// 全部叶子消息类型：`(msgType, name, 父分类 catId, 是否店铺可见, 是否供应商可见)`，
 /// 逐条来自 `AdminMsgTypeEnum`（不含历史兼容 15/16）。
-pub const MSG_TYPES: [(i32, &str, i32, bool, bool); 31] = [
+pub const MSG_TYPES: [(i32, &str, i32, bool, bool); 32] = [
     (11, "新订单", 1, true, true),
     (12, "已付款订单", 1, true, true),
     (13, "订单完成", 1, true, true),
     (15, "订单问题", 1, false, false),
     (16, "订单咨询", 1, false, false),
     (54, "发货提醒", 1, true, true),
+    (58, "买家催菜", 1, true, false),
     (21, "商品库存预警", 2, true, true),
     (22, "商品无货", 2, true, true),
     (23, "商品下架", 2, true, true),

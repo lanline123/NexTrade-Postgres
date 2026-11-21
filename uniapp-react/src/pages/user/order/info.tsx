@@ -16,6 +16,7 @@ import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import PresaleCard from "./src/PresaleCard";
 import { getOrder, confirmReceipt, getShippingInfo, cancelPaidRefund } from "@/api/user/order";
 import { regenerateGiftShareToken, cancelGiftOrder } from "@/api/order/gift";
+import { getKitchenInfo, urgeOrder, type KitchenInfoVO } from "@/api/order/kitchen";
 import { buyerDeliveryProgress } from "@/api/rider/rider";
 import type { OrderInfoItemElement, OrderInfoResponseItem, ShippingInfoTrace } from "@/types/user/order";
 import { useUserStore } from "@/store/user";
@@ -55,6 +56,8 @@ export default function OrderInfo() {
     const [deliveryProgress, setDeliveryProgress] = useState<any>(null);
     const [emptyText] = useState<string>("");
     const [showMore, setShowMore] = useState(false);
+    // 后厨面板（我方新增）：已付款待发货时拉取后厨状态与催菜频控现状
+    const [kitchenInfo, setKitchenInfo] = useState<KitchenInfoVO | null>(null);
     // 金额明细默认展开
     const [showUp, setShowUp] = useState(true);
     const [cardViewStates, setCardViewStates] = useState<Record<string | number, boolean>>({});
@@ -440,6 +443,26 @@ export default function OrderInfo() {
         }
     });
 
+    // 后厨面板数据（我方新增）：仅已付款待发货（orderStatus=1）时拉取
+    useEffect(() => {
+        const oid = Number(orderInfo?.orderId || 0);
+        if (!oid || Number(orderInfo?.orderStatus) !== 1) {
+            setKitchenInfo(null);
+            return;
+        }
+        let cancelled = false;
+        getKitchenInfo(oid)
+            .then((data) => {
+                if (!cancelled) setKitchenInfo(data);
+            })
+            .catch(() => {
+                if (!cancelled) setKitchenInfo(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [orderInfo?.orderId, orderInfo?.orderStatus]);
+
     const handleCancelOrder = (id: number) => {
         cancelOrderReasonPopupRef.current?.open(id);
     };
@@ -461,6 +484,25 @@ export default function OrderInfo() {
                 }
             }
         });
+    };
+
+    /** 催菜（我方新增）：频控在后端（10 分钟冷却 + 每日上限），成功后本地置冷却态 */
+    const handleUrge = async (id: number) => {
+        try {
+            const data = await urgeOrder(id);
+            Taro.showToast({ title: t("已催菜，商家会尽快处理"), icon: "none" });
+            setKitchenInfo((prev) =>
+                prev
+                    ? { ...prev, urgeCount: data.urgeCount, canUrge: false, cooldownRemainSeconds: data.cooldownSeconds }
+                    : prev
+            );
+        } catch (e: any) {
+            Taro.showToast({ title: e?.message || t("催菜失败"), icon: "none" });
+            // 频控类失败后刷新一次面板状态，保持按钮态与后端一致
+            void getKitchenInfo(id)
+                .then((data) => setKitchenInfo(data))
+                .catch(() => undefined);
+        }
     };
 
     /** 送礼物分享（我方新增）：重新生成链接（旧链接作废）并复制到剪贴板 */
@@ -594,6 +636,8 @@ export default function OrderInfo() {
     const showBottomBar =
         (orderInfo?.availableActions?.cancelOrder ||
             orderInfo?.availableActions?.cancelPaidRefund ||
+            // 后厨催菜（我方新增）：已付款待出单时底栏需可见以承载催菜入口
+            (kitchenInfo?.inKitchen && kitchenInfo.kitchenStatus !== 2) ||
             (orderInfo?.availableActions?.toPay && canShowToPay) ||
             isOfflineClaimRejected ||
             canViewOfflineClaim ||
@@ -755,6 +799,28 @@ export default function OrderInfo() {
                                                 >
                                                     {t("取消送礼物")}
                                                 </View>
+                                            </View>
+                                        )}
+                                    </View>
+                                ) : null}
+                                {/* 后厨面板（我方新增）：后厨进度 + 已催次数 */}
+                                {kitchenInfo?.inKitchen ? (
+                                    <View className="card-space" style={{ background: "#fff", borderRadius: "18rpx", padding: "24rpx 28rpx", marginTop: "20rpx" }}>
+                                        <View style={{ display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                                            <Text style={{ fontSize: "30rpx", fontWeight: 600, color: "#1a1a1a" }}>{t("后厨进度")}</Text>
+                                            <Text style={{ fontSize: "26rpx", color: "#65c4aa" }}>{kitchenInfo.kitchenStatusName}</Text>
+                                        </View>
+                                        {kitchenInfo.kitchenStatus === 2 ? (
+                                            <View style={{ fontSize: "24rpx", color: "#999", marginTop: "8rpx" }}>
+                                                {t("餐品已出单，正在为您安排发货/取餐")}
+                                            </View>
+                                        ) : kitchenInfo.urgeCount > 0 ? (
+                                            <View style={{ fontSize: "24rpx", color: "#999", marginTop: "8rpx" }}>
+                                                {t("已催菜")} {kitchenInfo.urgeCount} {t("次，商家正在赶工")}
+                                            </View>
+                                        ) : (
+                                            <View style={{ fontSize: "24rpx", color: "#999", marginTop: "8rpx" }}>
+                                                {t("久等了？可在下方点「催菜」提醒商家")}
                                             </View>
                                         )}
                                     </View>
@@ -1331,6 +1397,17 @@ export default function OrderInfo() {
                                                 <TigButton2 className="btn" onClick={() => handleCancelPaidRefund(orderInfo.orderId)}>
                                                     {t("取消并退款")}
                                                 </TigButton2>
+                                            ) : null}
+                                            {kitchenInfo?.inKitchen && kitchenInfo.kitchenStatus !== 2 ? (
+                                                kitchenInfo.canUrge ? (
+                                                    <TigButton2 className="btn" onClick={() => void handleUrge(orderInfo.orderId)}>
+                                                        {t("催菜")}
+                                                    </TigButton2>
+                                                ) : (
+                                                    <TigButton2 className="btn" disabled>
+                                                        {t("已催菜")}
+                                                    </TigButton2>
+                                                )
                                             ) : null}
                                             {orderInfo.availableActions?.toPay && canShowToPay ? (
                                                 <TigButton2
