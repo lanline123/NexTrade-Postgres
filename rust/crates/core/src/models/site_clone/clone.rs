@@ -1,5 +1,5 @@
-//! 站点搬家（site_clone）P1 模型：密钥/审计/快照/任务/映射五行表实体，
-//! 管理端 DTO/VO 与 `/clone/v1` 跨站序列化包。
+//! 站点搬家（site_clone）模型：密钥/审计/快照/任务/映射/素材转存映射表实体，
+//! 管理端 DTO/VO 与 `/clone/v1` 跨站序列化包（P1 商品/设置 + P2 装修/素材）。
 //!
 //! 时间字段一律秒级时间戳（与 hub 联邦表口径一致）；金额/价格用 `Decimal`
 //! （与 `ProductSaveDTO` 同 serde 口径，JSON 数字）。
@@ -11,14 +11,19 @@ use sqlx::FromRow;
 // ———————————————————— 常量与文案 ————————————————————
 
 /// 导出端协议版本（manifest `exporterVersion`）。导入端拒绝高于自身的大版本。
-pub const EXPORTER_VERSION: i32 = 1;
+/// v2 = P2（装修/素材两域端点上线）；v1 源站无此两端点，导入端按缺失处理。
+pub const EXPORTER_VERSION: i32 = 2;
 
 /// 授权域：商品。
 pub const DOMAIN_PRODUCTS: &str = "products";
 /// 授权域：设置。
 pub const DOMAIN_SETTINGS: &str = "settings";
-/// P1 全部可授权域。
-pub const ALL_DOMAINS: [&str; 2] = [DOMAIN_PRODUCTS, DOMAIN_SETTINGS];
+/// 授权域：装修（P2）。
+pub const DOMAIN_DECORATE: &str = "decorate";
+/// 授权域：素材（P2）。
+pub const DOMAIN_ASSETS: &str = "assets";
+/// 全部可授权域（P1 两域 + P2 两域）。
+pub const ALL_DOMAINS: [&str; 4] = [DOMAIN_PRODUCTS, DOMAIN_SETTINGS, DOMAIN_DECORATE, DOMAIN_ASSETS];
 
 pub const MSG_CLONE_UNAUTHORIZED: &str = "搬家密钥无效";
 pub const MSG_CLONE_DISABLED: &str = "搬家密钥已停用或吊销";
@@ -128,6 +133,26 @@ pub struct SiteCloneImportJob {
     pub undone: i16,
     pub add_time: i32,
     pub finish_time: i32,
+}
+
+/// `site_clone_asset_map` 行（P2 素材转存映射：源 URL → 本站 URL）。
+/// 以口令指纹隔离：同一源文件在同一来源下只转存一次，跨任务复用。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct SiteCloneAssetMap {
+    pub map_id: i32,
+    pub fingerprint: String,
+    /// 源站文件 URL（完整 http(s) 地址）。
+    pub source_url: String,
+    /// 转存后本站 URL（存储后端返回的访问地址）。
+    pub local_url: String,
+    /// 媒体类别：pic / video / file（按扩展名粗分，仅统计与展示用）。
+    pub media_kind: String,
+    /// 素材库导入时新建的 `gallery_pic.pic_id`（仅图片库条目有值，其余 0）。
+    pub target_pic_id: i32,
+    /// 首次转存的导入任务 id。
+    pub job_id: i32,
+    pub add_time: i32,
 }
 
 /// `site_clone_import_map` 行（去重映射）。
@@ -297,6 +322,11 @@ pub struct CloneExecuteDTO {
     pub target_shop_id: Option<i32>,
     pub import_products: Option<bool>,
     pub import_settings: Option<bool>,
+    /// 导入装修（P2：页面/离散组件/导航/楼层/移动分类导航，新建为未发布页）。
+    pub import_decorate: Option<bool>,
+    /// 导入素材并转存（P2：素材库转存本站存储 + 全站 URL 重写，
+    /// 含 P1 已导入商品/设置/外链登记素材的回溯转存）。
+    pub import_assets: Option<bool>,
     /// 勾选导入的设置组 key（缺省 = 全部非风险组）；风险组须同时置
     /// `include_risk_groups = true` 才生效。
     pub settings_groups: Option<Vec<String>>,
@@ -332,6 +362,18 @@ pub struct ClonePreviewVO {
     pub category_total: i64,
     pub brand_total: i64,
     pub shipping_tpl_total: i64,
+    /// 装修页总数（P2；源站未授权装修域或版本过低时为 0）。
+    pub decorate_total: i64,
+    /// 离散组件总数（P2）。
+    pub discrete_total: i64,
+    /// 导航/楼层/移动分类导航合计条数（P2，随装修域一并搬）。
+    pub nav_total: i64,
+    /// 素材图片总数（P2）。
+    pub asset_pic_total: i64,
+    /// 素材视频总数（P2）。
+    pub asset_video_total: i64,
+    /// 已导入过的装修页数（默认跳过，防重复建页）。
+    pub decorate_already_imported: i64,
     /// 设置组清单（含风险标记与字段数）。
     pub settings_groups: Vec<CloneSettingsGroupInfo>,
     /// 将整块覆盖的独立 JSON 设置块 code 列表。
@@ -366,6 +408,16 @@ pub struct CloneManifestVO {
     pub brand_total: i64,
     pub shipping_tpl_total: i64,
     pub settings_group_total: i32,
+    /// 装修页总数（P2，源店铺口径；未授权装修域时为 0）。
+    pub decorate_total: i64,
+    /// 离散组件总数（P2）。
+    pub discrete_total: i64,
+    /// PC 导航 + 分类楼层 + 移动分类导航合计（P2，平台级结构、无店铺维）。
+    pub nav_total: i64,
+    /// 素材图片总数（P2，源店铺 + 平台素材）。
+    pub asset_pic_total: i64,
+    /// 素材视频总数（P2）。
+    pub asset_video_total: i64,
     /// 豁免声明（明示不导出的域，供导入端预览展示）。
     pub exempt_note: String,
 }
@@ -650,6 +702,182 @@ pub struct CloneProductPageQuery {
     pub size: Option<u64>,
 }
 
+// ———————————————————— P2：装修与素材序列化包 ————————————————————
+
+/// `GET /clone/v1/decorate` 返回：装修页 + 离散组件 + 导航/楼层/移动分类导航。
+/// 页面 `data`/`draft_data` 为装修 JSON 原文（字符串透传，变换在导入端做）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloneDecoratePackage {
+    pub pages: Vec<CloneDecoratePage>,
+    pub discrete: Vec<CloneDiscrete>,
+    pub navigations: Vec<ClonePcNavigation>,
+    pub cat_floors: Vec<ClonePcCatFloor>,
+    pub mobile_cat_navs: Vec<CloneMobileCatNav>,
+}
+
+/// 装修页序列化（`decorate` 行；导入端一律新建为未发布页、非首页）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneDecoratePage {
+    pub decorate_id: i32,
+    pub decorate_title: Option<String>,
+    /// 已发布页面数据（装修 JSON 原文）。
+    pub data: Option<String>,
+    /// 草稿页面数据（装修 JSON 原文）。
+    pub draft_data: Option<String>,
+    /// 1 H5 / 2 PC / 3 移动端壳页。
+    pub decorate_type: Option<i32>,
+    pub page_type: i32,
+    pub is_home: Option<i32>,
+    pub status: Option<i32>,
+    pub locale_id: Option<i32>,
+    /// 父页 decorate_id（多语言子页），导入端按映射重建。
+    pub parent_id: Option<i32>,
+    pub sort_order: Option<i32>,
+    /// 绑定的 H5 页 decorate_id（decorate_type=3），导入端按映射重建。
+    pub binded_h5_id: Option<i32>,
+    /// 分享信息 JSON（内含图片 URL，导入端做 URL 重写）。
+    pub share_info: Option<String>,
+}
+
+/// 离散组件序列化（`decorate_discrete` 行，如开屏广告）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneDiscrete {
+    pub id: i32,
+    pub decorate_sn: String,
+    pub decorate_name: Option<String>,
+    /// 组件数据 JSON 原文。
+    pub data: String,
+}
+
+/// PC 导航序列化（`pc_navigation` 行，平台级、无店铺维）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct ClonePcNavigation {
+    pub id: i32,
+    pub title: String,
+    pub is_show: i32,
+    pub sort_order: i32,
+    pub is_blank: i32,
+    pub link: String,
+    pub r#type: i32,
+    pub parent_id: i32,
+    pub icon: String,
+    pub entry_type: String,
+    pub qr_type: String,
+    pub qr_image: String,
+}
+
+/// PC 分类楼层序列化（`pc_cat_floor` 行；category_ids/brand_ids 为 JSON 数组原文）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct ClonePcCatFloor {
+    pub cat_floor_id: i32,
+    pub cat_floor_name: String,
+    pub category_ids: String,
+    pub category_names: String,
+    pub floor_ico: String,
+    pub hot_cat: String,
+    pub is_show: i32,
+    pub sort_order: i32,
+    pub floor_ico_font: String,
+    pub brand_ids: String,
+}
+
+/// 移动分类导航序列化（`mobile_cat_nav` 行；img_url 以全角「｜」分隔多图）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneMobileCatNav {
+    pub mobile_cat_nav_id: i32,
+    pub category_id: i32,
+    pub cat_color: String,
+    pub child_cat_ids: String,
+    pub brand_ids: String,
+    pub is_show: i32,
+    pub img_url: String,
+    pub sort_order: i32,
+    pub cat_name_alias: Option<String>,
+}
+
+/// `GET /clone/v1/assets` 返回：素材库分组与条目（源 URL 直给，
+/// 转存由导入端服务端下载后上传本站存储，不需源站额外凭证）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloneAssetsPackage {
+    pub groups: Vec<CloneAssetGroup>,
+    pub pics: Vec<CloneAssetPic>,
+    pub video_groups: Vec<CloneAssetVideoGroup>,
+    pub videos: Vec<CloneAssetVideo>,
+}
+
+/// 图片分组序列化（`gallery` 行）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneAssetGroup {
+    pub gallery_id: i32,
+    pub parent_id: i32,
+    pub gallery_name: String,
+    pub gallery_sort: i32,
+    pub gallery_thumb: String,
+    pub shop_id: i32,
+}
+
+/// 图片素材序列化（`gallery_pic` 行子集）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneAssetPic {
+    pub pic_id: i32,
+    pub gallery_id: i32,
+    pub shop_id: i32,
+    pub pic_url: String,
+    pub pic_name: String,
+    pub pic_thumb: String,
+    pub pic_width: Option<i32>,
+    pub pic_height: Option<i32>,
+    pub pic_size: Option<i64>,
+    pub file_type: Option<String>,
+    pub pic_sort: Option<i32>,
+}
+
+/// 视频分组序列化（`gallery_video` 行）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneAssetVideoGroup {
+    pub id: i32,
+    pub parent_id: i32,
+    pub name: String,
+    pub sort: i32,
+    pub shop_id: i32,
+}
+
+/// 视频素材序列化（`gallery_video_info` 行子集）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase", default)]
+#[sqlx(rename_all = "snake_case")]
+pub struct CloneAssetVideo {
+    pub id: i32,
+    pub gallery_id: i32,
+    pub shop_id: i32,
+    pub video_url: String,
+    pub video_name: String,
+    pub video_cover: Option<String>,
+    pub format: Option<String>,
+    pub video_first_frame: Option<String>,
+    pub duration: Option<String>,
+    pub size: Option<String>,
+    pub description: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -660,8 +888,13 @@ mod tests {
         k.scopes = "products,settings".into();
         assert!(k.has_domain(DOMAIN_PRODUCTS));
         assert!(k.has_domain(DOMAIN_SETTINGS));
-        assert!(!k.has_domain("decorate"));
+        assert!(!k.has_domain(DOMAIN_DECORATE));
         assert_eq!(k.domain_list().len(), 2);
+        k.scopes = "products,settings,decorate,assets".into();
+        assert!(k.has_domain(DOMAIN_DECORATE));
+        assert!(k.has_domain(DOMAIN_ASSETS));
+        assert!(!k.has_domain("marketing"));
+        assert_eq!(k.domain_list().len(), 4);
         k.scopes = String::new();
         assert!(!k.has_domain(DOMAIN_PRODUCTS));
     }

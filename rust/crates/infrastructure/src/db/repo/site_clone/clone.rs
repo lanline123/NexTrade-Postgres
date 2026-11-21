@@ -497,6 +497,36 @@ impl SiteCloneRepository {
         Ok(())
     }
 
+    /// 某来源在指定域的全部映射（P2：装修导入时加载商品/分类/品牌映射做
+    /// 引用重写；含历史任务建立的映射，不限本任务）。
+    pub async fn list_maps_by_fingerprint_domain(
+        &self,
+        fingerprint: &str,
+        domain: &str,
+    ) -> Result<Vec<SiteCloneImportMap>> {
+        sqlx::query_as::<_, SiteCloneImportMap>(
+            "SELECT * FROM site_clone_import_map WHERE fingerprint = $1 AND domain = $2 ORDER BY map_id ASC",
+        )
+        .bind(fingerprint)
+        .bind(domain)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 撤销导入后清掉该任务在指定域的映射（该域对象已被删除，映射失效）。
+    pub async fn delete_maps_by_job_domain(&self, job_id: i32, domain: &str) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM site_clone_import_map WHERE job_id = $1 AND domain = $2",
+        )
+        .bind(job_id)
+        .bind(domain)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
     // ———————————————————— config 原始行（快照回滚删除用） ————————————————————
 
     /// 删除一个 config 行（回滚时源站/本站原先不存在该块的还原动作）。

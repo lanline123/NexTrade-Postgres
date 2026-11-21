@@ -8,6 +8,8 @@
 //! | `GET` | `/clone/v1/catalog` | products | 分类+品牌+运费模板 |
 //! | `GET` | `/clone/v1/products?page&size` | products | 商品全保真分页 |
 //! | `GET` | `/clone/v1/settings` | settings | 设置包（仅白名单） |
+//! | `GET` | `/clone/v1/decorate` | decorate | 装修页+离散组件+导航三表（P2） |
+//! | `GET` | `/clone/v1/assets` | assets | 素材分组与条目 URL 清单（P2） |
 //!
 //! 每次带钥调用落 `site_clone_call_log`（密钥/端点/域/状态/条数/耗时）。
 
@@ -22,8 +24,9 @@ use axum::{
 use serde::Deserialize;
 
 use nextrade_core::models::site_clone::clone::{
-    CloneCatalogVO, CloneManifestVO, CloneProduct, CloneSettingsPackage, SiteCloneKey,
-    DOMAIN_PRODUCTS, DOMAIN_SETTINGS, MSG_CLONE_UNAUTHORIZED,
+    CloneAssetsPackage, CloneCatalogVO, CloneDecoratePackage, CloneManifestVO, CloneProduct,
+    CloneSettingsPackage, SiteCloneKey, DOMAIN_ASSETS, DOMAIN_DECORATE, DOMAIN_PRODUCTS,
+    DOMAIN_SETTINGS, MSG_CLONE_UNAUTHORIZED,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::Error;
@@ -32,11 +35,13 @@ use nextrade_security::web::{ok, ApiResult, AppError};
 use super::super::super::PublicState;
 
 /// 本域路由（去掉 `/api` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 4] = [
+const ROUTE_TABLE: [(&str, &str, &str); 6] = [
     ("GET", "/clone/v1/manifest", "CloneApi.manifest"),
     ("GET", "/clone/v1/catalog", "CloneApi.catalog"),
     ("GET", "/clone/v1/products", "CloneApi.products"),
     ("GET", "/clone/v1/settings", "CloneApi.settings"),
+    ("GET", "/clone/v1/decorate", "CloneApi.decorate"),
+    ("GET", "/clone/v1/assets", "CloneApi.assets"),
 ];
 
 /// 搬家面路由（自带密钥鉴权）。
@@ -47,6 +52,8 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/clone/v1/catalog", get(catalog))
         .route("/clone/v1/products", get(products))
         .route("/clone/v1/settings", get(settings))
+        .route("/clone/v1/decorate", get(decorate))
+        .route("/clone/v1/assets", get(assets))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -174,6 +181,44 @@ async fn settings(
         .site_clone
         .clone
         .record_call(&key, "/api/clone/v1/settings", "settings", 200, count, &client_ip(&headers), started)
+        .await;
+    ok(pkg)
+}
+
+async fn decorate(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+) -> ApiResult<CloneDecoratePackage> {
+    let started = Instant::now();
+    let key = auth_key(&state, &headers, DOMAIN_DECORATE).await?;
+    let pkg = state.site_clone.clone.decorate_package(&key).await.map_err(AppError)?;
+    let count = i32::try_from(
+        pkg.pages.len() + pkg.discrete.len() + pkg.navigations.len() + pkg.cat_floors.len()
+            + pkg.mobile_cat_navs.len(),
+    )
+    .unwrap_or(i32::MAX);
+    state
+        .site_clone
+        .clone
+        .record_call(&key, "/api/clone/v1/decorate", "decorate", 200, count, &client_ip(&headers), started)
+        .await;
+    ok(pkg)
+}
+
+async fn assets(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+) -> ApiResult<CloneAssetsPackage> {
+    let started = Instant::now();
+    let key = auth_key(&state, &headers, DOMAIN_ASSETS).await?;
+    let pkg = state.site_clone.clone.assets_package(&key).await.map_err(AppError)?;
+    let count =
+        i32::try_from(pkg.groups.len() + pkg.pics.len() + pkg.video_groups.len() + pkg.videos.len())
+            .unwrap_or(i32::MAX);
+    state
+        .site_clone
+        .clone
+        .record_call(&key, "/api/clone/v1/assets", "assets", 200, count, &client_ip(&headers), started)
         .await;
     ok(pkg)
 }

@@ -6,6 +6,7 @@
 //! 不共用代码路径；联邦总开关与本功能互不影响。
 
 pub mod clone;
+pub mod decorate_importer;
 pub mod importer;
 pub mod whitelist;
 

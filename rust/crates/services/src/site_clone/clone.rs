@@ -24,7 +24,8 @@ use nextrade_core::models::site_clone::clone::{
     CloneManifestVO, CloneProduct, CloneSettingsBlock,
     CloneSettingsGroup, CloneSettingsGroupInfo, CloneSettingsPackage, CloneShippingTpl,
     CloneSourceCred, SiteCloneCallLog, SiteCloneImportJob, SiteCloneKey, SiteCloneSnapshot,
-    ALL_DOMAINS, DOMAIN_SETTINGS, EXPORTER_VERSION, MSG_CLONE_CALLS_EXHAUSTED,
+    ALL_DOMAINS, DOMAIN_ASSETS, DOMAIN_DECORATE, DOMAIN_SETTINGS, EXPORTER_VERSION,
+    MSG_CLONE_CALLS_EXHAUSTED,
     MSG_CLONE_DISABLED, MSG_CLONE_EXPIRED, MSG_CLONE_RATE_LIMITED, MSG_CLONE_SCOPE_DENIED,
     MSG_CLONE_UNAUTHORIZED, MSG_KEY_NAME_REQUIRED, MSG_KEY_NOT_FOUND,
 };
@@ -70,6 +71,10 @@ impl SiteCloneService {
         &self.repos.site_clone.catalog
     }
 
+    pub(crate) fn decorate_repo(&self) -> &nextrade_infrastructure::db::repo::site_clone::decorate_data::SiteCloneDecorateRepository {
+        &self.repos.site_clone.decorate
+    }
+
     pub(crate) fn config_repo(&self) -> &nextrade_infrastructure::db::repo::system::config_basic::ConfigBasicRepository {
         &self.repos.system.config_basic
     }
@@ -89,7 +94,7 @@ impl SiteCloneService {
         }
         let domains = normalize_domains(&dto.domains);
         if domains.is_empty() {
-            return Err(Error::biz(400, "至少勾选一个分享域（商品/设置）"));
+            return Err(Error::biz(400, "至少勾选一个分享域（商品/设置/装修/素材）"));
         }
         let plain = utils::random_hex(48);
         let key_code = format!("mv_{}", utils::random_hex(16));
@@ -276,6 +281,21 @@ impl SiteCloneService {
             .await?
             .unwrap_or_default();
         let shop = key.source_shop_id;
+        let deco = self.decorate_repo();
+        let (decorate_total, discrete_total, nav_total) = if key.has_domain(DOMAIN_DECORATE) {
+            (
+                deco.count_decorate_pages(shop).await?,
+                deco.count_discrete(shop).await?,
+                deco.count_nav_total().await?,
+            )
+        } else {
+            (0, 0, 0)
+        };
+        let (asset_pic_total, asset_video_total) = if key.has_domain(DOMAIN_ASSETS) {
+            (deco.count_asset_pics(shop).await?, deco.count_asset_videos(shop).await?)
+        } else {
+            (0, 0)
+        };
         Ok(CloneManifestVO {
             site_name,
             exporter_version: EXPORTER_VERSION,
@@ -291,7 +311,44 @@ impl SiteCloneService {
             } else {
                 0
             },
+            decorate_total,
+            discrete_total,
+            nav_total,
+            asset_pic_total,
+            asset_video_total,
             exempt_note: "支付渠道、各类 API 密钥与凭据、站点身份、会员/订单/财务数据不在分享范围内（白名单导出）".into(),
+        })
+    }
+
+    /// 装修包导出（P2）：源店铺全部装修页/离散组件 + 平台级导航三表。
+    pub async fn decorate_package(
+        &self,
+        key: &SiteCloneKey,
+    ) -> Result<nextrade_core::models::site_clone::clone::CloneDecoratePackage> {
+        let shop = key.source_shop_id;
+        let repo = self.decorate_repo();
+        Ok(nextrade_core::models::site_clone::clone::CloneDecoratePackage {
+            pages: repo.list_decorate_pages(shop).await?,
+            discrete: repo.list_discrete(shop).await?,
+            navigations: repo.list_navigations().await?,
+            cat_floors: repo.list_cat_floors().await?,
+            mobile_cat_navs: repo.list_mobile_cat_navs().await?,
+        })
+    }
+
+    /// 素材包导出（P2）：源店铺 + 平台（shop_id=0）的素材分组与条目。
+    /// 只给源 URL 清单，转存由导入端服务端下载（OSS 公开读，不需凭证）。
+    pub async fn assets_package(
+        &self,
+        key: &SiteCloneKey,
+    ) -> Result<nextrade_core::models::site_clone::clone::CloneAssetsPackage> {
+        let shop = key.source_shop_id;
+        let repo = self.decorate_repo();
+        Ok(nextrade_core::models::site_clone::clone::CloneAssetsPackage {
+            groups: repo.list_asset_groups(shop).await?,
+            pics: repo.list_asset_pics(shop).await?,
+            video_groups: repo.list_asset_video_groups(shop).await?,
+            videos: repo.list_asset_videos(shop).await?,
         })
     }
 
@@ -549,7 +606,7 @@ impl SiteCloneService {
 
 // ———————————————————— 自由函数 ————————————————————
 
-/// 归一化授权域：只保留 P1 两域、去重保序。
+/// 归一化授权域：只保留已开放域（P1 商品/设置 + P2 装修/素材）、去重保序。
 pub(crate) fn normalize_domains(input: &[String]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for d in input {

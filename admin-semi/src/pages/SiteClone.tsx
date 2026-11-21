@@ -1,7 +1,9 @@
-// 我方新增（站点搬家 P1）：设置 → 商城设置 → 站点搬家。
+// 我方新增（站点搬家 P1 + P2）：设置 → 商城设置 → 站点搬家。
 // 一页两半：上半「我要分享」生成搬家密钥（口令只显示一次、落库只存哈希），
 // 下半「我要导入」贴对方口令拉清单、勾选导入；同页含导入记录（可撤销）
 // 与导入前快照（一键回滚）。凭据类设置不在分享范围内（后端白名单导出）。
+// P2：分享域加「装修 / 素材」——装修页新建为未发布草稿，素材服务端转存
+// 本站存储并全站改写源站图片地址（含 P1 已导入内容的回溯转存）。
 import { useCallback, useEffect, useState } from 'react';
 import {
   Button,
@@ -88,6 +90,12 @@ interface PreviewData {
   categoryTotal: number;
   brandTotal: number;
   shippingTplTotal: number;
+  decorateTotal: number;
+  discreteTotal: number;
+  navTotal: number;
+  assetPicTotal: number;
+  assetVideoTotal: number;
+  decorateAlreadyImported: number;
   settingsGroups: SettingsGroupInfo[];
   settingsBlocks: string[];
   warnings: string[];
@@ -127,7 +135,12 @@ interface JobFailure {
   error: string;
 }
 
-const DOMAIN_LABEL: Record<string, string> = { products: '商品', settings: '设置' };
+const DOMAIN_LABEL: Record<string, string> = {
+  products: '商品',
+  settings: '设置',
+  decorate: '装修',
+  assets: '素材',
+};
 const KEY_STATUS: Record<number, { text: string; color: string }> = {
   1: { text: '启用', color: 'green' },
   0: { text: '停用', color: 'grey' },
@@ -188,6 +201,8 @@ export default function SiteClone() {
   const [includeRisk, setIncludeRisk] = useState(false);
   const [importProducts, setImportProducts] = useState(true);
   const [importSettings, setImportSettings] = useState(true);
+  const [importDecorate, setImportDecorate] = useState(true);
+  const [importAssets, setImportAssets] = useState(true);
   const [keepStatus, setKeepStatus] = useState(false);
   const [forceDuplicate, setForceDuplicate] = useState(false);
   const [executing, setExecuting] = useState(false);
@@ -345,6 +360,8 @@ export default function SiteClone() {
         targetShopId,
         importProducts,
         importSettings,
+        importDecorate,
+        importAssets,
         settingsGroups: selectedGroups,
         includeRiskGroups: includeRisk,
         keepProductStatus: keepStatus,
@@ -366,8 +383,13 @@ export default function SiteClone() {
 
   const handleUndo = async (row: JobRow) => {
     try {
-      const res = await apiPost<{ deletedProducts: number }>('/siteClone/jobs/undo', { jobId: row.jobId });
-      Toast.success(`已撤销：删除新建商品 ${res.deletedProducts} 件`);
+      const res = await apiPost<{ deletedProducts: number; deletedDecoratePages?: number }>(
+        '/siteClone/jobs/undo',
+        { jobId: row.jobId },
+      );
+      Toast.success(
+        `已撤销：删除新建商品 ${res.deletedProducts} 件、装修页 ${res.deletedDecoratePages ?? 0} 个`,
+      );
       void loadJobs();
     } catch (e) {
       Toast.error(e instanceof Error ? e.message : '撤销失败');
@@ -518,7 +540,7 @@ export default function SiteClone() {
           <Button size="small" onClick={() => setDetailJob(row)}>明细</Button>
           {row.undone !== 1 && (
             <Popconfirm
-              title="撤销将删除本次导入新建的全部商品（分类/设置不回退，设置请用快照回滚），确定？"
+              title="撤销将删除本次导入新建的全部商品与装修页（分类/设置不回退，设置请用快照回滚），确定？"
               onConfirm={() => void handleUndo(row)}
             >
               <Button size="small" type="danger">撤销导入</Button>
@@ -617,6 +639,10 @@ export default function SiteClone() {
               商品共 {preview.productTotal} 件（分类 {preview.categoryTotal} / 品牌 {preview.brandTotal} / 运费模板 {preview.shippingTplTotal}），
               其中已导入过 {preview.productAlreadyImported} 件（默认跳过，不会翻倍）。
             </Paragraph>
+            <Paragraph style={{ margin: '8px 0' }}>
+              装修页 {preview.decorateTotal} 个（离散组件 {preview.discreteTotal} / 导航与楼层 {preview.navTotal}），
+              已导入过 {preview.decorateAlreadyImported} 个（默认跳过）；素材图片 {preview.assetPicTotal} 张 / 视频 {preview.assetVideoTotal} 个（转存到本站存储）。
+            </Paragraph>
             <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
               <div>
                 <Space align="center">
@@ -658,6 +684,19 @@ export default function SiteClone() {
                   {preview.settingsBlocks.length > 0 && (
                     <Text type="tertiary">整块覆盖：{preview.settingsBlocks.join('、')}</Text>
                   )}
+                </div>
+              </div>
+              <div>
+                <Space align="center">
+                  <Switch checked={importDecorate} onChange={setImportDecorate} />
+                  <Text strong>导入装修（新建为未发布页）</Text>
+                </Space>
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <Space align="center">
+                    <Switch checked={importAssets} onChange={setImportAssets} size="small" />
+                    <Text>导入素材并转存本站（同时改写已导入内容的源站图片地址）</Text>
+                  </Space>
+                  <Text type="tertiary">装修内的商品/分类引用按已导入映射对齐，对不齐的会置空并在报告中列出。</Text>
                 </div>
               </div>
             </div>
@@ -718,6 +757,8 @@ export default function SiteClone() {
             <Text style={{ width: 90 }}>分享域</Text>
             <Checkbox checked={formDomains.includes('products')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'products'] : p.filter((d) => d !== 'products')))}>商品</Checkbox>
             <Checkbox checked={formDomains.includes('settings')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'settings'] : p.filter((d) => d !== 'settings')))}>设置</Checkbox>
+            <Checkbox checked={formDomains.includes('decorate')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'decorate'] : p.filter((d) => d !== 'decorate')))}>装修</Checkbox>
+            <Checkbox checked={formDomains.includes('assets')} onChange={(e) => setFormDomains((p) => (e.target.checked ? [...p, 'assets'] : p.filter((d) => d !== 'assets')))}>素材</Checkbox>
           </Space>
           <Space align="center">
             <Text style={{ width: 90 }}>源店铺 ID</Text>

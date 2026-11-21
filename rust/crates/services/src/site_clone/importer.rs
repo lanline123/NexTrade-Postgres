@@ -16,8 +16,8 @@ use serde_json::{json, Map, Value};
 use nextrade_common::utils;
 use nextrade_core::models::site_clone::clone::{
     CloneCatalogVO, CloneExecuteDTO, CloneManifestVO, ClonePreviewDTO, ClonePreviewVO,
-    CloneProduct, CloneSettingsPackage, CloneSourceCred, SiteCloneImportJob, DOMAIN_PRODUCTS,
-    DOMAIN_SETTINGS, EXPORTER_VERSION,
+    CloneProduct, CloneSettingsPackage, CloneSourceCred, SiteCloneImportJob, DOMAIN_ASSETS,
+    DOMAIN_PRODUCTS, DOMAIN_SETTINGS, EXPORTER_VERSION,
 };
 use nextrade_core::models::system::config_basic::find_endpoint;
 use nextrade_core::{Error, Result};
@@ -40,9 +40,15 @@ impl SiteCloneService {
     pub async fn preview(&self, dto: &ClonePreviewDTO) -> Result<ClonePreviewVO> {
         let cred = resolve_source(&dto.source)?;
         let manifest = fetch_manifest(&cred).await?;
+        let has_assets = manifest.domains.iter().any(|d| d == DOMAIN_ASSETS);
         let mut warnings = vec![
-            "商品图片在 P1 为外链直用（源站删图/防盗链会导致图片失效），素材转存本站在 P2 提供".to_string(),
+            if has_assets {
+                "素材将转存到本站存储（服务端下载后上传），商品/装修/设置中的源站图片地址会一并改写为本站地址".to_string()
+            } else {
+                "本次密钥未授权素材域：商品图片为外链直用（源站删图/防盗链会导致图片失效）".to_string()
+            },
             "支付渠道、各类 API 密钥、站点身份与会员/订单/财务数据不在分享范围内，不会被复制".to_string(),
+            "装修页一律新建为未发布草稿、不会抢占本站首页；导入后请在装修编辑器检查后再发布".to_string(),
         ];
         let mut groups = Vec::new();
         let mut blocks: Vec<String> = Vec::new();
@@ -55,6 +61,7 @@ impl SiteCloneService {
             }
         }
         let already = self.repo().count_maps(&cred.fingerprint, "product").await?;
+        let decorate_already = self.repo().count_maps(&cred.fingerprint, "decorate").await?;
         Ok(ClonePreviewVO {
             source_label: manifest.site_name.clone(),
             source_origin: cred.origin.clone(),
@@ -66,6 +73,12 @@ impl SiteCloneService {
             category_total: manifest.category_total,
             brand_total: manifest.brand_total,
             shipping_tpl_total: manifest.shipping_tpl_total,
+            decorate_total: manifest.decorate_total,
+            discrete_total: manifest.discrete_total,
+            nav_total: manifest.nav_total,
+            asset_pic_total: manifest.asset_pic_total,
+            asset_video_total: manifest.asset_video_total,
+            decorate_already_imported: decorate_already,
             settings_groups: groups,
             settings_blocks: blocks,
             warnings,
@@ -88,6 +101,8 @@ impl SiteCloneService {
         let domains: Vec<&str> = [
             (dto.import_products.unwrap_or(true), "products"),
             (dto.import_settings.unwrap_or(true), "settings"),
+            (dto.import_decorate.unwrap_or(true), "decorate"),
+            (dto.import_assets.unwrap_or(true), "assets"),
         ]
         .into_iter()
         .filter(|(on, _)| *on)
@@ -176,6 +191,9 @@ impl SiteCloneService {
         if want_products {
             self.import_products(dto, cred, job_id, target_shop, counts, failures).await?;
         }
+        // —— P2：素材转存/重写 → 装修导入（内部按 manifest 授权域再判） ——
+        self.run_p2(dto, cred, &manifest, job_id, target_shop, counts, failures)
+            .await?;
         Ok(manifest.site_name.clone())
     }
 
@@ -544,8 +562,10 @@ impl SiteCloneService {
     // ———————————————————— 撤销 ————————————————————
 
     /// 撤销本次导入：删除该任务新建的全部商品（软删，走商品仓储既有
-    /// 语义），并清掉其商品映射。结构域（分类/品牌/运费模板）与设置不随
-    /// 撤销删除：分类等可能已被本站其他商品引用，设置回滚走快照通道。
+    /// 语义）与 P2 新建对象（装修页/离散组件/导航/楼层/移动分类导航/
+    /// 转存素材行），并清掉其映射。结构域（分类/品牌/运费模板）与设置
+    /// 不随撤销删除：分类等可能已被本站其他商品引用，设置回滚走快照
+    /// 通道；已转存的存储文件保留（可能已被其他页面引用，删行不删文件）。
     pub async fn undo_job(&self, job_id: i32) -> Result<Value> {
         let job = self
             .repo()
@@ -556,11 +576,13 @@ impl SiteCloneService {
             return Err(Error::biz(400, "该任务已撤销过"));
         }
         let maps = self.repo().list_maps_by_job(job_id).await?;
-        let product_ids: Vec<i32> = maps
-            .iter()
-            .filter(|m| m.domain == "product")
-            .map(|m| m.target_id)
-            .collect();
+        let ids_of = |domain: &str| -> Vec<i32> {
+            maps.iter()
+                .filter(|m| m.domain == domain)
+                .map(|m| m.target_id)
+                .collect()
+        };
+        let product_ids = ids_of("product");
         let deleted = if product_ids.is_empty() {
             0
         } else {
@@ -571,18 +593,42 @@ impl SiteCloneService {
                 .await?
         };
         self.repo().delete_product_maps_by_job(job_id).await?;
+
+        // —— P2 新建对象：按映射逐域删除并清映射 ——
+        let deco = self.decorate_repo();
+        let deleted_pages = deco.delete_decorate_pages(&ids_of("decorate")).await?;
+        let deleted_discrete = deco.delete_discrete(&ids_of("discrete")).await?;
+        let deleted_navs = deco.delete_navigations(&ids_of("pc_navigation")).await?;
+        let deleted_floors = deco.delete_cat_floors(&ids_of("pc_cat_floor")).await?;
+        let deleted_cat_navs = deco.delete_mobile_cat_navs(&ids_of("mobile_cat_nav")).await?;
+        for domain in ["decorate", "discrete", "pc_navigation", "pc_cat_floor", "mobile_cat_nav"] {
+            self.repo().delete_maps_by_job_domain(job_id, domain).await?;
+        }
+        let asset_maps = deco.list_asset_maps_by_job(job_id).await?;
+        let pic_ids: Vec<i32> = asset_maps
+            .iter()
+            .map(|m| m.target_pic_id)
+            .filter(|id| *id > 0)
+            .collect();
+        let deleted_pics = deco.delete_gallery_pics(&pic_ids).await?;
+        deco.delete_asset_maps_by_job(job_id).await?;
+
         self.repo().mark_job_undone(job_id).await?;
         Ok(json!({
             "jobId": job_id,
             "deletedProducts": deleted,
-            "note": "分类/品牌/运费模板等结构域对象保留（可能已被其他商品引用）；设置请用该任务的导入前快照回滚",
+            "deletedDecoratePages": deleted_pages,
+            "deletedDiscrete": deleted_discrete,
+            "deletedNavigations": deleted_navs + deleted_floors + deleted_cat_navs,
+            "deletedAssetPics": deleted_pics,
+            "note": "分类/品牌/运费模板等结构域对象保留（可能已被其他商品引用）；设置请用该任务的导入前快照回滚；已转存的存储文件保留不删",
         }))
     }
 }
 
 // ———————————————————— 源站拉取（只读） ————————————————————
 
-async fn remote_get(cred: &CloneSourceCred, path: &str) -> Result<Value> {
+pub(super) async fn remote_get(cred: &CloneSourceCred, path: &str) -> Result<Value> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
         .build()
