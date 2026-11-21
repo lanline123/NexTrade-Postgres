@@ -606,8 +606,8 @@
 
 .dec-pic-select {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
 
     .item-image-con {
         position: relative;
@@ -647,12 +647,30 @@
         }
     }
 
+    /* 重置链位置对齐原版 PicSelect（resetAlign 默认 left）与同面板颜色字段：
+       图盒左侧、垂直居中（原版 .dec-reset：高/行高 32px、右距 10px、字号 14px）。
+       原实现为纵排「图盒下 6px」，且 SinglePicField 语境另被 decorate.css 遗留规则下压（见下） */
     .dec-pic-reset {
-        margin-top: 6px;
-        font-size: 12px;
+        order: -1;
+        flex: none;
+        margin-right: 10px;
+        height: 32px;
+        line-height: 32px;
+        font-size: 14px;
+        white-space: nowrap;
         color: var(--tig-primary);
         cursor: pointer;
     }
+}
+
+/* decorate.css 遗留规则 .dec-pic-group .dec-pic-group-item .dec-pic-reset{position:relative;top:30px}
+   系旧 PicList 条目结构定位，PicSelectBox 的重置链不在 .item-image 内、被它误伤下压 30px
+   （商品混排「右侧小图」等 SinglePicField 字段，用户 2026-11-21 实测位置不对）；
+   以更高优先级在此归位——仅命中图盒（.dec-pic-select）内的重置链，PicList 条目自身口径不受影响 */
+.dec-pic-group .dec-pic-group-item .dec-pic-select .dec-pic-reset {
+    position: static;
+    top: auto;
+    height: 32px;
 }
 
 // 遗留工具类（个别模块设置仍在用）

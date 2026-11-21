@@ -25,6 +25,14 @@
     display: flex;
     align-items: center;
 }
+/* 组2 标题右侧小图（原版口径：高 20 设计 px、宽按原图宽高比）：Image heightFix 定高，
+   宿主须 width:auto 承接自然宽（taro-image-core 宿主默认宽高陷阱，同 widthFix/heightFix 清扫口径） */
+.decorate-mixed-product-display .mk-title .mpd-right-pic {
+    flex: none;
+    width: auto;
+    height: 40rpx;
+    margin-left: 4rpx;
+}
 .decorate-mixed-product-display .mk-stitle {
     height: 40rpx;
     line-height: 40rpx;

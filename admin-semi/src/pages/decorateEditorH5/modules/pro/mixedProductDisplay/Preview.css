@@ -44,9 +44,13 @@
 .mpd-item-box {
     margin: 5px -4px 0;
 }
-/* 原版 Swiper slidesPerView=2 / spaceBetween=6：横滑轨，单项约半列宽 */
+/* 原版 Swiper slidesPerView=2 / spaceBetween=6：横滑轨，slide 宽 =(轨宽-6)/2、轨内恰容 2 个。
+   原移植把 slide 宽 calc(50%-3px) 又叠了 margin 0 4px（那是原版 slide 内部 .item 的边距），
+   单项实占 50%+5px、两项溢出 10px，第二项被推出可视区只剩一条边（2026-11-21 修复）：
+   现边距改以 padding 内收（border-box 已开），gap 承接 spaceBetween=6，几何与原版一致 */
 .mpd-track {
     display: flex;
+    gap: 6px;
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -55,8 +59,9 @@
     display: none;
 }
 .mpd-item {
-    flex: 0 0 calc(50% - 3px);
-    margin: 0 4px;
+    flex: 0 0 calc((100% - 6px) / 2);
+    margin: 0;
+    padding: 0 4px;
     display: block;
     position: relative;
     overflow: hidden;

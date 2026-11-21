@@ -82,9 +82,9 @@ export default function ComboSuggestions({ module }: Props) {
     };
 
     const [height, setHeight] = useState(0);
-    // 一屏两卡的 previous/next-margin（参照 productCarousel 的 peekMargin 方案）：
-    // slide 宽 = swiper 宽 - 两侧 margin，令 slide 宽 = swiper 宽/2 时每侧 margin = swiper 宽/4
-    const [twoCardMargin, setTwoCardMargin] = useState(0);
+    // 一屏两卡走 Taro 原生 displayMultipleItems=2（旧 tig-swiper 同口径）：原异步量测
+    // previous/next-margin 方案在 Taro 4.3.2 H5 下 margin 迟到不重排、恒显 1 个
+    // （与商品混排同族缺陷，2026-11-21 一并修复），此处只保留高度量测。
     const getHeight = async () => {
         try {
             const res = await getElementRect(".combo-main", rootRef.current);
@@ -92,9 +92,6 @@ export default function ComboSuggestions({ module }: Props) {
                 const winW = Taro.getSystemInfoSync().windowWidth;
                 // uni.getWindowInfo().windowWidth → Taro.getSystemInfoSync().windowWidth
                 setHeight((res.width / 2 - designPxToDevicePx(4 + 12, winW)) * 0.63);
-                // swiper 宽 ≈ 分组宽（.combo-main 宽/2 - 8rpx）- 内层 padding 12rpx×2，margin 取其 1/4
-                const swiperWidth = res.width / 2 - designPxToDevicePx(4 + 12, winW);
-                setTwoCardMargin(Math.max(0, swiperWidth / 4));
             }
         } catch (error) {
             console.error(error);
@@ -210,11 +207,9 @@ export default function ComboSuggestions({ module }: Props) {
                                 )}
                                 {group.groupType === "product" && (
                                     // 旧 tig-swiper（:display-multiple-items="2"）一屏两卡：
-                                    // Taro H5 的 displayMultipleItems 支持有限，改按 productCarousel 的 previous/next-margin 方案——
-                                    // 两侧各留 swiper 宽/4，slide 宽即 swiper 宽/2，当前卡居中、相邻卡各露 1/4
+                                    // Taro 4.3.2 H5 原生支持 displayMultipleItems（映射 slidesPerView），按原口径直用
                                     <Swiper
-                                        previousMargin={`${twoCardMargin}px`}
-                                        nextMargin={`${twoCardMargin}px`}
+                                        displayMultipleItems={2}
                                         interval={interval}
                                         autoplay={autoplay}
                                         style={{ height: height + "px" }}

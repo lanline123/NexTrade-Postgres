@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Swiper, SwiperItem, Text, View } from "@tarojs/components";
+import { Image, Swiper, SwiperItem, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
 import { designPxToDevicePx, designPxToRpx, formatCommonStyle } from "@/components/modules";
 import { urlFormat, imageFormat, productImage } from "@/utils/format";
 import CommonCountdown from "@/pages/customPage/modules/commonCountdown/index";
-import { redirect, getElementRect, getImageInfo } from "@/utils";
+import { redirect, getElementRect } from "@/utils";
 import { getProductsList } from "@/api/common";
 import { isShowB2bPriceText } from "@/utils/b2bPrice";
 import { t } from "@/utils/i18n";
@@ -106,33 +106,13 @@ export default function MixedProductDisplay({ module }: Props) {
         }
     };
 
-    // 一屏两卡的 previous/next-margin（参照 productCarousel 的 peekMargin 方案）：
-    // slide 宽 = swiper 宽 - 两侧 margin，令 slide 宽 = swiper 宽/2 时每侧 margin = swiper 宽/4；
-    // swiper 宽即 .item-box 宽（swiper 为其块级子元素、宽 100%）
-    const [twoCardMargin, setTwoCardMargin] = useState(0);
-    const getTwoCardMargin = async () => {
-        try {
-            const res = await getElementRect(".item-box", rootRef.current);
-            if (res && res.width) {
-                setTwoCardMargin(res.width / 4);
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    };
-
-    // Vue reactive rightPicInfo → state（width 进模板）+ ref（height 仅赋值未读）
-    const [rightPicWidth, setRightPicWidth] = useState(0);
-    const rightPicHeightRef = useRef(20);
-    const getRightPicInfo = async () => {
-        try {
-            const res = await getImageInfo(imageFormat(module.rightPic.picUrl));
-            setRightPicWidth((res.width / res.height) * 20);
-            rightPicHeightRef.current = 20;
-        } catch (error) {
-            console.error(error);
-        }
-    };
+    // 一屏两卡改走 Taro 原生 displayMultipleItems=2（与旧 tig-swiper 同口径）：
+    // 此前以异步量测的 previous/next-margin 拼 slide 宽/2——margin 初值 0、Swiper 按 0
+    // 初始化后，Taro 4.3.2 H5 Swiper 对 margin prop 无 Watch/重排路径，迟到的 margin
+    // 只改容器 CSS、slide 宽不更新，画布恒只显 1 个商品（2026-11-21 用户实测）。
+    // displayMultipleItems 在 H5 核心直接映射 SwiperJS slidesPerView 并带 Watch 重置，
+    // 首屏即定型、无量测依赖。右侧小图同理弃 getImageInfo 异步量宽（初值 0 宽、
+    // 量测失败恒 0），改 Image heightFix 定高 40rpx、宽按原图比（见 index.scss）。
 
     // 对应旧 uni.onWindowResize / onUnmounted offWindowResize（nextTick → setTimeout 0）
     useEffect(() => {
@@ -140,15 +120,8 @@ export default function MixedProductDisplay({ module }: Props) {
             setWindowWidth(Taro.getSystemInfoSync().windowWidth);
             if (module.productGroups.length > 0) {
                 setTimeout(() => {
-                    void getTwoCardMargin();
-                    // margin 生效、卡片宽度变化后再量图高
-                    setTimeout(() => {
-                        void getImgHeight();
-                    }, 80);
-                }, 0);
-            }
-            if (module.rightPic) {
-                void getRightPicInfo();
+                    void getImgHeight();
+                }, 80);
             }
         };
         Taro.onWindowResize(windowResizeCallback);
@@ -166,25 +139,18 @@ export default function MixedProductDisplay({ module }: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // 对应旧 watchEffect：rightPic 变化重取尺寸；列表加载完成后延迟 350ms 量图高
+    // 列表加载完成后延迟 350ms 量图高（slidesPerView=2 首屏定型，此处量到的即最终几何）
     useEffect(() => {
-        if (module.rightPic) {
-            void getRightPicInfo();
-        }
         if (!isLoading) {
             const timer = setTimeout(() => {
-                void getTwoCardMargin();
-                // margin 生效、卡片宽度变化后再量图高
-                setTimeout(() => {
-                    void getImgHeight();
-                }, 80);
+                void getImgHeight();
             }, 350);
             return () => {
                 clearTimeout(timer);
             };
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [module.rightPic, isLoading]);
+    }, [isLoading]);
 
     return (
         <View
@@ -241,10 +207,10 @@ export default function MixedProductDisplay({ module }: Props) {
                         </View>
                         <View className="item-box">
                             {/* 旧 tig-swiper（:display-multiple-items="2"）一屏两卡：circular 固定 true、autoplay=false、dot=false；
-                                Taro H5 的 displayMultipleItems 支持有限，改按 productCarousel 的 previous/next-margin 方案（两侧各留 swiper 宽/4） */}
+                                Taro 4.3.2 H5 原生支持 displayMultipleItems（映射 slidesPerView），按原口径直用，
+                                不再走异步量测 margin 方案（margin 迟到不重排、恒显 1 个，2026-11-21 修复） */}
                             <Swiper
-                                previousMargin={`${twoCardMargin}px`}
-                                nextMargin={`${twoCardMargin}px`}
+                                displayMultipleItems={2}
                                 style={{ height: height + "px" }}
                                 circular
                                 indicatorDots={false}
@@ -305,11 +271,9 @@ export default function MixedProductDisplay({ module }: Props) {
                         >
                             <View className="mk-title line1" style={`color:${module.moduleColor.titleColor}`}>
                                 <Text className="line1">{t(module.productGroups[1].groupTitle)}</Text>
-                                <View
-                                    style={`margin-left: 4rpx; width: ${designPxToRpx(rightPicWidth)}; height: 40rpx; background: url(${imageFormat(
-                                        module.rightPic?.picUrl
-                                    )}) center top / cover no-repeat;`}
-                                />
+                                {module.rightPic?.picUrl ? (
+                                    <Image className="mpd-right-pic" src={imageFormat(module.rightPic.picUrl)} mode="heightFix" />
+                                ) : null}
                             </View>
                             <View className="mk-stitle line1" style={`color:${module.moduleColor.sellingPointColor}`}>
                                 {t(module.productGroups[1].groupSubTitle)}
@@ -317,8 +281,7 @@ export default function MixedProductDisplay({ module }: Props) {
                         </View>
                         <View className="item-box">
                             <Swiper
-                                previousMargin={`${twoCardMargin}px`}
-                                nextMargin={`${twoCardMargin}px`}
+                                displayMultipleItems={2}
                                 style={{ height: height + "px" }}
                                 circular
                                 indicatorDots={false}
