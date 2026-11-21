@@ -1289,6 +1289,7 @@
 ### 修复
 
 - **check-rust 自换货包（02aed88）起持续编译红修复（阻断全部后端部署）**：① `rust/crates/core/src/entities/mod.rs` 补一行 `pub use order::AftersalesExchangeDelivery;`——换货包新增实体 `AftersalesExchangeDelivery`（定义在 `entities/order.rs`）漏入 entities 再导出清单，infrastructure 售后仓储两处（`trade/aftersales.rs`、`trade/aftersales_client.rs`）与 services 售后服务一处经 `nextrade_core::entities::` 引用报 E0432，全仓静态核查确认这是唯一未导出的实体名，补一行即全解；② `rust/crates/infrastructure/src/db/repo/trade/order_admin.rs` 单测 `split_batch_order_sns_dedupes_trims_and_caps` 改为先 `let binding` 绑定 `split_batch_order_sns(...)` 返回的 Vec 再借用迭代（E0716 临时值在借用期间被释放，仅测试代码，按编译器建议口径）。两处均为一行级修正，生产行为零变化。同批核查换货迁移 009（`aftersales_item.exchange_sku_id` 列与侧表 `aftersales_exchange_delivery` 五列）与实体字段、两仓储 SELECT/INSERT 列清单逐项对齐，无其他同类未导出/未对齐问题。
+- **check-rust 第二层编译红修复（services 层，承接上一条）**：`rust/crates/services/src/wholesale/wholesale_client.rs` 的 `shop_wholesale_effective` 函数缺失闭合大括号一枚——批发三缺口包（0408d89）插入 C1b 展示回填小节时，章节横幅注释顶替了该函数的 `}`（批发门店开关包 202c5a9 时该函数闭合完好），导致 `impl WholesaleClientService` 未闭合（CI 报 unclosed delimiter；services 层在此前各次红运行中从未被编译到，故未现形）。修复 = 在函数体末行后补回一行 `}`，与 202c5a9 原貌逐字一致，零逻辑改动。全文件定界符配平与 rustfmt 全文解析自验通过；另对 services（307 文件）与 api（371 文件）两层做静态配平扫描，无其他真实失衡（两处扫描疑似经 rustfmt 复核为多行原始字符串造成的误报）。
 
 ## 0.0.2 续 · 2026-11-21 批次（图片列表编辑器补无图条目形态，banner 导航文字迁共享编辑器，未部署——随下一 admin 合并版上线）
 

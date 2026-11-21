@@ -746,6 +746,7 @@ impl WholesaleClientService {
             None
         };
         Ok(effective_shop_wholesale(global_enabled, shop_id, stored))
+    }
     // ————————————————————— C1b：展示用批发价（详情 / 列表回填） —————————————————————
 
     /// 买家当前生效的批发等级（总开关关 / 非批发商 → `None`）。
