@@ -91,6 +91,166 @@ function buildCustomVars(main: string, vice: string): ThemeVars {
   };
 }
 
+/* -------------------------------------------------------------------------
+ * 主题风格预览（对齐原版 themeStyle/Info.vue 右侧「预览效果」构成）
+ * 原版：三张 225×460 样机卡（商品详情 info / 购买规格 buy / 结算 check），
+ * 底图为原版 admin 打包资源 temp1/2/3.jpg（真实页面截图），着色元素以绝对
+ * 定位 + scale 变换叠加在截图对应位置上。截图未随原版源码快照提供
+ * （快照仓与本机原版树均无 src/style/images 目录），故底图以同尺寸骨架
+ * 样机（灰阶块/线示意页面结构）替代，叠加元素的坐标、缩放、字号与取色
+ * 映射与原版逐项一致；日后找回原图，把骨架层换回 background-image 即可。
+ * 取色映射（原版实证）：价格/配送文案/商品介绍/积分/余额 = --price；
+ * 促销签与「加入购物车」= --vice-bg/--vice-text；角标与主按钮 = --main-bg/
+ * --main-text；规格签 = 文字 --general + 描边 --main-bg + 底 #f7f8fa；
+ * 「自营」签 = #fff 字 + --main-bg 底；库存「充足」恒 #39bf3e（原版写死）。
+ * 示例数值与原版同：价格 ¥395.00（priceFormat(395)）、积分 6666、
+ * 余额 29999、结算合计 ¥231.10（priceFormat(231.1)）。
+ * ------------------------------------------------------------------------- */
+function ThemePreview({ vars }: { vars: ThemeVars }) {
+  const { t } = useI18n();
+  const price: React.CSSProperties = { color: vars['--price'] };
+  const main: React.CSSProperties = { color: vars['--main-text'], background: vars['--main-bg'] };
+  const vice: React.CSSProperties = { color: vars['--vice-text'], background: vars['--vice-bg'] };
+  const card: React.CSSProperties = {
+    width: 225,
+    height: 460,
+    border: '1px solid #e0e0e0',
+    position: 'relative',
+    overflow: 'hidden',
+    background: '#fff',
+    flexShrink: 0,
+  };
+  const block: React.CSSProperties = { position: 'absolute', background: '#eef0f3' };
+  const line = (width: number): React.CSSProperties => ({ position: 'absolute', height: 9, width, background: '#eceef1' });
+  const overlay: React.CSSProperties = { position: 'absolute', display: 'flex', whiteSpace: 'nowrap' };
+  const text: React.CSSProperties = { fontSize: 12 };
+  const specChip: React.CSSProperties = {
+    ...text,
+    border: `0.78px solid ${vars['--main-bg']}`,
+    color: vars['--general'],
+    background: '#f7f8fa',
+    padding: '5.45px 9.35px',
+    borderRadius: 3.12,
+    fontWeight: 500,
+  };
+  const pillBar = (right: number): React.CSSProperties => ({
+    ...overlay,
+    bottom: 4,
+    right,
+    borderRadius: 27,
+    overflow: 'hidden',
+    transform: 'scale(0.6667)',
+    transformOrigin: 'bottom right',
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+      {/* 卡一 · 商品详情（原版 .card.info / temp1） */}
+      <div style={card}>
+        <div style={{ ...block, top: 0, left: 0, right: 0, height: 240, background: '#f2f3f5' }} />
+        <div style={{ ...block, top: 84, left: 77, width: 72, height: 72, background: '#e2e5ea' }} />
+        <div style={{ ...line(170), left: 12, top: 274 }} />
+        <div style={{ ...line(120), left: 12, top: 292 }} />
+        <div style={{ ...line(150), left: 12, top: 318 }} />
+        <div style={{ ...block, left: 14, top: 350, width: 12, height: 12, background: '#e8eaed' }} />
+        <div style={{ position: 'absolute', left: 12, right: 12, top: 408, height: 1, background: '#f0f0f0' }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 40, background: '#fff', borderTop: '1px solid #f0f0f0' }} />
+        <div style={{ ...block, left: 14, bottom: 11, width: 18, height: 18, borderRadius: '50%', background: '#fff', border: '1px solid #e8eaed' }} />
+        <div style={{ ...block, left: 44, bottom: 11, width: 18, height: 18, borderRadius: '50%', background: '#fff', border: '1px solid #e8eaed' }} />
+
+        <div style={{ ...overlay, left: 9, top: 245, transform: 'scale(0.8333)', transformOrigin: 'top left' }}>
+          <span style={{ ...text, ...price, fontWeight: 700 }}>¥395.00</span>
+        </div>
+        <div style={{ ...overlay, left: 40, top: 350, transform: 'scale(0.5)', transformOrigin: 'top left' }}>
+          <span style={{ ...text, ...price, fontWeight: 500 }}>{t('由本系统配送并提供售后服务')}</span>
+        </div>
+        <div style={{ ...overlay, left: 32, top: 385, gap: 8, transform: 'scale(0.5)', transformOrigin: 'top left' }}>
+          <span style={{ ...text, ...vice, padding: '4px 12px' }}>{t('9折')}</span>
+          <span style={{ ...text, ...vice, padding: '4px 12px' }}>{t('满100-10')}</span>
+          <span style={{ ...text, ...vice, padding: '4px 12px' }}>{t('满300-40')}</span>
+        </div>
+        <div style={{ ...overlay, left: 40, top: 418, transform: 'scale(0.625)', transformOrigin: 'top left' }}>
+          <span style={{ ...text, ...price, fontWeight: 500 }}>{t('商品介绍')}</span>
+        </div>
+        <div style={{ ...overlay, left: 54, top: 433, transform: 'scale(0.5833)', transformOrigin: 'top left' }}>
+          <span style={{ ...text, ...main, padding: '0 1.71px', borderRadius: '50%', fontWeight: 500 }}>3</span>
+        </div>
+        <div style={pillBar(4)}>
+          <span style={{ ...text, ...vice, padding: '9px 30px' }}>{t('加入购物车')}</span>
+          <span style={{ ...text, ...main, padding: '9px 30px' }}>{t('立即购买')}</span>
+        </div>
+      </div>
+
+      {/* 卡二 · 购买规格（原版 .card.buy / temp2） */}
+      <div style={card}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 158, background: '#e9ebef' }} />
+        <div style={{ ...block, top: 50, left: 88, width: 48, height: 48, background: '#dde1e7' }} />
+        <div style={{ position: 'absolute', top: 158, left: 0, right: 0, bottom: 0, background: '#fff', borderTop: '1px solid #eeeeee' }} />
+        <div style={{ ...block, left: 10, top: 168, width: 48, height: 48 }} />
+        <div style={{ ...line(52), left: 12, top: 244 }} />
+        <div style={{ ...line(40), left: 12, top: 271 }} />
+        <div style={{ ...line(52), left: 12, top: 336 }} />
+        <div style={{ ...line(40), left: 12, top: 402 }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 40, background: '#fff', borderTop: '1px solid #f0f0f0' }} />
+
+        <div style={{ ...overlay, left: 66, top: 176, transform: 'scale(0.8333)', transformOrigin: 'top left' }}>
+          <span style={{ ...text, ...price, fontWeight: 700 }}>¥395.00</span>
+        </div>
+        <div style={{ ...overlay, left: 76, top: 267, transform: 'scale(0.6417)', transformOrigin: 'top left' }}>
+          <span style={specChip}>{t('金色')}</span>
+        </div>
+        <div style={{ ...overlay, left: 9, top: 360.5, transform: 'scale(0.6417)', transformOrigin: 'top left' }}>
+          <span style={specChip}>XS</span>
+        </div>
+        <div style={{ ...overlay, right: 5, top: 398, transform: 'scale(0.5833)', transformOrigin: 'top right' }}>
+          <span style={{ ...text, color: '#39bf3e', fontWeight: 700 }}>{t('充足')}</span>
+        </div>
+        <div style={pillBar(2)}>
+          <span style={{ ...text, ...vice, padding: '9px 55.5px' }}>{t('加入购物车')}</span>
+          <span style={{ ...text, ...main, padding: '9px 55.5px' }}>{t('立即购买')}</span>
+        </div>
+      </div>
+
+      {/* 卡三 · 结算（原版 .card.check / temp3） */}
+      <div style={card}>
+        <div style={{ ...line(90), left: 12, top: 18 }} />
+        <div style={{ ...line(180), left: 12, top: 40 }} />
+        <div style={{ ...line(150), left: 12, top: 58 }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 84, height: 1, background: '#f0f0f0' }} />
+        <div style={{ ...block, left: 10, top: 96, width: 56, height: 56 }} />
+        <div style={{ ...line(120), left: 76, top: 100 }} />
+        <div style={{ ...line(84), left: 76, top: 118 }} />
+        <div style={{ ...line(60), left: 130, top: 158 }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 196, height: 1, background: '#f0f0f0' }} />
+        <div style={{ ...line(44), left: 16, top: 253 }} />
+        <div style={{ ...line(44), left: 16, top: 276 }} />
+        <div style={{ ...line(150), left: 16, top: 308 }} />
+        <div style={{ ...line(120), left: 16, top: 332 }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 40, background: '#fff', borderTop: '1px solid #f0f0f0' }} />
+
+        <div style={{ ...overlay, left: 5, top: 102, transform: 'scale(0.5833)', transformOrigin: 'top left' }}>
+          <span style={{ ...text, color: '#fff', background: vars['--main-bg'], padding: '1.71px 3.43px', borderRadius: 3.43 }}>{t('自营')}</span>
+        </div>
+        <div style={{ ...overlay, left: 58, top: 155.5, transform: 'scale(0.6667)', transformOrigin: 'top left' }}>
+          <span style={{ ...text, ...price }}>¥395.00</span>
+        </div>
+        <div style={{ ...overlay, left: 74, top: 254.5, transform: 'scale(0.6667)', transformOrigin: 'top left' }}>
+          <span style={{ ...text, ...price }}>6666</span>
+        </div>
+        <div style={{ ...overlay, left: 74, top: 277.5, transform: 'scale(0.6667)', transformOrigin: 'top left' }}>
+          <span style={{ ...text, ...price }}>29999</span>
+        </div>
+        <div style={{ ...overlay, left: 6, bottom: 6, transform: 'scale(0.8333)', transformOrigin: 'bottom left' }}>
+          <span style={{ ...text, ...price, fontWeight: 700 }}>¥231.10</span>
+        </div>
+        <div style={{ ...overlay, right: 8, bottom: 3, borderRadius: 27, overflow: 'hidden', transform: 'scale(0.6667)', transformOrigin: 'bottom right' }}>
+          <span style={{ ...text, ...main, padding: '9px 30px' }}>{t('提交')}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ThemeStyle() {
   const { t } = useI18n();
   const [mode, setMode] = useState<1 | 2>(1);
@@ -169,18 +329,11 @@ export function ThemeStyle() {
     }
   };
 
-  const mainStyle: React.CSSProperties = {
-    color: vars['--main-text'],
-    background: vars['--main-bg'],
-  };
-  const priceStyle: React.CSSProperties = { color: vars['--price'] };
-  const viceStyle: React.CSSProperties = { color: vars['--vice-text'], background: vars['--vice-bg'] };
-
   return (
     <div style={{ padding: 20 }}>
       <Card title={t('主题风格')} loading={loading}>
         <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
-          <div style={{ width: 520 }}>
+          <div style={{ width: 520, borderRight: '1px solid #e0e0e0', paddingRight: 32 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <b>{t('配色方案')}</b>
               <RadioGroup value={mode} onChange={(e) => setMode(Number(e.target.value) as 1 | 2)}>
@@ -190,7 +343,7 @@ export function ThemeStyle() {
             </div>
 
             {mode === 1 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {THEME_PALETTES.map((item) => {
                   const p = item as Record<string, any>;
                   const active = themeId === p.themeId;
@@ -200,14 +353,14 @@ export function ThemeStyle() {
                       onClick={() => pickPalette(p)}
                       style={{
                         cursor: 'pointer',
-                        border: `2px solid ${active ? '#1456f0' : 'transparent'}`,
-                        borderRadius: 6,
-                        overflow: 'hidden',
-                        width: 72,
+                        display: 'flex',
+                        boxSizing: 'border-box',
+                        padding: 2,
+                        border: `1px solid ${active ? '#0080f9' : 'transparent'}`,
                       }}
                     >
-                      <div style={{ height: 24, background: p['--main-bg'] }} />
-                      <div style={{ height: 24, background: p['--vice-bg'] }} />
+                      <div style={{ width: 24, height: 24, background: p['--main-bg'] }} />
+                      <div style={{ width: 24, height: 24, background: p['--vice-bg'] }} />
                     </div>
                   );
                 })}
@@ -233,50 +386,7 @@ export function ThemeStyle() {
 
           <div style={{ flex: 1, minWidth: 360 }}>
             <h3 style={{ margin: '0 0 12px' }}>{t('预览效果')}</h3>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              <div style={{ width: 210, border: '1px solid #eee', borderRadius: 8, padding: 14, background: '#fff' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, ...priceStyle }}>¥395.00</div>
-                <div style={{ color: '#999', fontSize: 12, margin: '8px 0' }}>{t('由本系统配送并提供售后服务')}</div>
-                <Space>
-                  <span style={{ ...viceStyle, padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{t('9折')}</span>
-                  <span style={{ ...viceStyle, padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{t('满100-10')}</span>
-                  <span style={{ ...viceStyle, padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{t('满300-40')}</span>
-                </Space>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
-                  <span style={{ ...priceStyle, fontSize: 13 }}>{t('商品介绍')}</span>
-                  <span
-                    style={{
-                      ...mainStyle,
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 12,
-                    }}
-                  >
-                    3
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-                  <span style={{ ...viceStyle, flex: 1, textAlign: 'center', padding: '6px 0', borderRadius: 4 }}>{t('加入购物车')}</span>
-                  <span style={{ ...mainStyle, flex: 1, textAlign: 'center', padding: '6px 0', borderRadius: 4 }}>{t('立即购买')}</span>
-                </div>
-              </div>
-              <div style={{ width: 210, border: '1px solid #eee', borderRadius: 8, padding: 14, background: '#fff' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, ...priceStyle }}>¥231.10</div>
-                <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}>
-                  <span style={{ border: `1px solid ${vars['--main-bg']}`, color: vars['--general'], padding: '2px 10px', borderRadius: 4, fontSize: 12 }}>{t('金色')}</span>
-                  <span style={{ border: `1px solid ${vars['--main-bg']}`, color: vars['--general'], padding: '2px 10px', borderRadius: 4, fontSize: 12 }}>XS</span>
-                </div>
-                <div style={{ color: '#39bf3e', marginBottom: 10 }}>{t('充足')}</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <span style={{ ...viceStyle, flex: 1, textAlign: 'center', padding: '6px 0', borderRadius: 4 }}>{t('加入购物车')}</span>
-                  <span style={{ ...mainStyle, flex: 1, textAlign: 'center', padding: '6px 0', borderRadius: 4 }}>{t('立即购买')}</span>
-                </div>
-              </div>
-            </div>
+            <ThemePreview vars={vars} />
           </div>
         </div>
       </Card>
