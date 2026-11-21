@@ -68,13 +68,26 @@ fn service(state: &AdminState) -> ProxyHallService {
     ProxyHallService::new(state.repos.clone())
 }
 
+/// 池列表附加查询参数（与 PageQuery 分开抽取，互不影响）。
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct HallPoolSortQuery {
+    /// `distance` = 按与本店距离升序（无坐标快照的单置后）；
+    /// 缺省/其他值 = 截止优先（现行口径）。
+    sort: Option<String>,
+}
+
 /// `GET /adminapi/proxyShopping/hall/pool`：待接单池。
 async fn pool(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
     Query(query): Query<PageQuery>,
+    Query(sort_query): Query<HallPoolSortQuery>,
 ) -> ApiResult<PageResult<HallOrderVO>> {
-    ok(service(&state).pool(&query, &ctx_of(&auth)).await?)
+    let sort_by_distance = sort_query.sort.as_deref() == Some("distance");
+    ok(service(&state)
+        .pool(&query, &ctx_of(&auth), sort_by_distance)
+        .await?)
 }
 
 /// `GET /adminapi/proxyShopping/hall/mine`：我的接单。

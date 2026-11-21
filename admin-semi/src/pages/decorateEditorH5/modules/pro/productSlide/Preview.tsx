@@ -15,6 +15,8 @@ import { mergeDefaultModule, cloneDeep, defaultProductSlide } from "../../../con
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
+import { resolveFlatBtnColors } from "../../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../../decoratePc/previews/shared/PcBuyButton";
 
 interface Props {
     data: Record<string, any>;
@@ -84,7 +86,10 @@ export default function ProductSlidePreview({ data }: Props) {
             (ratioPad ? `object-fit:${m.productPicFillType || "cover"};position:absolute;inset:0;width:100%;height:100%;display:block;` : "width:100%;height:auto;display:block;")
     );
     const priceStyle = cssText(`color:${m.productPriceColor || "#FFFFFF"};font-size:${m.priceFontSize ?? 15}px;font-weight:${Number(m.priceBold) === 0 ? 400 : 700};`);
-    const buyBtnStyleObj = cssText(`background-image:linear-gradient(to right, ${m.buyBtnGradientStart || "#FF6FA8"}, ${m.buyBtnGradientEnd || "#FF3B8B"});color:${m.buyBtnTextColor || "#FFFFFF"};`);
+    // 按钮三色：扁平色族跟随解析（三期，与 H5 渲染同口径）
+    const globalBuyStyle = usePcGlobalBuyStyle();
+    const flatBtn = resolveFlatBtnColors(m, globalBuyStyle, { gradientStart: "#FF6FA8", gradientEnd: "#FF3B8B", textColor: "#FFFFFF" });
+    const buyBtnStyleObj = cssText(`background-image:linear-gradient(to right, ${flatBtn.gradientStart}, ${flatBtn.gradientEnd});color:${flatBtn.textColor};`);
 
     const getSales = (item: Record<string, any>) => Number(item.salesVolume ?? item.virtualSales ?? item.salesCount ?? 0);
     const getBrief = (item: Record<string, any>) => item.brief || item.sellingPoint || item.productBrief || "";

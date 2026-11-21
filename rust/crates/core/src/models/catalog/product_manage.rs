@@ -1002,7 +1002,9 @@ pub struct ClientProductDetailVO {
     pub rank_detail: Option<serde_json::Value>,
     /// 未迁移：秒杀详情（依赖 `seckill` 域装配）
     pub seckill_detail: Vec<serde_json::Value>,
-    /// 未迁移：拼团详情（依赖拼团域）
+    /// 拼团详情（商品挂进行中拼团活动时由 client_detail 回填
+    /// GrouponPromotionService::get_groupon_info 的结果，无活动为 None；
+    /// H5 规格弹窗拼团入口与详情页拼团区消费此字段）
     pub groupon_detail: Option<serde_json::Value>,
     pub service_list: Vec<ServicesVO>,
     /// 默认勾选属性（默认规格 SKU 的 `sku_data` 展开为 `name:value` 串，

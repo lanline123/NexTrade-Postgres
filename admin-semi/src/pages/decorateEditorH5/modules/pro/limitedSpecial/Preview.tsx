@@ -13,6 +13,8 @@ import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule } from "../../../contract/sharedDefaults";
 import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
+import { resolveFlatBtnColors } from "../../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../../decoratePc/previews/shared/PcBuyButton";
 import { limitedSpecialDefaults } from "./index";
 import "./Preview.css";
 
@@ -113,9 +115,12 @@ export default function LimitedSpecialPreview({ data }: { data: Record<string, a
         `font-size:${module.priceFontSize ?? 13}px;`,
         `font-weight:${Number(module.priceBold) === 0 ? 400 : 700};`
     );
+    // 按钮三色：扁平色族跟随解析（三期，与 H5 渲染同口径）
+    const globalBuyStyle = usePcGlobalBuyStyle();
+    const flatBtn = resolveFlatBtnColors(module, globalBuyStyle, { gradientStart: "#FF3B8B", gradientEnd: "#FF7AB0", textColor: "#FFFFFF" });
     const buyBtnStyleObj = cssText(
-        `background-image:linear-gradient(to right, ${module.buyBtnGradientStart || "#FF3B8B"}, ${module.buyBtnGradientEnd || "#FF7AB0"});`,
-        `color:${module.buyBtnTextColor || "#FFFFFF"};`
+        `background-image:linear-gradient(to right, ${flatBtn.gradientStart}, ${flatBtn.gradientEnd});`,
+        `color:${flatBtn.textColor};`
     );
 
     const getSales = (item: any) => Number(item.salesVolume ?? item.virtualSales ?? item.salesCount ?? 0);

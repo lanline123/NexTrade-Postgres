@@ -179,3 +179,43 @@ export function resolveH5BuyBtnStyle(raw: unknown, global: BuyStyleConfig | null
     }
     return { style: Number.isFinite(n) ? n : undefined, iconColor: "" };
 }
+
+/** 扁平色族（C 族）按钮三色的解析结果（CSS 可直接用的最终值）。 */
+export interface FlatBtnColors {
+    gradientStart: string;
+    gradientEnd: string;
+    textColor: string;
+}
+
+/**
+ * 扁平色族跟随解析（三期；C 族 = 商品滑动/限时特惠/新人专享，按钮
+ * 色以模块根扁平字段 buyBtnGradientStart/End + buyBtnTextColor 存）：
+ * 模块开启 buyBtnFollowGlobal=1 时，渐变起止与文字色取全局
+ * objStyle 的 gradientColorA/B 与 textColor（评估 §5.3/§5.8 定：
+ * 起→A、止→B 无损对应；buyBtnTextColor 与 objStyle.textColor
+ * 同义）。全局渐变为空串 = 跟随主题，渲染为 var(--general)
+ * （铁律：渐变默认 "" 跟随主题，严禁 #333）。渐变方向不映射
+ * （C 族方向由各模块 CSS 固定）；数字型 buyBtnStyle 不在映射
+ * 内、恒归模块自管。未开启跟随时模块值原样（空/缺失回落模块
+ * 出厂默认 dflt，与各模块现行 || 口径一致）。读时解析、从不
+ * 回写模块数据；切回自定义即恢复模块原值。
+ */
+export function resolveFlatBtnColors(
+    data: Record<string, any> | null | undefined,
+    global: BuyStyleConfig | null | undefined,
+    dflt: FlatBtnColors
+): FlatBtnColors {
+    if (Number(data?.buyBtnFollowGlobal) === 1) {
+        const obj = sanitizeObjStyle(global?.objStyle);
+        return {
+            gradientStart: obj.gradientColorA === "" ? "var(--general)" : obj.gradientColorA,
+            gradientEnd: obj.gradientColorB === "" ? "var(--general)" : obj.gradientColorB,
+            textColor: obj.textColor
+        };
+    }
+    return {
+        gradientStart: data?.buyBtnGradientStart || dflt.gradientStart,
+        gradientEnd: data?.buyBtnGradientEnd || dflt.gradientEnd,
+        textColor: data?.buyBtnTextColor || dflt.textColor
+    };
+}

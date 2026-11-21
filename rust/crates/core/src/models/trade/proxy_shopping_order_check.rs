@@ -124,6 +124,11 @@ pub struct OrderCheckParam {
     /// 启用幂等（旧端行为不变）。口径见
     /// `models::trade::order::normalize_idempotency_key`。
     pub idempotency_key: Option<String>,
+    /// 履约方式（我方新增，接单大厅二期）：0/空 = 直选门店（一期口径）；
+    /// 1 = 接单大厅——提交后订单进待接单池、履约店由抢单/派单产生，
+    /// 与 fulfill_shop_id 互斥（大厅模式下 fulfill_shop_id 被忽略）。
+    /// 仅 submit 消费；计价按订单店口径（不做履约价覆盖）。
+    pub fulfill_mode: Option<i32>,
     /// 产品预约时间 ID
     pub product_reservation_time_id: Option<i32>,
     /// 预约日期

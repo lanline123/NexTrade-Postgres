@@ -206,6 +206,8 @@ export interface NewcomerComboType {
     buyBtnGradientStart?: string;
     buyBtnGradientEnd?: string;
     buyBtnTextColor?: string;
+    /** 按钮颜色跟随全局 buyStyle（三期扁平色族开关，1=跟随） */
+    buyBtnFollowGlobal?: number;
 
     couponBgGradientStart?: string;
     couponBgGradientEnd?: string;
@@ -309,6 +311,8 @@ export interface LimitedSpecialType {
     buyBtnGradientStart?: string;
     buyBtnGradientEnd?: string;
     buyBtnTextColor?: string;
+    /** 按钮颜色跟随全局 buyStyle（三期扁平色族开关，1=跟随） */
+    buyBtnFollowGlobal?: number;
     frame?: ModuleFrameType;
 }
 
@@ -348,6 +352,8 @@ export interface ProductSlideType {
     productSalesColor?: string;
     badgeColor?: string;
     buyBtnTextColor?: string;
+    /** 按钮颜色跟随全局 buyStyle（三期扁平色族开关，1=跟随） */
+    buyBtnFollowGlobal?: number;
     buyBtnGradientStart?: string;
     buyBtnGradientEnd?: string;
     innerBgColor?: string;

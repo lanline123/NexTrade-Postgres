@@ -25,6 +25,9 @@ import {
 } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
 import ProductsSourceField from "../../../shared/ProductsSourceField";
+import BuyBtnFlatFollowRow from "../../../shared/BuyBtnFlatFollowRow";
+import { sanitizeObjStyle } from "../../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../../decoratePc/previews/shared/PcBuyButton";
 import { defaultProductSlide } from "../../../contract/sharedDefaults";
 
 type Patch = Record<string, any>;
@@ -87,6 +90,21 @@ export default function ProductSlideSettings({ data, onChange }: Props) {
     };
     const frame = data?.frame && typeof data.frame === "object" ? data.frame : {};
     const frameProps: Props = { data: frame, onChange: (patch: Patch) => onChange({ frame: { ...frame, ...patch } }) };
+    // 扁平色族跟随（三期）：开启跟随后按钮渐变/文字色显示全局当前
+    // 值并置灰只读（显示值取全局 objStyle 的 A/B 与 textColor；
+    // 写回仍走原 onChange 锚定模块对象、从不落全局值）。
+    const globalBuyStyle = usePcGlobalBuyStyle();
+    const btnFollowing = Number(data?.buyBtnFollowGlobal) === 1;
+    const globalObjStyle = sanitizeObjStyle(globalBuyStyle?.objStyle);
+    const btnColorData = btnFollowing
+        ? {
+              ...data,
+              buyBtnGradientStart: globalObjStyle.gradientColorA,
+              buyBtnGradientEnd: globalObjStyle.gradientColorB,
+              buyBtnTextColor: globalObjStyle.textColor
+          }
+        : data;
+    const btnGreyed = btnFollowing ? { opacity: 0.55, pointerEvents: "none" as const } : undefined;
 
     return (
         <div className="h5-editor-settings-body">
@@ -250,16 +268,25 @@ export default function ProductSlideSettings({ data, onChange }: Props) {
                         </SettingRow>
                     </SettingGroup>
                     <DecDivider />
-                    {COLOR_ROWS.map((row) => (
-                        <ColorField key={row.key} data={data} onChange={onChange} field={row.key} label={row.label} resetValue={row.reset} />
-                    ))}
+                    {COLOR_ROWS.map((row) =>
+                        row.key === "buyBtnTextColor" ? (
+                            <div key={row.key} style={btnGreyed}>
+                                <ColorField data={btnColorData} onChange={onChange} field={row.key} label={row.label} resetValue={row.reset} />
+                            </div>
+                        ) : (
+                            <ColorField key={row.key} data={data} onChange={onChange} field={row.key} label={row.label} resetValue={row.reset} />
+                        )
+                    )}
+                    <BuyBtnFlatFollowRow data={data} onChange={onChange} />
                     <SettingRow label="按钮背景渐变">
-                        <GradientPair
-                            start={data?.buyBtnGradientStart ?? defaultProductSlide.buyBtnGradientStart}
-                            end={data?.buyBtnGradientEnd ?? defaultProductSlide.buyBtnGradientEnd}
-                            onStart={(v) => onChange({ buyBtnGradientStart: v })}
-                            onEnd={(v) => onChange({ buyBtnGradientEnd: v })}
-                        />
+                        <span style={btnGreyed}>
+                            <GradientPair
+                                start={btnColorData?.buyBtnGradientStart ?? defaultProductSlide.buyBtnGradientStart}
+                                end={btnColorData?.buyBtnGradientEnd ?? defaultProductSlide.buyBtnGradientEnd}
+                                onStart={(v) => onChange({ buyBtnGradientStart: v })}
+                                onEnd={(v) => onChange({ buyBtnGradientEnd: v })}
+                            />
+                        </span>
                     </SettingRow>
                     <DecDivider />
                     <SettingGroup title="模块设置">

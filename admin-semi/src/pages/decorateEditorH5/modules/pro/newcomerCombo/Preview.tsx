@@ -18,6 +18,8 @@ import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { useCouponInfoMap } from "../../../shared/useCouponInfoMap";
 import { mergeDefaultModule } from "../../../contract/sharedDefaults";
 import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
+import { resolveFlatBtnColors } from "../../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../../decoratePc/previews/shared/PcBuyButton";
 import { newcomerComboDefaults } from "./index";
 import "./Preview.css";
 
@@ -140,9 +142,12 @@ export default function NewcomerComboPreview({ data }: { data: Record<string, an
         `background-color:${pillBg === "#FFF1F1" ? "#FFEAD8" : pillBg};`,
         `color:${module.couponBtnTextColor || "#FF3630"};`
     );
+    // 按钮三色：扁平色族跟随解析（三期，与 H5 渲染同口径）
+    const globalBuyStyle = usePcGlobalBuyStyle();
+    const flatBtn = resolveFlatBtnColors(module, globalBuyStyle, { gradientStart: "#4CD964", gradientEnd: "#2EBA4F", textColor: "#FFFFFF" });
     const buyBtnStyleObj = cssText(
-        `background-image:linear-gradient(to right, ${module.buyBtnGradientStart || "#4CD964"}, ${module.buyBtnGradientEnd || "#2EBA4F"});`,
-        `color:${module.buyBtnTextColor || "#FFFFFF"};`
+        `background-image:linear-gradient(to right, ${flatBtn.gradientStart}, ${flatBtn.gradientEnd});`,
+        `color:${flatBtn.textColor};`
     );
     const couponItemStyle = ((): React.CSSProperties => {
         const n = module.couponPerRow || 3;

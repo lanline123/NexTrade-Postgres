@@ -5,6 +5,8 @@ import { designPxToRpx } from "@/components/modules";
 import { imageFormat, urlFormat, productImage } from "@/utils/format";
 import { redirect } from "@/utils";
 import { getDecorateProducts } from "@/components/modules/useDecorateProducts";
+import { useConfigStore } from "@/store/config";
+import { resolveFlatBtnColors } from "@/utils/buyStyle";
 import { t } from "@/utils/i18n";
 import FormatPrice from "@/components/format-price/FormatPrice";
 
@@ -164,12 +166,17 @@ export default function ProductSlide({ module, shopId = -1 }: Props) {
         [module.productMarketPriceColor]
     );
 
+    // 按钮三色：扁平色族跟随解析（三期）——开启 buyBtnFollowGlobal
+    // 时取全局 objStyle（渐变空 = 主题色哨兵），否则模块值/出厂默认。
+    const globalBuyStyle = useConfigStore((s) => s.buyStyle);
     const buyBtnStyle = useMemo(() => {
-        const a = module.buyBtnGradientStart || "#FF6FA8";
-        const b = module.buyBtnGradientEnd || "#FF3B8B";
-        const color = module.buyBtnTextColor || "#FFFFFF";
-        return `background-image:linear-gradient(to right, ${a}, ${b});color:${color};`;
-    }, [module.buyBtnGradientStart, module.buyBtnGradientEnd, module.buyBtnTextColor]);
+        const c = resolveFlatBtnColors(module, globalBuyStyle, {
+            gradientStart: "#FF6FA8",
+            gradientEnd: "#FF3B8B",
+            textColor: "#FFFFFF"
+        });
+        return `background-image:linear-gradient(to right, ${c.gradientStart}, ${c.gradientEnd});color:${c.textColor};`;
+    }, [module, globalBuyStyle]);
 
     const [productList, setProductList] = useState<any[]>([]);
     const _getProductList = async () => {

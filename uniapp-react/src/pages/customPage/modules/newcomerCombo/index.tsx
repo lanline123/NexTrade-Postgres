@@ -6,6 +6,8 @@ import { urlFormat, productImage } from "@/utils/format";
 import { getProductsList } from "@/api/common";
 import { redirect } from "@/utils";
 import { getCouponListByIds } from "@/api/coupon/coupon";
+import { useConfigStore } from "@/store/config";
+import { resolveFlatBtnColors } from "@/utils/buyStyle";
 import { t } from "@/utils/i18n";
 
 import "./index.scss";
@@ -75,9 +77,23 @@ export default function NewcomerCombo({ module, shopId = -1 }: Props) {
     const productBriefGradientStart = useMemo(() => module.productBriefGradientStart ?? "#FF3630", [module.productBriefGradientStart]);
     const productBriefGradientEnd = useMemo(() => module.productBriefGradientEnd ?? "#FF7A45", [module.productBriefGradientEnd]);
     const productBriefTextColor = useMemo(() => module.productBriefTextColor ?? "#FFFFFF", [module.productBriefTextColor]);
-    const buyBtnGradientStart = useMemo(() => module.buyBtnGradientStart ?? "#4CD964", [module.buyBtnGradientStart]);
-    const buyBtnGradientEnd = useMemo(() => module.buyBtnGradientEnd ?? "#2EBA4F", [module.buyBtnGradientEnd]);
-    const buyBtnTextColor = useMemo(() => module.buyBtnTextColor ?? "#FFFFFF", [module.buyBtnTextColor]);
+    // 按钮三色：扁平色族跟随解析（三期）——开启 buyBtnFollowGlobal
+    // 时取全局 objStyle（渐变空 = 主题色哨兵），否则模块值/出厂默认。
+    // 注：原实现对空串用 ?? 保留（会渲染出空渐变端），此处统一为
+    // 与兄弟模块一致的 || 口径（空串回落默认），见小结。
+    const globalBuyStyle = useConfigStore((s) => s.buyStyle);
+    const flatBtnColors = useMemo(
+        () =>
+            resolveFlatBtnColors(module, globalBuyStyle, {
+                gradientStart: "#4CD964",
+                gradientEnd: "#2EBA4F",
+                textColor: "#FFFFFF"
+            }),
+        [module, globalBuyStyle]
+    );
+    const buyBtnGradientStart = flatBtnColors.gradientStart;
+    const buyBtnGradientEnd = flatBtnColors.gradientEnd;
+    const buyBtnTextColor = flatBtnColors.textColor;
 
     const couponBgGradientStart = useMemo(() => module.couponBgGradientStart ?? "#FFF1F1", [module.couponBgGradientStart]);
     const couponBgGradientEnd = useMemo(() => module.couponBgGradientEnd ?? "#FFFFFF", [module.couponBgGradientEnd]);

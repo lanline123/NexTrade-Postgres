@@ -37,6 +37,9 @@
 
 use std::sync::Arc;
 
+use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
+
 use nextrade_core::models::trade::proxy_hall::{
     HallActionVO, HallAssignParam, HallOrderActionParam, HallOrderVO, HallRejectParam,
     ASSIGN_TYPE_ASSIGN, ASSIGN_TYPE_FALLBACK, ASSIGN_TYPE_GRAB, HALL_MSG_TYPE,
@@ -142,7 +145,38 @@ impl ProxyHallService {
         Ok(rows.into_iter().map(|r| r.shop_id).collect())
     }
 
-    fn row_to_vo(row: HallOrderRow) -> HallOrderVO {
+    /// 查看门店坐标（体系行 shop_longitude/latitude，双全才算有）：
+    /// 池距离展示/排序与「我的接单」距离的基准点。门店未维护坐标
+    /// 时距离恒空（前端显示「-」，不造数）。
+    async fn viewer_coords(&self, shop_id: i32) -> Result<Option<(Decimal, Decimal)>> {
+        if shop_id <= 0 {
+            return Ok(None);
+        }
+        let Some(row) = self.check_repo().find_shop_family_row(shop_id).await? else {
+            return Ok(None);
+        };
+        Ok(match (row.shop_longitude, row.shop_latitude) {
+            (Some(lng), Some(lat)) => Some((lng, lat)),
+            _ => None,
+        })
+    }
+
+    fn row_to_vo(row: HallOrderRow, viewer_coords: Option<(Decimal, Decimal)>) -> HallOrderVO {
+        // 池距离（米）：查看门店坐标与收货快照（迁移 041）双全时按
+        // 球面距离计算并取整；任一缺失恒 None——存量单无快照、门店
+        // 无坐标时距离为空属正常口径，不回填造数。
+        let distance_meters = match (
+            viewer_coords,
+            row.receiver_longitude,
+            row.receiver_latitude,
+        ) {
+            (Some((lng1, lat1)), Some(lng2), Some(lat2)) => {
+                crate::trade::proxy_shopping_product::haversine_meters(lng1, lat1, lng2, lat2)
+                    .round_dp(0)
+                    .to_i64()
+            }
+            _ => None,
+        };
         HallOrderVO {
             order_id: row.order_id,
             order_sn: row.order_sn,
@@ -158,7 +192,7 @@ impl ProxyHallService {
             total_amount: row.total_amount,
             item_count: row.item_count.clamp(0, i64::from(i32::MAX)) as i32,
             first_product_name: row.first_product_name,
-            distance_meters: None,
+            distance_meters,
             hall_status: row.hall_status,
             hall_deadline: row.hall_deadline,
             accept_time: row.accept_time,
@@ -170,10 +204,13 @@ impl ProxyHallService {
 
     /// 待接单池（店铺账号）：同体系下单店的在池单。
     /// 平台账号无店铺作用域，返回空（大厅是门店间机制）。
+    /// `sort_by_distance` 时按与本店的距离升序（无快照单置后），
+    /// 缺省保持截止优先的现行口径。
     pub async fn pool(
         &self,
         query: &PageQuery,
         ctx: &RequestContext,
+        sort_by_distance: bool,
     ) -> Result<PageResult<HallOrderVO>> {
         let shop_id = ctx.shop_id_or_zero();
         let (limit, offset) = query.limit_offset();
@@ -181,10 +218,14 @@ impl ProxyHallService {
             return Ok(PageResult::new(0, Vec::new(), query));
         };
         let ids = self.family_shop_ids(root).await?;
-        let (rows, total) = self.hall_repo().pool_list(&ids, shop_id, limit, offset).await?;
+        let coords = self.viewer_coords(shop_id).await?;
+        let (rows, total) = self
+            .hall_repo()
+            .pool_list(&ids, shop_id, coords, sort_by_distance, limit, offset)
+            .await?;
         Ok(PageResult::new(
             total.max(0) as u64,
-            rows.into_iter().map(Self::row_to_vo).collect(),
+            rows.into_iter().map(|r| Self::row_to_vo(r, coords)).collect(),
             query,
         ))
     }
@@ -201,9 +242,10 @@ impl ProxyHallService {
             return Ok(PageResult::new(0, Vec::new(), query));
         }
         let (rows, total) = self.hall_repo().mine_list(shop_id, limit, offset).await?;
+        let coords = self.viewer_coords(shop_id).await?;
         Ok(PageResult::new(
             total.max(0) as u64,
-            rows.into_iter().map(Self::row_to_vo).collect(),
+            rows.into_iter().map(|r| Self::row_to_vo(r, coords)).collect(),
             query,
         ))
     }

@@ -329,6 +329,8 @@ impl ProxyShoppingOrderCheckRepository {
     /// 接单大厅单落 ext（我方新增，二期）：履约店待定（fulfill_shop_id=0）、
     /// hall_status=1 待接单、带接单截止时间；比例按提交时配置快照，
     /// 接单后结算链据 fulfill_shop_id 走一期三方分成口径。
+    /// receiver 坐标为提交时收货地址快照（迁移 041，可空），供大厅
+    /// 池按距离展示/排序；无快照时池距离为空属正常口径。
     #[allow(clippy::too_many_arguments)]
     pub async fn insert_proxy_order_ext_hall(
         &self,
@@ -339,8 +341,10 @@ impl ProxyShoppingOrderCheckRepository {
         fulfill_rate: Decimal,
         hall_deadline: i32,
         add_time: i32,
+        receiver_longitude: Option<Decimal>,
+        receiver_latitude: Option<Decimal>,
     ) -> Result<()> {
-        sqlx::query("INSERT INTO proxy_order_ext (order_id, proxy_shop_id, fulfill_shop_id, platform_rate, proxy_rate, fulfill_rate, split_status, hall_status, hall_deadline, add_time) VALUES ($1, $2, 0, $3, $4, $5, 0, 1, $6, $7) ON CONFLICT (order_id) DO NOTHING")
+        sqlx::query("INSERT INTO proxy_order_ext (order_id, proxy_shop_id, fulfill_shop_id, platform_rate, proxy_rate, fulfill_rate, split_status, hall_status, hall_deadline, add_time, receiver_longitude, receiver_latitude) VALUES ($1, $2, 0, $3, $4, $5, 0, 1, $6, $7, $8, $9) ON CONFLICT (order_id) DO NOTHING")
             .bind(order_id)
             .bind(proxy_shop_id)
             .bind(platform_rate)
@@ -348,6 +352,8 @@ impl ProxyShoppingOrderCheckRepository {
             .bind(fulfill_rate)
             .bind(hall_deadline)
             .bind(add_time)
+            .bind(receiver_longitude)
+            .bind(receiver_latitude)
             .execute(&self.pool)
             .await
             .map_err(map_err)?;

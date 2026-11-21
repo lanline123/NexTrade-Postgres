@@ -34,6 +34,9 @@ import { SettingsTabs } from "../../../shared/styleEdits";
 import AddItemButton from "../../../shared/AddItemButton";
 import { newcomerComboDefaults as defaults } from "./index";
 import ProductsSourceField from "../../../shared/ProductsSourceField";
+import BuyBtnFlatFollowRow from "../../../shared/BuyBtnFlatFollowRow";
+import { sanitizeObjStyle } from "../../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../../decoratePc/previews/shared/PcBuyButton";
 import { ColorPairField } from "../../../../../components/ColorField";
 import { useI18n } from "../../../../../i18n";
 
@@ -366,6 +369,21 @@ export default function NewcomerComboSettings({ data, onChange, moduleIndex }: P
         { field: "productBriefTextColor", label: "卖点文字色" },
         { field: "buyBtnTextColor", label: "按钮文字色" }
     ];
+    // 扁平色族跟随（三期）：开启跟随后按钮渐变/文字色显示全局当前
+    // 值并置灰只读（显示值取全局 objStyle 的 A/B 与 textColor；
+    // 写回仍走原 onChange 锚定模块对象、从不落全局值）。
+    const globalBuyStyle = usePcGlobalBuyStyle();
+    const btnFollowing = Number(data?.buyBtnFollowGlobal) === 1;
+    const globalObjStyle = sanitizeObjStyle(globalBuyStyle?.objStyle);
+    const btnColorData = btnFollowing
+        ? {
+              ...data,
+              buyBtnGradientStart: globalObjStyle.gradientColorA,
+              buyBtnGradientEnd: globalObjStyle.gradientColorB,
+              buyBtnTextColor: globalObjStyle.textColor
+          }
+        : data;
+    const btnGreyed = btnFollowing ? { opacity: 0.55, pointerEvents: "none" as const } : undefined;
     const couponColorRows: Array<{ field: string; label: string }> = [
         { field: "couponAmountColor", label: "金额文字色" },
         { field: "couponConditionColor", label: "条件文字色" },
@@ -487,11 +505,20 @@ export default function NewcomerComboSettings({ data, onChange, moduleIndex }: P
                 </>
                 <>
                     <SettingGroup title="商品配色">
-                        {productColorRows.map((row) => (
-                            <ColorField key={row.field} data={data} onChange={onChange} field={row.field} label={row.label} resetValue={(defaults as any)[row.field] ?? ""} />
-                        ))}
+                        {productColorRows.map((row) =>
+                            row.field === "buyBtnTextColor" ? (
+                                <div key={row.field} style={btnGreyed}>
+                                    <ColorField data={btnColorData} onChange={onChange} field={row.field} label={row.label} resetValue={(defaults as any)[row.field] ?? ""} />
+                                </div>
+                            ) : (
+                                <ColorField key={row.field} data={data} onChange={onChange} field={row.field} label={row.label} resetValue={(defaults as any)[row.field] ?? ""} />
+                            )
+                        )}
                         <GradientPairField data={data} onChange={onChange} startField="productBriefGradientStart" endField="productBriefGradientEnd" label="卖点背景渐变" />
-                        <GradientPairField data={data} onChange={onChange} startField="buyBtnGradientStart" endField="buyBtnGradientEnd" label="按钮背景渐变" />
+                        <BuyBtnFlatFollowRow data={data} onChange={onChange} />
+                        <div style={btnGreyed}>
+                            <GradientPairField data={btnColorData} onChange={onChange} startField="buyBtnGradientStart" endField="buyBtnGradientEnd" label="按钮背景渐变" />
+                        </div>
                     </SettingGroup>
                     <DecDivider />
                     <SettingGroup title="优惠券配色">

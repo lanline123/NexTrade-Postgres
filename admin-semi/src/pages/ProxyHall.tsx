@@ -42,6 +42,9 @@ type HallRow = {
   totalAmount: number | string;
   itemCount: number;
   firstProductName?: string;
+  /** 与本店的距离（米，后端按本店坐标与收货地址快照计算）；
+   * 无快照/无门店坐标时为空，显示「-」 */
+  distanceMeters?: number | null;
   hallStatus: number;
   hallDeadline: number;
   acceptTime?: number;
@@ -70,6 +73,8 @@ function deadlineText(row: HallRow, now: number) {
 export default function ProxyHall() {
   const { t } = useI18n();
   const [tab, setTab] = useState('pool');
+  // 池排序：deadline = 截止优先（默认口径）/ distance = 距离优先
+  const [poolSort, setPoolSort] = useState('deadline');
   const [rows, setRows] = useState<HallRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -89,6 +94,7 @@ export default function ProxyHall() {
       const res = await apiGet<any>(`/proxyShopping/hall/${tab}`, {
         page,
         pageSize: PAGE_SIZE,
+        ...(tab === 'pool' && poolSort === 'distance' ? { sort: 'distance' } : {}),
       });
       setRows(res?.records || res?.list || []);
       setTotal(Number(res?.total || 0));
@@ -100,7 +106,7 @@ export default function ProxyHall() {
     } finally {
       setLoading(false);
     }
-  }, [tab, page, t]);
+  }, [tab, page, poolSort, t]);
 
   useEffect(() => {
     load();
@@ -179,6 +185,13 @@ export default function ProxyHall() {
       dataIndex: 'totalAmount',
       width: 100,
       render: (v: number | string) => `¥${Number(v || 0).toFixed(2)}`,
+    },
+    {
+      title: t('距离'),
+      dataIndex: 'distanceMeters',
+      width: 90,
+      render: (v: number | null | undefined) =>
+        v != null ? `${(Number(v) / 1000).toFixed(1)} km` : '-',
     },
     ...(tab === 'pool'
       ? [
@@ -275,6 +288,31 @@ export default function ProxyHall() {
         <TabPane tab={t('待接单')} itemKey="pool" />
         <TabPane tab={t('我的接单')} itemKey="mine" />
       </Tabs>
+      {tab === 'pool' ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 10px' }}>
+          <Text type="tertiary" size="small">
+            {t('排序')}
+          </Text>
+          <Select
+            size="small"
+            value={poolSort}
+            style={{ width: 130 }}
+            optionList={[
+              { label: t('截止优先'), value: 'deadline' },
+              { label: t('距离优先'), value: 'distance' },
+            ]}
+            onChange={(next: any) => {
+              setPoolSort(String(next || 'deadline'));
+              setPage(1);
+            }}
+          />
+          {poolSort === 'distance' ? (
+            <Text type="tertiary" size="small">
+              {t('距离按本店坐标与收货地址计算；无地址坐标的订单排在最后')}
+            </Text>
+          ) : null}
+        </div>
+      ) : null}
       <Table
         columns={columns as any}
         dataSource={rows}

@@ -1241,6 +1241,29 @@ impl ProductManageService {
             None => (None, None),
         };
 
+        // 拼团详情回填（2026-11-21 补齐接线，原 Java 详情口径）：
+        // 商品挂进行中拼团活动时下发活动信息（H5 规格弹窗的拼团入口
+        // 与详情页拼团区消费 grouponDetail；此前该字段恒 None、入口
+        // 对全部商品失效）。与 PC 详情页单独调 getGrouponInfo 同源
+        // （同一 GrouponPromotionService::get_groupon_info，无商品
+        // 类型门控，预约商品同样命中）。回填属展示附带动作，失败
+        // 只告警、详情照常返回（与批发价回填同口径）。
+        let groupon_detail = match crate::marketing::groupon_promotion::GrouponPromotionService::new(
+            self.repos.clone(),
+        )
+        .get_groupon_info(product.product_id, user_id)
+        .await
+        {
+            Ok(info) => info.and_then(|i| serde_json::to_value(i).ok()),
+            Err(e) => {
+                tracing::warn!(
+                    "拼团详情回填失败（已忽略）: product_id={}, err={e}",
+                    product.product_id
+                );
+                None
+            }
+        };
+
         Ok(ClientProductDetailVO {
             shop_id: product.shop_id,
             item,
@@ -1249,10 +1272,11 @@ impl ProductManageService {
             pic_list: gallery.iter().map(to_gallery_vo).collect(),
             video_list: videos.iter().map(to_video_vo).collect(),
             attr_list,
-            // 以下字段依赖评论 / 秒杀 / 拼团 / 积分域，未迁移，保持空
+            // 以下字段依赖评论 / 秒杀 / 积分域，未迁移，保持空
+            // （拼团详情已于上方回填，不在此列）
             rank_detail: None,
             seckill_detail: Vec::new(),
-            groupon_detail: None,
+            groupon_detail,
             service_list: services.iter().map(to_services_vo).collect(),
             checked_value,
             default_sku_id,
