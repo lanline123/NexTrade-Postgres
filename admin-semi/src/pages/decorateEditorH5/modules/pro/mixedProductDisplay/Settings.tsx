@@ -4,7 +4,9 @@
 * 页签：商品设置（ComboGroupEdit 分组编辑 / 右侧小图 / 倒计时设置 / 参数设置）
 * / 扩展设置（颜色设置 8 色 + ModuleStyle/ContentStyle type="mixedProductDisplay"）。
 * 分组内商品选择走共享 ProductInfoSelect（快照式选品），可增删/更换/拖拽排序各组 pruductList（字段名沿原版拼写）。
-* 查看更多链接 SelectLink 以文本输入承接，写回 moreLink 同一嵌套结构。
+* 查看更多链接已恢复原版选链方式：PicLinkField（原版 comboGroup/Edit 以 SelectLink 绑定 element.moreLink
+* 整体、点开为右侧抽屉选链，选中即回写完整 LinkType；2026-11-21 复核修复，此前为文本输入写嵌套
+* link.link——渲染端 urlFormat 不读该层，手填地址恒不生效）。
 * 时间选择：el-time-picker/el-date-picker 以原生 time/datetime-local 输入承接，写回时间戳数组/数值。
 * 商品销量 productSales 在原版 Settings 中被注释、不生效，故不提供编辑入口（defaults 保留字段）。
 */
@@ -16,7 +18,8 @@ RadioRowField,
 RangeField,
 ColorField,
 SinglePicField,
-DecDivider
+DecDivider,
+PicLinkField
 } from "../../../shared/settingWidgets";
 import { SettingsTabs, ExtensionStyleSettings, PicFillTypeField} from "../../../shared/styleEdits";
 import ProductInfoSelect from "../../../shared/ProductInfoSelect";
@@ -59,7 +62,6 @@ const patchGroup = (index: number, patch: Patch) => setGroups(groups.map((g, i) 
 return (
 <>
 {groups.map((group, index) => {
-const linkUrl = group.moreLink?.link?.link?? "";
 return (
 <SettingGroup key={index} title={`第${index + 1}组`}>
 <SettingRow label="分组大标题">
@@ -79,15 +81,10 @@ onChange={(v: string) => patchGroup(index, { groupSubTitle: v})}
 />
 </SettingRow>
 <SettingRow label="查看更多链接">
-<Input
-value={linkUrl}
-placeholder={t("跳转链接，如 /pages/product/index?id=1")}
-style={{ width: 240, maxWidth: "100%"}}
-onChange={(v: string) =>
-patchGroup(index, {
-moreLink: {...(group.moreLink || {}), link: {...(group.moreLink?.link || {}), link: v}}
-})
-}
+{/* 原版 comboGroup/Edit 以 SelectLink 绑定 element.moreLink 整体，选中即回写完整 LinkType（与 comboSuggestions 同字段同口径） */}
+<PicLinkField
+value={typeof group.moreLink === "string"? { link: group.moreLink, title: "" }: group.moreLink?? null}
+onChange={(v) => patchGroup(index, { moreLink: v })}
 />
 </SettingRow>
 <SettingRow label="选择商品" block>

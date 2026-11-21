@@ -13,6 +13,20 @@ import FormatPrice from "@/components/format-price/FormatPrice";
 
 import "./index.scss";
 
+/**
+ * 查看更多链接解析（写读配对）：urlFormat 只消费 LinkType（path+data）与字符串，
+ * 不读存量嵌套占位形状 { link: { link, title }, linkTitle } 的内层字符串；编辑器
+ * 文本输入时代（2026-11-21 前）手填的地址正落在该内层，urlFormat 恒返回空、标题
+ * 点击无反应。此处在 urlFormat 无结果时兜底直读内层字符串，使存量手填数据不改
+ * 存量即可跳转；编辑器已改走 PicLinkField 写完整 LinkType，新数据走 urlFormat。
+ */
+function resolveMoreUrl(moreLink: any): string {
+    const url = urlFormat(moreLink);
+    if (url) return url;
+    const nested = moreLink?.link?.link;
+    return typeof nested === "string" ? nested : "";
+}
+
 interface Props {
     module: any;
     moduleIndex?: number;
@@ -180,7 +194,7 @@ export default function MixedProductDisplay({ module }: Props) {
                     <View className="cont">
                         <View
                             onClick={() => {
-                                urlFormat(module.productGroups[0].moreLink) && redirect({ url: urlFormat(module.productGroups[0].moreLink) });
+                                resolveMoreUrl(module.productGroups[0].moreLink) && redirect({ url: resolveMoreUrl(module.productGroups[0].moreLink) });
                             }}
                         >
                             <View className="mk-title" style={`color:${module.moduleColor.titleColor}`}>
@@ -266,7 +280,7 @@ export default function MixedProductDisplay({ module }: Props) {
                     <View className="cont">
                         <View
                             onClick={() => {
-                                urlFormat(module.productGroups[1].moreLink) && redirect({ url: urlFormat(module.productGroups[1].moreLink) });
+                                resolveMoreUrl(module.productGroups[1].moreLink) && redirect({ url: resolveMoreUrl(module.productGroups[1].moreLink) });
                             }}
                         >
                             <View className="mk-title line1" style={`color:${module.moduleColor.titleColor}`}>
