@@ -268,6 +268,53 @@
   flex: 0 1 42px;
 }
 
+/* 图标视觉单选 · H5 设置面形态（2026-11-21 用户定式，仅 H5 作用域
+   .h5-editor-settings，PC 无此类、仍走上方紧凑宽口径）：实测两处不适——
+   ①子项 flex 基底 42px 小于内容最小宽 54px（上方皮肤段 addon 左右内距
+   14px×2 + 字形 span min-width 26px，见 shared/templateIcon.tsx），字形与
+   选中胶囊溢出 42px 盒、与相邻项相撞（组 gap 仅 2px），即用户所指
+   「按钮重叠」；②组按内容收窄后控件区剩余宽整段空置（块布局字段如
+   选择模板/列表样式下留在组右侧），即「右边留空大」。按用户解法改与
+   设置面顶部页签（.settings-tabs-item）同形态：选项为彼此分开的独立
+   块——组改整宽 flex + gap 6px 并去掉共享胶囊轨（底/内衬/圆角清零），
+   子项 flex:1 1 42px 整行等分吃满（基底保留 42px 令多选项仍可换行、
+   两行口径不变），块本体 #f2f4f7 底 + 7px 圆角 + 内距 6px 4px（块高
+   32px 与页签齐平）、悬停 #e9edf3、选中主题色填充白字（沿用既有选中
+   口径）。本段特异性均高于上方紧凑宽段与皮肤段，H5 内以本段为准。 */
+.dec-settings-scope.h5-editor-settings .semi-radioGroup-buttonRadio.dec-icon-radio {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.dec-settings-scope.h5-editor-settings .semi-radioGroup-buttonRadio.dec-icon-radio .semi-radio {
+  flex: 1 1 42px;
+  min-width: 0;
+  margin-right: 0;
+}
+.dec-settings-scope.h5-editor-settings .semi-radioGroup-buttonRadio.dec-icon-radio .semi-radio-addon-buttonRadio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 4px;
+  background: #f2f4f7;
+  border-radius: 7px;
+}
+.dec-settings-scope.h5-editor-settings .semi-radioGroup-buttonRadio.dec-icon-radio .semi-radio-addon-buttonRadio-hover {
+  background: #e9edf3;
+  color: #101828;
+}
+.dec-settings-scope.h5-editor-settings .semi-radioGroup-buttonRadio.dec-icon-radio .semi-radio-addon-buttonRadio-checked {
+  background: var(--semi-color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
 /* 内容卡：12px 外距、1px #eaecf0 边框、10px 圆角、白底（PC 口径，H5 已拆出见下） */
 .dec-settings-scope .dec-settings-body,
 .dec-settings-scope .pc-module-settings__body {
