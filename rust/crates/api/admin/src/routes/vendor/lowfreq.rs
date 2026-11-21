@@ -7,6 +7,8 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use sqlx::{FromRow, Postgres, QueryBuilder};
+
 use nextrade_core::models::catalog::product_manage_extra::{
     audit_result_product_status, parse_audit_shelf_type, CFG_VENDOR_PRODUCT_AUDIT_SHELF_TYPE,
     CHECK_STATUS_APPROVED,
@@ -259,14 +261,244 @@ list_pg!(
 // get /vendor/vendorShopBind/merchantList
 list_pg!(h_8, "merchant", "merchant_id", "'merchant_id', merchant_id, 'merchant_apply_id', merchant_apply_id, 'user_id', user_id, 'add_time', add_time, 'base_data', base_data, 'shop_data', shop_data, 'merchant_data', merchant_data, 'status', status, 'is_delete', is_delete, 'type', type, 'company_name', company_name, 'corporate_name', corporate_name, 'settlement_cycle', settlement_cycle", "merchant_apply_id");
 
+/// 供应商订单列表查询（GET /vendor/vendorShopBind/orderList 专用）。
+/// vendorId / shopId 在前端是文本输入框：纯数字按 ID 等值过滤，非数字按名称模糊。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct VendorOrderListQuery {
+    pub page: Option<u64>,
+    pub size: Option<u64>,
+    pub keyword: Option<String>,
+    pub transaction_id: Option<String>,
+    pub vendor_id: Option<String>,
+    pub shop_id: Option<String>,
+    pub order_status: Option<i32>,
+    /// 前端筛选名为 payStatus，但选项是支付方式（在线支付/货到付款/线下支付），
+    /// 按 pay_type_id 消费（pay_type：1 在线 / 2 货到付款 / 3 线下）。
+    pub pay_status: Option<i32>,
+    pub shipping_status: Option<i32>,
+}
+
+/// epoch 秒 → `yyyy-MM-dd HH:mm:ss`（与平台 OrderVO 的 fmt_time 同口径；<=0 为空串）。
+fn fmt_epoch_vendor(secs: i64) -> String {
+    if secs <= 0 {
+        return String::new();
+    }
+    use chrono::TimeZone;
+    match chrono::Local.timestamp_opt(secs, 0) {
+        chrono::LocalResult::Single(dt) => dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+        _ => String::new(),
+    }
+}
+
+/// 供应商订单列表的 WHERE（count 与 rows 共用同一函数，保证口径一致）。
+///
+/// 范围口径（平台视角）：订单头 `vendor_id > 0` 的供应商订单——原版 Java
+/// `VendorShopBindMapper.pageOrderList` 为供应商本人视角（vendor_id = 当前供应商），
+/// 平台页放宽为全部供应商 + 可选 vendorId 过滤；订单头 vendor_id 由下单/拆单的
+/// `header_vendor_id` 口径写入（同店铺同供应商分组），与供应商订单判定一致。
+/// 软删/有效口径对齐平台订单列表（is_del=0、is_valid=1，拆后无效父单不出现）。
+fn vendor_order_where(qb: &mut QueryBuilder<Postgres>, q: &VendorOrderListQuery) {
+    qb.push(
+        " WHERE o.is_del = 0 AND o.is_valid = 1 AND o.vendor_id IS NOT NULL AND o.vendor_id > 0",
+    );
+    if let Some(st) = q.order_status.filter(|v| *v != -1) {
+        qb.push(" AND o.order_status = ").push_bind(st);
+    }
+    // 关键词：订单号 / 收货人姓名 / 商品名称（页面搜索框规范，商品名走明细 EXISTS）
+    if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        let like = format!("%{kw}%");
+        qb.push(" AND (o.order_sn ILIKE ")
+            .push_bind(like.clone())
+            .push(" OR o.consignee ILIKE ")
+            .push_bind(like.clone())
+            .push(
+                " OR EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = o.order_id AND oi.product_name ILIKE ",
+            )
+            .push_bind(like)
+            .push("))");
+    }
+    if let Some(tx) = q
+        .transaction_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        qb.push(" AND o.out_trade_no ILIKE ")
+            .push_bind(format!("%{tx}%"));
+    }
+    if let Some(v) = q.vendor_id.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        if let Ok(n) = v.parse::<i32>() {
+            qb.push(" AND o.vendor_id = ").push_bind(n);
+        } else {
+            qb.push(" AND v.vendor_name ILIKE ")
+                .push_bind(format!("%{v}%"));
+        }
+    }
+    if let Some(v) = q.shop_id.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        if let Ok(n) = v.parse::<i32>() {
+            qb.push(" AND o.shop_id = ").push_bind(n);
+        } else {
+            qb.push(" AND s.shop_title ILIKE ")
+                .push_bind(format!("%{v}%"));
+        }
+    }
+    if let Some(ps) = q.pay_status {
+        qb.push(" AND o.pay_type_id = ").push_bind(ps);
+    }
+    if let Some(ss) = q.shipping_status {
+        qb.push(" AND o.shipping_status = ").push_bind(ss);
+    }
+}
+
+/// 供应商订单列表的明细行（金额仅展示用，SQL 侧 cast float8，避免 Decimal 解码口径问题）。
+#[derive(Debug, FromRow)]
+struct VendorOrderItemRow {
+    item_id: i32,
+    order_id: i32,
+    product_id: i32,
+    product_name: String,
+    product_sn: String,
+    pic_thumb: String,
+    sku_id: i32,
+    sku_data: String,
+    price: f64,
+    quantity: i32,
+    vendor_id: Option<i32>,
+    vendor_product_id: Option<i32>,
+    vendor_product_supply_price: Option<f64>,
+}
+
+/// 明细行 → 前端 JSON（字段对齐平台 OrderItemVO + 供货价 vendorProductSupplyPrice）。
+fn vendor_item_json(it: &VendorOrderItemRow) -> Value {
+    let sku_arr: Vec<Value> = serde_json::from_str(&it.sku_data).unwrap_or_default();
+    // 规格文案 `名称:值|名称:值`（与服务层 sku_value_of 同口径，取下单快照 sku_data）
+    let sku_text = sku_arr
+        .iter()
+        .filter_map(|v| {
+            let name = v.get("name")?.as_str()?;
+            let raw = v.get("value")?;
+            let value = raw
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| raw.to_string());
+            Some(format!("{name}:{value}"))
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+    let sku_value = if sku_text.is_empty() {
+        Value::Null
+    } else {
+        Value::String(sku_text)
+    };
+    serde_json::json!({
+        "itemId": it.item_id,
+        "productId": it.product_id,
+        "productName": it.product_name,
+        "productSn": it.product_sn,
+        "picThumb": it.pic_thumb,
+        "skuId": it.sku_id,
+        "skuData": sku_arr,
+        "skuValue": sku_value,
+        "price": it.price,
+        "quantity": it.quantity,
+        "vendorId": it.vendor_id,
+        "vendorProductId": it.vendor_product_id,
+        "vendorProductSupplyPrice": it.vendor_product_supply_price,
+    })
+}
+
 // get /vendor/vendorShopBind/orderList
-async fn h_9(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
-    let (p, s, off) = page_of(&q);
-    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('orderId', order_id, 'orderSn', order_sn, 'userId', user_id, 'totalAmount', total_amount) FROM \"order\" ORDER BY order_id DESC LIMIT $1 OFFSET $2")
-        .bind(s).bind(off).fetch_all(&pool(&state)).await.map_err(db)?;
-    ok(
-        serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "page": p, "size": s}),
-    )
+// 原版有·我方移植残桩补齐（2026-11-21）：原版 Java `VendorShopBindServiceImpl#orderList`
+// 返回完整 OrderVO——订单头全字段回填 + 会员/店铺批量组装 + 明细 items 批量组装
+// （getOrderItemList 按 orderIds 一次取回）。旧实现只下发 orderId/orderSn/userId/
+// totalAmount 四个字段、不消费任何过滤参数、连 total 都缺，前端大半列无数据可渲染。
+async fn h_9(
+    State(state): State<AdminState>,
+    Query(q): Query<VendorOrderListQuery>,
+) -> ApiResult<Value> {
+    let p = q.page.unwrap_or(1).max(1) as i64;
+    let s = q.size.unwrap_or(10).clamp(1, 100) as i64;
+    let off = (p - 1) * s;
+    let pool = pool(&state);
+    const JOINS: &str = " FROM \"order\" o LEFT JOIN \"user\" u ON u.user_id = o.user_id LEFT JOIN shop s ON s.shop_id = o.shop_id LEFT JOIN vendor v ON v.vendor_id = o.vendor_id";
+
+    let mut cq = QueryBuilder::<Postgres>::new("SELECT COUNT(*)".to_string() + JOINS);
+    vendor_order_where(&mut cq, &q);
+    let (total,): (i64,) = cq.build_query_as().fetch_one(&pool).await.map_err(db)?;
+
+    let mut rq = QueryBuilder::<Postgres>::new(
+        "SELECT json_build_object('orderId', o.order_id, 'orderSn', o.order_sn, 'userId', o.user_id, 'username', COALESCE(u.username, ''), 'consignee', o.consignee, 'mobile', o.mobile, 'address', o.address, 'regionNames', o.region_names, 'addTime', o.add_time, 'totalAmount', o.total_amount, 'payStatus', o.pay_status, 'payTypeId', o.pay_type_id, 'payName', CASE o.pay_type_id WHEN 1 THEN '在线支付' WHEN 2 THEN '货到付款' WHEN 3 THEN '线下支付' ELSE '' END, 'shippingStatus', o.shipping_status, 'shippingName', COALESCE(NULLIF(o.logistics_name, ''), o.shipping_type_name), 'orderStatus', o.order_status, 'shopId', o.shop_id, 'shopName', COALESCE(s.shop_title, ''), 'vendorId', o.vendor_id, 'vendorName', COALESCE(v.vendor_name, ''), 'isSplit', CASE WHEN o.parent_order_id IS NOT NULL AND o.parent_order_id > 0 THEN 1 ELSE 0 END, 'parentId', o.parent_order_id, 'orderType', o.order_type, 'mark', o.mark, 'outTradeNo', o.out_trade_no)".to_string()
+            + JOINS,
+    );
+    vendor_order_where(&mut rq, &q);
+    rq.push(" ORDER BY o.order_id DESC LIMIT ")
+        .push_bind(s)
+        .push(" OFFSET ")
+        .push_bind(off);
+    let rows: Vec<(Value,)> = rq.build_query_as().fetch_all(&pool).await.map_err(db)?;
+    let mut records: Vec<Value> = rows.into_iter().map(|(v,)| v).collect();
+
+    // 明细批量组装（一次 ANY 查询取回本页全部明细，防 N+1；与平台订单列表同口径）
+    let order_ids: Vec<i32> = records
+        .iter()
+        .filter_map(|r| r.get("orderId").and_then(Value::as_i64).map(|v| v as i32))
+        .collect();
+    let mut items_map: std::collections::HashMap<i32, Vec<Value>> =
+        std::collections::HashMap::new();
+    if !order_ids.is_empty() {
+        let items: Vec<VendorOrderItemRow> = sqlx::query_as(
+            "SELECT item_id, order_id, product_id, product_name, product_sn, pic_thumb, sku_id, sku_data, price::float8 AS price, quantity, vendor_id, vendor_product_id, vendor_product_supply_price::float8 AS vendor_product_supply_price FROM order_item WHERE order_id = ANY($1) ORDER BY order_id ASC, item_id ASC",
+        )
+        .bind(order_ids.as_slice())
+        .fetch_all(&pool)
+        .await
+        .map_err(db)?;
+        for it in &items {
+            items_map
+                .entry(it.order_id)
+                .or_default()
+                .push(vendor_item_json(it));
+        }
+    }
+
+    for rec in &mut records {
+        let Some(obj) = rec.as_object_mut() else {
+            continue;
+        };
+        let oid = obj.get("orderId").and_then(Value::as_i64).unwrap_or(0) as i32;
+        // 下单时间：epoch 秒 → 文本（前端直接渲染，与平台 OrderVO.addTime 同口径）
+        let epoch = obj.get("addTime").and_then(Value::as_i64).unwrap_or(0);
+        obj.insert(
+            "addTime".to_string(),
+            Value::String(fmt_epoch_vendor(epoch)),
+        );
+        // 收货地址：region_names（JSON 数组文本）拼接详细地址（平台 OrderVO.userAddress 口径）
+        let region_text = obj
+            .remove("regionNames")
+            .as_ref()
+            .and_then(Value::as_str)
+            .and_then(|raw| serde_json::from_str::<Vec<String>>(raw).ok())
+            .map(|parts| parts.concat())
+            .unwrap_or_default();
+        if !region_text.is_empty() {
+            let detail = obj
+                .get("address")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            obj.insert(
+                "address".to_string(),
+                Value::String(format!("{region_text}{detail}")),
+            );
+        }
+        obj.insert(
+            "items".to_string(),
+            Value::Array(items_map.remove(&oid).unwrap_or_default()),
+        );
+    }
+
+    ok(serde_json::json!({"records": records, "total": total, "page": p, "size": s}))
 }
 
 // get /vendor/vendorShopBind/productList

@@ -196,7 +196,8 @@ export function VendorBindShopManage() {
     try {
       const result = await apiGet<any>(
         kind === 'order' ? '/vendor/vendorShopBind/orderList' : '/vendor/vendorShopBind/productList',
-        { shopId: row.shopId, page: 1, size: 100 },
+        // 订单口径与原版一致：该供应商在该绑定店铺的订单（vendorId + shopId 双限定）
+        { shopId: row.shopId, vendorId: row.vendorId, page: 1, size: 100 },
       );
       setDetailRows(result?.records || []);
     } catch (error) {

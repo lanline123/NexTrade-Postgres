@@ -32,6 +32,22 @@ const { Text } = Typography;
  * 在线支付, 货到付款, 线下支付, 取消订单, 删除订单, 订单发货 , 去发货, 催发货, 确认收货, 暂无数据
  */
 
+interface VendorOrderItem {
+  itemId: number;
+  productId: number;
+  productName: string;
+  productSn?: string;
+  picThumb?: string;
+  skuId?: number;
+  skuValue?: string | null;
+  price: number | string;
+  quantity: number;
+  vendorId?: number | null;
+  vendorProductId?: number | null;
+  /** 供货价（供应商口径，与导出列 vendorProductSupplyPrice 一致；非供应商商品为 null） */
+  vendorProductSupplyPrice?: number | string | null;
+}
+
 interface VendorOrderRow {
   orderId: number;
   orderSn: string;
@@ -54,7 +70,8 @@ interface VendorOrderRow {
   isSplit?: number;
   parentId?: number;
   orderType?: number;
-  mark?: string;
+  mark?: number | null;
+  items?: VendorOrderItem[];
 }
 
 const payStatusMap: Record<number, { text: string; color: 'orange' | 'green' | 'grey' }> = {
@@ -181,6 +198,51 @@ export default function VendorOrders() {
       ),
     },
     {
+      title: '商品信息',
+      dataIndex: 'items',
+      width: 300,
+      render: (_: unknown, record) => {
+        const items = record.items || [];
+        if (!items.length) {
+          return <Text type="tertiary">--</Text>;
+        }
+        return (
+          <div>
+            {items.map((item) => (
+              <div
+                key={item.itemId}
+                style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}
+              >
+                {item.picThumb ? (
+                  <img
+                    src={item.picThumb}
+                    alt=""
+                    width={48}
+                    height={48}
+                    style={{ objectFit: 'cover', flexShrink: 0 }}
+                  />
+                ) : null}
+                <div style={{ minWidth: 0 }}>
+                  <div>{item.productName}</div>
+                  {item.skuValue ? (
+                    <Text type="tertiary" size="small" style={{ display: 'block' }}>
+                      {item.skuValue}
+                    </Text>
+                  ) : null}
+                  <Text type="tertiary" size="small">
+                    ¥{Number(item.price || 0).toFixed(2)} × {item.quantity}
+                    {item.vendorProductSupplyPrice != null
+                      ? ` · ${t('供货价')} ¥${Number(item.vendorProductSupplyPrice).toFixed(2)}`
+                      : ''}
+                  </Text>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
       title: '订单金额',
       dataIndex: 'totalAmount',
       width: 120,
@@ -220,20 +282,25 @@ export default function VendorOrders() {
       dataIndex: 'payStatus',
       width: 170,
       render: (_: unknown, record) => {
-        const payInfo = payStatusMap[record.payStatus ?? 0] || { text: '在线支付', color: 'grey' };
-        const shipInfo = shippingStatusMap[record.shippingStatus ?? 0] || { text: '待发货', color: 'grey' };
+        const payInfo = payStatusMap[record.payStatus ?? 0] || payStatusMap[0];
+        const shipInfo = shippingStatusMap[record.shippingStatus ?? 0] || shippingStatusMap[0];
         return (
           <div>
             <div>
               {t('支付状态：')}
               <Tag color={payInfo.color} size="small">
-                {record.payName || t(payInfo.text)}
+                {t(payInfo.text)}
               </Tag>
             </div>
+            {record.payName && (
+              <div style={{ marginTop: 4 }}>
+                {t('支付方式：')}{record.payName}
+              </div>
+            )}
             <div style={{ marginTop: 4 }}>
               {t('发货状态：')}
               <Tag color={shipInfo.color} size="small">
-                {record.shippingName || t(shipInfo.text)}
+                {t(shipInfo.text)}
               </Tag>
             </div>
             {record.shippingName && (
@@ -329,9 +396,11 @@ export default function VendorOrders() {
             type: 'select',
             placeholder: '支付状态',
             width: 120,
+            // 选项实为支付方式，后端按 pay_type_id 消费
+            // （pay_type：1 在线支付 / 2 货到付款 / 3 线下支付）
             options: [
-              { label: '在线支付', value: 2 },
-              { label: '货到付款', value: 1 },
+              { label: '在线支付', value: 1 },
+              { label: '货到付款', value: 2 },
               { label: '线下支付', value: 3 },
             ],
           },
