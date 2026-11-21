@@ -1626,6 +1626,8 @@ export const navGroups: NavGroup[] = [
           {
             "key": "systemUpdate",
             "label": "系统更新"
+          },
+          {
             "key": "clientReleaseManage",
             "label": "客户端发版登记"
           },
