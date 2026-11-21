@@ -51,6 +51,13 @@ function ApprovalPill({ count }: { count: number }) {
   return <em className="admin-msg-num">{count > 99 ? '99+' : count}</em>;
 }
 
+/**
+ * 隐藏框架页标题的页面集合（特例）：素材中心按用户口径（2026-11-21）去掉左上角
+ * 「素材中心」标题——.page-heading 行只承载标题本身，整行不渲染；其余页面不受影响。
+ * 后续若有页面同需隐藏标题，往本集合加 key 即可，不要另起判定。
+ */
+const HIDE_PAGE_TITLE_PAGES = new Set<string>(['materialCenter']);
+
 const NAV_ORDER_KEY = 'admin_nav_order_v1';
 const defaultOrder = [
   'panel',
@@ -703,11 +710,13 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
           {/* 语音播报引导条只在首页显示（用户要求） */}
           {page === 'dashboard' && <VoiceBroadcastTip />}
           <div className="page-inner">
-            <div className="page-heading">
-              <div>
-                <h1 className="page-title">{t(pageTitles[page] || page)}</h1>
+            {!HIDE_PAGE_TITLE_PAGES.has(page) && (
+              <div className="page-heading">
+                <div>
+                  <h1 className="page-title">{t(pageTitles[page] || page)}</h1>
+                </div>
               </div>
-            </div>
+            )}
             {children}
           </div>
         </main>

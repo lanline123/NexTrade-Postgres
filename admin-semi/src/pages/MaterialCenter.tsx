@@ -123,7 +123,18 @@ const SOURCE_OPTIONS = [
   { label: '外部链接', value: 'external' },
 ];
 
-const PAGE_SIZE_OPTS = [30, 50, 100];
+/**
+ * 自适应每页条数（用户口径 2026-11-21）：每页条数 = 网格区实测列数 × 行数，
+ * 不再提供手动档位。下列常量与 material-center.css 严格对应，改一处必须同改另一处：
+ * - MC_TILE_W：砖宽（.mc-grid 固定砖宽），原 minmax(160px, 1fr) 下限 160 → 128（缩小以同屏显示更多）
+ * - MC_TILE_H：整砖外高 = 缩略图 128（aspect-ratio 1）+ 信息区 59（.mc-card-info 定高，
+ *   含上下 padding 16 + 名称行 20 + 间距 4 + 元信息 18 + 下边框 1）+ 操作区 36
+ *   （.mc-card-actions 定高，含上下 padding 8 + small 按钮 28）+ 卡片上下边框 2 = 225
+ * - MC_GAP：.mc-grid 的 gap
+ */
+const MC_TILE_W = 128;
+const MC_TILE_H = 225;
+const MC_GAP = 12;
 
 const itemId = (item: MaterialItem, tab: MaterialTab) =>
   tab === 'image' ? (item as PicItem).picId : (item as VideoItem).id;
@@ -334,7 +345,12 @@ export default function MaterialCenter() {
     source: '',
   });
   const [page, setPage] = useState(1);
+  // pageSize 由网格区实测尺寸自适应计算（见下方量测 effect）；30 仅为量测完成前的占位值，
+  // 列表取数被 gridReady 门控，不会以占位值发请求。
   const [pageSize, setPageSize] = useState(30);
+  const [gridCols, setGridCols] = useState(0);
+  const [gridReady, setGridReady] = useState(false);
+  const gridBoxRef = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<MaterialItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -453,6 +469,37 @@ export default function MaterialCenter() {
 
   const reload = () => setReloadKey((key) => key + 1);
 
+  // ——— 网格区量测 → 自适应每页条数 ———
+  // 列数/行数按网格滚动区（.mc-dropzone）的实测尺寸计算；ResizeObserver 驱动，
+  // 计算值不变时 setState 同值短路（React bail out），不会引发重复取数。
+  // .mc-dropzone 设了 scrollbar-gutter: stable，滚动条出现/消失不改变 clientWidth，
+  // 量测口径恒定，不会来回震荡。
+  useEffect(() => {
+    const el = gridBoxRef.current;
+    if (!el) return;
+    const measure = () => {
+      const width = el.clientWidth;
+      const height = el.clientHeight;
+      if (width <= 0 || height <= 0) return;
+      const cols = Math.max(1, Math.floor((width + MC_GAP) / (MC_TILE_W + MC_GAP)));
+      const rows = Math.max(1, Math.floor((height + MC_GAP) / (MC_TILE_H + MC_GAP)));
+      setGridCols((current) => (current === cols ? current : cols));
+      setPageSize((current) => (current === cols * rows ? current : cols * rows));
+      setGridReady(true);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // 窗口尺寸变化使 pageSize 变大后，当前页可能越界 → 钳制到最后一页
+  useEffect(() => {
+    if (total <= 0) return;
+    const maxPage = Math.max(1, Math.ceil(total / pageSize));
+    if (page > maxPage) setPage(maxPage);
+  }, [total, pageSize, page]);
+
   // ——— 分组树 ———
   useEffect(() => {
     if (isDemo()) return;
@@ -488,6 +535,8 @@ export default function MaterialCenter() {
   // ——— 素材列表 ———
   useEffect(() => {
     if (isDemo()) return;
+    // 等网格区首次量测完成再取数，避免先以占位 pageSize 发一发再重发的请求风暴
+    if (!gridReady) return;
     let alive = true;
     const loadMaterials = async () => {
       setLoading(true);
@@ -538,7 +587,7 @@ export default function MaterialCenter() {
     return () => {
       alive = false;
     };
-  }, [tab, albumId, page, pageSize, query, reloadKey]);
+  }, [tab, albumId, page, pageSize, query, reloadKey, gridReady]);
 
   const filteredGroups = useMemo(() => filterGroups(groups, groupSearch), [groups, groupSearch]);
 
@@ -1508,24 +1557,24 @@ export default function MaterialCenter() {
         <span className={`mc-tab${tab === 'video' ? ' is-active' : ''}`} onClick={() => switchTab('video')}>
           {t('视频')}
         </span>
-      </div>
-
-      <div className="mc-global-actions">
-        {tab === 'image' ? (
-          <Space>
-            <Button theme="solid" type="primary" icon={<IconUpload />} onClick={openUploadImage}>
-              {t('上传图片')}
-            </Button>
-            <Button onClick={openExtImage}>{t('添加外部链接')}</Button>
-          </Space>
-        ) : (
-          <Space>
-            <Button theme="solid" type="primary" icon={<IconUpload />} onClick={openUploadVideo}>
-              {t('上传视频')}
-            </Button>
-            <Button onClick={openExtVideo}>{t('添加外部链接')}</Button>
-          </Space>
-        )}
+        {/* 上传/外链按钮并入标签行最右侧（原独立一行已删，按钮行为逐字不变） */}
+        <div className="mc-tabs-actions">
+          {tab === 'image' ? (
+            <Space>
+              <Button theme="solid" type="primary" icon={<IconUpload />} onClick={openUploadImage}>
+                {t('上传图片')}
+              </Button>
+              <Button onClick={openExtImage}>{t('添加外部链接')}</Button>
+            </Space>
+          ) : (
+            <Space>
+              <Button theme="solid" type="primary" icon={<IconUpload />} onClick={openUploadVideo}>
+                {t('上传视频')}
+              </Button>
+              <Button onClick={openExtVideo}>{t('添加外部链接')}</Button>
+            </Space>
+          )}
+        </div>
       </div>
 
       <div className="mc-body">
@@ -1602,6 +1651,7 @@ export default function MaterialCenter() {
             {dropUploading ? <div className="mc-drop-tip">{dropText}</div> : null}
 
             <div
+              ref={gridBoxRef}
               className={`mc-dropzone${dropActive ? ' is-dragover' : ''}`}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -1616,30 +1666,35 @@ export default function MaterialCenter() {
             >
               <Spin spinning={loading}>
                 {items.length ? (
-                  <ul className="mc-grid">{items.map((item) => renderCard(item))}</ul>
+                  <ul
+                    className="mc-grid"
+                    style={
+                      gridCols > 0
+                        ? { gridTemplateColumns: `repeat(${gridCols}, ${MC_TILE_W}px)` }
+                        : undefined
+                    }
+                  >
+                    {items.map((item) => renderCard(item))}
+                  </ul>
                 ) : !loading ? (
                   <div className="mc-empty">{t('暂无素材')}</div>
                 ) : null}
               </Spin>
             </div>
 
-            <div className="mc-pagination">
-              <Pagination
-                total={total}
-                currentPage={page}
-                pageSize={pageSize}
-                showTotal
-                showSizeChanger
-                pageSizeOpts={PAGE_SIZE_OPTS}
-                onPageChange={(next) => setPage(next)}
-                onPageSizeChange={(next) => {
-                  setPageSize(next);
-                  setPage(1);
-                }}
-              />
-            </div>
           </main>
         </div>
+      </div>
+
+      {/* 分页固定栏：页面满高 flex 布局的尾行，恒在底部；每页条数自适应，无手动档位选择 */}
+      <div className="mc-pagination-bar">
+        <Pagination
+          total={total}
+          currentPage={page}
+          pageSize={pageSize}
+          showTotal
+          onPageChange={(next) => setPage(next)}
+        />
       </div>
 
       {/* 分组新增 / 重命名 */}
