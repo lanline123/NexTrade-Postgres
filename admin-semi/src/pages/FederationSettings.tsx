@@ -82,7 +82,7 @@ export default function FederationSettings() {
           <div style={{ display: 'grid', gap: 4 }}>
             <Text strong>{settings.enabled ? t('已开启') : t('已关闭（默认）')}</Text>
             <Text type="tertiary">
-              {t('关闭时一级菜单「万象互联」不出现，「组织」组下「商品流通」栏一并隐藏，/hub/* 接口后端返回 404；本设置页常驻不受影响。')}
+              {t('关闭时「组织」菜单下「万象互联」栏不出现，「商品流通」栏一并隐藏，/hub/* 接口后端返回 404；本设置页常驻不受影响。')}
             </Text>
           </div>
         </Space>

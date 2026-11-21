@@ -63,7 +63,6 @@ const defaultOrder = [
   'panel',
   'pos',
   'organize',
-  'federation',
   'live',
   'product',
   'promotion',
@@ -243,8 +242,8 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
 
   /**
    * 万象互联菜单门控（我方新增，仅渲染层）：先用本地缓存值渲染，挂载后拉后台
-   * federationSettings 配置刷新；总开关关（默认）时「万象互联」一级菜单整体不出现
-   * （「组织」组下「商品流通」栏一并隐藏），开时再按 capabilities/modules 摘子页
+   * federationSettings 配置刷新；总开关关（默认）时「组织」组下「万象互联」
+   * 「商品流通」两栏不出现，开时再按 capabilities/modules 摘子页
    * （见 federation.ts）。不拦 ?page= 直达。
    */
   const [federationSettings, setFederationSettings] = useState<FederationSettings>(() =>

@@ -363,6 +363,37 @@ export const navGroups: NavGroup[] = [
         ]
       },
       {
+        "key": "organize6",
+        "label": "万象互联",
+        "icon": <IconGlobe />,
+        "children": [
+          {
+            "key": "orgOverview",
+            "label": "组织概览"
+          },
+          {
+            "key": "hubLinks",
+            "label": "成员连接"
+          },
+          {
+            "key": "hubPairing",
+            "label": "配对审批"
+          },
+          {
+            "key": "myLinks",
+            "label": "我的连接"
+          },
+          {
+            "key": "hubCredentials",
+            "label": "API 凭证"
+          },
+          {
+            "key": "hubAggregation",
+            "label": "联邦商品聚合"
+          }
+        ]
+      },
+      {
         "key": "organize7",
         "label": "商品流通",
         "icon": <IconLayers />,
@@ -372,43 +403,6 @@ export const navGroups: NavGroup[] = [
             "label": "对接 API 管理"
           }
         ]
-      }
-    ]
-  },
-  {
-    "key": "federation",
-    "label": "万象互联",
-    "icon": <IconGlobe />,
-    "items": [
-      {
-        "key": "orgOverview",
-        "label": "组织概览",
-        "icon": <IconApartment />
-      },
-      {
-        "key": "hubLinks",
-        "label": "成员连接",
-        "icon": <IconUserGroup />
-      },
-      {
-        "key": "hubPairing",
-        "label": "配对审批",
-        "icon": <IconVerify />
-      },
-      {
-        "key": "myLinks",
-        "label": "我的连接",
-        "icon": <IconShare />
-      },
-      {
-        "key": "hubCredentials",
-        "label": "API 凭证",
-        "icon": <IconLock />
-      },
-      {
-        "key": "hubAggregation",
-        "label": "联邦商品聚合",
-        "icon": <IconApps />
       }
     ]
   },
