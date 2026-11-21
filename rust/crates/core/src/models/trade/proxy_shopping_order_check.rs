@@ -116,6 +116,9 @@ pub struct OrderCheckParam {
     pub select_from: Option<i32>,
     /// 门店 id
     pub shop_id: Option<i32>,
+    /// 跨店履约门店 id（我方新增）：代客下单跨店履约时由前端选定、
+    /// 服务端强校验同体系归属；为空或等于下单店时为同店单（现行口径）。
+    pub fulfill_shop_id: Option<i32>,
     /// 产品预约时间 ID
     pub product_reservation_time_id: Option<i32>,
     /// 预约日期
@@ -343,6 +346,28 @@ pub struct PaymentTypeVO {
     /// 是否展示（Java 字段名 `isShow`）
     #[serde(rename = "isShow")]
     pub is_show: bool,
+}
+
+/// 跨店履约候选门店（我方新增，代客下单跨店履约）。
+///
+/// 由 `GET /adminapi/proxyShopping/order/check/fulfillCandidates` 返回：
+/// 操作员店铺同体系（体系根 + 直属门店）内营业中的店铺，按与买家收货
+/// 地址的距离升序；`recommended` 标记默认推荐（距离最近者）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FulfillCandidateVO {
+    /// 候选店铺/门店 id。
+    pub shop_id: i32,
+    /// 店铺名称。
+    pub shop_title: String,
+    /// 店铺类型（1 普通店铺 / 2 门店 / 3 自提点）。
+    pub shop_type: Option<i32>,
+    /// 与收货地址的距离（米）；地址或门店无坐标时为 None。
+    pub distance_meters: Option<f64>,
+    /// 是否默认推荐（列表第一位）。
+    pub recommended: bool,
+    /// 是否为下单店本身（同店履约 = 现行口径）。
+    pub is_self: bool,
 }
 
 /// `PaymentType.ONLINE`（Java `PaymentType.java:25`）。

@@ -820,6 +820,36 @@ pub struct AftersalesApplyAdminParam {
 
 // ————————————————————— 返回结构 —————————————————————
 
+/// 代客跨店履约分成摘要（我方新增，论坛帖 547750；`proxy_order_ext` 一行）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ProxySplitVO {
+    /// 下单店 id（= 订单商品所属店铺）。
+    pub proxy_shop_id: i32,
+    /// 下单店名称。
+    pub proxy_shop_title: Option<String>,
+    /// 履约门店 id。
+    pub fulfill_shop_id: i32,
+    /// 履约门店名称。
+    pub fulfill_shop_title: Option<String>,
+    /// 平台分成比例快照（%）。
+    pub platform_rate: Decimal,
+    /// 代下单店分成比例快照（%）。
+    pub proxy_rate: Decimal,
+    /// 履约店分成比例快照（%）。
+    pub fulfill_rate: Decimal,
+    /// 分成基数（结算时回填，未结算为 None）。
+    pub split_base: Option<Decimal>,
+    /// 平台份（代收池留存，不入店铺账户）。
+    pub platform_amount: Option<Decimal>,
+    /// 代下单店入账额。
+    pub proxy_amount: Option<Decimal>,
+    /// 履约店入账额。
+    pub fulfill_amount: Option<Decimal>,
+    /// 分成状态：0 待分成 / 1 已分成 / 2 已跳过（线上分账渠道）。
+    pub split_status: i32,
+}
+
 /// 订单 VO（对应 Java `OrderVO`，见模块头「未迁移字段」说明）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -941,6 +971,9 @@ pub struct OrderVO {
     pub join_status_desc: Option<String>,
     /// 拼团记录ID
     pub groupon_promotion_record_id: Option<i64>,
+    /// 代客跨店履约分成摘要（我方新增，论坛帖 547750）：仅代客跨店单
+    /// 在详情接口下发（列表不回填）；同店单 / 普通单为 None。
+    pub proxy_split: Option<ProxySplitVO>,
 
     // *** 关联数据 ***
     /// 商品数据

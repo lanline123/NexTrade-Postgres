@@ -136,6 +136,12 @@ impl ConfigBasicService {
                 Ok(Value::Null)
             }
             EndpointKind::Group | EndpointKind::SaveReturningVo => {
+                // 代客下单跨店三方分成（我方新增）：saveOrder 保存前强校验
+                // 三方比例（有效值 = 本次提交 ?? 已存值 ?? 规格默认），
+                // 任一越界或合计 > 100% 直接拒绝、不落库（用户口径）。
+                if ep.path == "/setting/config/saveOrder" {
+                    self.validate_proxy_split_rates(body).await?;
+                }
                 let pairs = collect_save_pairs(ep.fields, ep.nested, body);
                 if !pairs.is_empty() {
                     self.write_pairs(&pairs).await?;
@@ -152,6 +158,44 @@ impl ConfigBasicService {
                 "该端点不是 JSON 请求体的 POST 端点（内部规格表错误）",
             )),
         }
+    }
+
+    /// 代客下单跨店三方分成比例保存校验（我方新增，用户 2026-11-21 口径：
+    /// 比例平台可自定义、三方合计不得超过 100%，超限拒绝保存）。
+    ///
+    /// 有效值口径与读配置一致：本次提交值优先，其次已存配置行，
+    /// 最后规格默认值（平台 5 / 下单店 5 / 履约店 90）。
+    async fn validate_proxy_split_rates(&self, body: &Map<String, Value>) -> Result<()> {
+        let stored = self
+            .repo()
+            .find_by_codes(&[
+                "proxyPlatformRate",
+                "proxyShopRate",
+                "proxyFulfillRate",
+            ])
+            .await?;
+        let stored_map: std::collections::HashMap<String, String> = stored.into_iter().collect();
+        let pick = |field: &str, default: &str| -> Option<rust_decimal::Decimal> {
+            use std::str::FromStr;
+            if let Some(v) = body.get(field) {
+                let text = match v {
+                    Value::String(s) => s.trim().to_string(),
+                    Value::Number(n) => n.to_string(),
+                    _ => String::new(),
+                };
+                if !text.is_empty() {
+                    return rust_decimal::Decimal::from_str(&text).ok();
+                }
+            }
+            if let Some(s) = stored_map.get(field) {
+                return rust_decimal::Decimal::from_str(s.trim()).ok();
+            }
+            rust_decimal::Decimal::from_str(default).ok()
+        };
+        let platform = pick("proxyPlatformRate", "5");
+        let shop = pick("proxyShopRate", "5");
+        let fulfill = pick("proxyFulfillRate", "90");
+        validate_proxy_split_rates(platform, shop, fulfill)
     }
 
     /// `POST /adminapi/setting/config/sendTestEmail`：发送测试邮件（SMTP）。
@@ -475,6 +519,46 @@ impl ConfigBasicService {
     }
 }
 
+/// 代客下单跨店三方分成比例校验（纯函数）：三方比例均须在 [0, 100] 内，
+/// 合计不得超过 100%（用户 2026-11-21 硬口径，保存强校验、超限拒绝）。
+/// 任一值缺失/不可解析同样拒绝（不静默放行非法比例进结算链）。
+pub fn validate_proxy_split_rates(
+    platform: Option<rust_decimal::Decimal>,
+    shop: Option<rust_decimal::Decimal>,
+    fulfill: Option<rust_decimal::Decimal>,
+) -> Result<()> {
+    use rust_decimal::Decimal;
+    let hundred = Decimal::from(100);
+    let parts = [
+        ("平台", platform),
+        ("代下单店", shop),
+        ("履约店", fulfill),
+    ];
+    let mut sum = Decimal::ZERO;
+    for (name, value) in parts {
+        let Some(v) = value else {
+            return Err(Error::biz(
+                SERVICE_DATA_ERROR,
+                format!("代客下单跨店分成{name}比例不合法"),
+            ));
+        };
+        if v < Decimal::ZERO || v > hundred {
+            return Err(Error::biz(
+                SERVICE_DATA_ERROR,
+                format!("代客下单跨店分成{name}比例须在 0% 到 100% 之间"),
+            ));
+        }
+        sum += v;
+    }
+    if sum > hundred {
+        return Err(Error::biz(
+            SERVICE_DATA_ERROR,
+            "代客下单跨店分成比例合计不能超过 100%".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 /// 未迁移端点的业务错误文案（`None` = 已实现）。
 #[must_use]
 pub fn placeholder_message(_kind: EndpointKind) -> Option<&'static str> {
@@ -592,6 +676,25 @@ fn scalar_string(value: Option<&Value>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn proxy_split_rates_sum_over_100_rejected() {
+        use rust_decimal::Decimal;
+        let d = |s: &str| Some(s.parse::<Decimal>().unwrap());
+        // 默认口径 5/5/90 = 100，恰满通过
+        assert!(validate_proxy_split_rates(d("5"), d("5"), d("90")).is_ok());
+        // 合计 < 100 通过（未分配部分归履约店）
+        assert!(validate_proxy_split_rates(d("5"), d("5"), d("80")).is_ok());
+        // 合计 101 拒绝
+        assert!(validate_proxy_split_rates(d("10"), d("10"), d("81")).is_err());
+        // 单项越界拒绝
+        assert!(validate_proxy_split_rates(d("101"), d("0"), d("0")).is_err());
+        assert!(validate_proxy_split_rates(d("-1"), d("0"), d("0")).is_err());
+        // 缺失/不可解析拒绝（不静默放行）
+        assert!(validate_proxy_split_rates(None, d("5"), d("90")).is_err());
+        // 小数比例合法
+        assert!(validate_proxy_split_rates(d("2.5"), d("2.5"), d("95")).is_ok());
+    }
 
     #[test]
     fn login_protocol_content_matches_java_switch_and_defaults() {

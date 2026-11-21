@@ -507,6 +507,7 @@ impl CartService {
             &products,
             &skus,
             now,
+            None,
         )
         .await?;
         let promotions = if carts.is_empty() {

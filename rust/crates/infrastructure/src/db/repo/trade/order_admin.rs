@@ -133,6 +133,23 @@ impl OrderPatch {
     }
 }
 
+/// 代客跨店分成记录行（我方新增，`proxy_order_ext` + 店铺名）。
+#[derive(Debug, Clone, Default, sqlx::FromRow)]
+pub struct ProxyOrderExtRow {
+    pub proxy_shop_id: i32,
+    pub proxy_shop_title: Option<String>,
+    pub fulfill_shop_id: i32,
+    pub fulfill_shop_title: Option<String>,
+    pub platform_rate: rust_decimal::Decimal,
+    pub proxy_rate: rust_decimal::Decimal,
+    pub fulfill_rate: rust_decimal::Decimal,
+    pub split_base: Option<rust_decimal::Decimal>,
+    pub platform_amount: Option<rust_decimal::Decimal>,
+    pub proxy_amount: Option<rust_decimal::Decimal>,
+    pub fulfill_amount: Option<rust_decimal::Decimal>,
+    pub split_status: i32,
+}
+
 #[derive(Clone)]
 pub struct OrderAdminRepository {
     pool: PgPool,
@@ -157,6 +174,20 @@ impl OrderAdminRepository {
             .fetch_optional(&self.pool)
             .await
             .map_err(map_err)
+    }
+
+    /// 代客跨店分成记录（我方新增，`proxy_order_ext`；含两店名称子查询）。
+    /// 无记录返回 None（同店单 / 普通单常态）。
+    pub async fn find_proxy_order_ext(
+        &self,
+        order_id: i32,
+    ) -> Result<Option<ProxyOrderExtRow>> {
+        let row = sqlx::query_as::<_, ProxyOrderExtRow>("SELECT e.proxy_shop_id, (SELECT shop_title FROM shop WHERE shop_id = e.proxy_shop_id) AS proxy_shop_title, e.fulfill_shop_id, (SELECT shop_title FROM shop WHERE shop_id = e.fulfill_shop_id) AS fulfill_shop_title, e.platform_rate, e.proxy_rate, e.fulfill_rate, e.split_base, e.platform_amount, e.proxy_amount, e.fulfill_amount, e.split_status FROM proxy_order_ext e WHERE e.order_id = $1 LIMIT 1")
+            .bind(order_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(row)
     }
 
     /// 子订单数量（对应 Java `detail` 中 `parent_order_id = id` 的 count，

@@ -50,6 +50,20 @@ const CFG_SPLIT_PAYMENT_METHOD: &str = "splitPaymentMethod";
 /// 分销员升级防死循环上限（Java 同款）。
 const SALESMAN_MAX_UPGRADES: usize = 20;
 
+/// 代客跨店分成记录行（`proxy_order_ext`，我方新增）。
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct ProxyOrderExt {
+    proxy_shop_id: i32,
+    fulfill_shop_id: i32,
+    platform_rate: Decimal,
+    proxy_rate: Decimal,
+    #[allow(dead_code)]
+    fulfill_rate: Decimal,
+    proxy_amount: Option<Decimal>,
+    fulfill_amount: Option<Decimal>,
+    split_status: i32,
+}
+
 /// 结算级联服务。
 pub struct SettlementService {
     repos: Arc<Repositories>,
@@ -464,6 +478,9 @@ impl SettlementService {
 
         let mut paid_amount = order.paid_amount - refund_amount - vendor_amount - commission;
 
+        // 代客跨店单（我方新增）：有 proxy_order_ext 记录才走三方分成。
+        let proxy_ext = self.load_proxy_order_ext(order_id).await?;
+
         // 线上分账判定（渠道无关：该单自身支付渠道 + 二级户激活）
         let split = self.resolve_online_split(&order).await?;
         if let Some(online_amount) = split {
@@ -475,6 +492,36 @@ impl SettlementService {
             } else {
                 tracing::info!("结算级联：order={order_id} 线上分账余额份额为 0，跳过 shopMoney");
             }
+            // 跨店单走线上分账渠道：支付侧已分账，三方分成跳过（置 2）。
+            if proxy_ext.is_some() {
+                let _ = sqlx::query(
+                    "UPDATE proxy_order_ext SET split_status = 2 WHERE order_id = $1 AND split_status = 0",
+                )
+                .bind(order_id)
+                .execute(self.pool())
+                .await;
+            }
+        } else if let Some(ext) = &proxy_ext {
+            // —— 代客跨店三方分成（我方新增）——
+            // 基数 = paid_amount（已扣退款/供应商/分销佣金，与现行口径同点）；
+            // 平台快照比例取代通用服务费（不双扣）。平台份不入任何店铺
+            // 账户（代收池留存，与现行服务费同落点）；下单店/履约店分别
+            // 入账并各记一笔 shop_account_log。
+            let (platform_amt, proxy_amt, fulfill_amt) =
+                compute_proxy_split(paid_amount, ext.platform_rate, ext.proxy_rate);
+            self.credit_shop_by_id(ext.fulfill_shop_id, fulfill_amt).await?;
+            self.credit_shop_by_id(ext.proxy_shop_id, proxy_amt).await?;
+            let _ = sqlx::query(
+                "UPDATE proxy_order_ext SET split_base = $1, platform_amount = $2, proxy_amount = $3, fulfill_amount = $4, split_status = 1, settle_time = $5 WHERE order_id = $6",
+            )
+            .bind(paid_amount)
+            .bind(platform_amt)
+            .bind(proxy_amt)
+            .bind(fulfill_amt)
+            .bind(now_i32())
+            .bind(order_id)
+            .execute(self.pool())
+            .await;
         } else {
             let mut fee = Decimal::ZERO;
             if paid_amount > Decimal::ZERO {
@@ -503,6 +550,44 @@ impl SettlementService {
                 .await;
         }
         Ok(())
+    }
+
+    /// 读代客跨店分成记录（我方新增）；无记录返回 None（同店单常态）。
+    async fn load_proxy_order_ext(&self, order_id: i32) -> Result<Option<ProxyOrderExt>> {
+        let row = sqlx::query_as::<_, ProxyOrderExt>(
+            "SELECT proxy_shop_id, fulfill_shop_id, platform_rate, proxy_rate, fulfill_rate, proxy_amount, fulfill_amount, split_status FROM proxy_order_ext WHERE order_id = $1 LIMIT 1",
+        )
+        .bind(order_id)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(db_err)?;
+        Ok(row)
+    }
+
+    /// 跨店退款冲正（我方新增）：订单已三方分成（split_status=1）时，
+    /// 冲正额 = 净退款额 x (1 - 平台快照比例)（平台按快照返还其份），
+    /// 按两店入账比例分摊扣回。返回 true 表示已按跨店口径处理。
+    async fn proxy_split_clawback(&self, order_id: i32, net_refund: Decimal) -> Result<bool> {
+        if net_refund <= Decimal::ZERO {
+            return Ok(false);
+        }
+        let Some(ext) = self.load_proxy_order_ext(order_id).await? else {
+            return Ok(false);
+        };
+        if ext.split_status != 1 {
+            return Ok(false);
+        }
+        let clawback = (net_refund * (Decimal::from(100) - ext.platform_rate)
+            / Decimal::from(100))
+        .round_dp(2);
+        let (proxy_part, fulfill_part) = allocate_proxy_clawback(
+            clawback,
+            ext.proxy_amount.unwrap_or(Decimal::ZERO),
+            ext.fulfill_amount.unwrap_or(Decimal::ZERO),
+        );
+        self.debit_shop_by_id(ext.fulfill_shop_id, fulfill_part).await?;
+        self.debit_shop_by_id(ext.proxy_shop_id, proxy_part).await?;
+        Ok(true)
     }
 
     /// 店铺资金入账 + \"shop_account_log\" 流水（Java \"saveAccount\"，type='4'）。
@@ -570,6 +655,87 @@ impl SettlementService {
         .bind(old_shop - delta)
         .bind(frozen)
         .bind(order.shop_id)
+        .execute(self.pool())
+        .await;
+        Ok(())
+    }
+
+    /// 按店铺 id 入账 + 流水（跨店分成用：履约店/下单店不是订单店铺）。
+    /// 与 credit_shop 同口径（type='4'），余额现读现写；店铺不存在只记日志。
+    async fn credit_shop_by_id(&self, shop_id: i32, delta: Decimal) -> Result<()> {
+        if delta == Decimal::ZERO {
+            return Ok(());
+        }
+        let row = sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>)>(
+            "SELECT shop_money, frozen_money FROM shop WHERE shop_id = $1",
+        )
+        .bind(shop_id)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(db_err)?;
+        let Some((shop_money, frozen_money)) = row else {
+            tracing::error!("跨店分成入账：店铺不存在 shop={shop_id}");
+            return Ok(());
+        };
+        let old_shop = shop_money.unwrap_or(Decimal::ZERO);
+        let frozen = frozen_money.unwrap_or(Decimal::ZERO);
+        let _ = sqlx::query("UPDATE shop SET shop_money = shop_money + $1 WHERE shop_id = $2")
+            .bind(delta)
+            .bind(shop_id)
+            .execute(self.pool())
+            .await;
+        let _ = sqlx::query(
+            "INSERT INTO shop_account_log \
+             (add_time, shop_money, frozen_money, \"type\", new_shop_money, \
+              new_frozen_money, shop_id, is_new) \
+             VALUES ($1, $2, $3, '4', $4, $5, $6, 1)",
+        )
+        .bind(now_i32())
+        .bind(old_shop)
+        .bind(frozen)
+        .bind(old_shop + delta)
+        .bind(frozen)
+        .bind(shop_id)
+        .execute(self.pool())
+        .await;
+        Ok(())
+    }
+
+    /// 按店铺 id 扣回 + 流水（跨店分成退款冲正用），与 debit_shop 同口径。
+    async fn debit_shop_by_id(&self, shop_id: i32, delta: Decimal) -> Result<()> {
+        if delta == Decimal::ZERO {
+            return Ok(());
+        }
+        let row = sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>)>(
+            "SELECT shop_money, frozen_money FROM shop WHERE shop_id = $1",
+        )
+        .bind(shop_id)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(db_err)?;
+        let Some((shop_money, frozen_money)) = row else {
+            tracing::error!("跨店分成扣回：店铺不存在 shop={shop_id}");
+            return Ok(());
+        };
+        let old_shop = shop_money.unwrap_or(Decimal::ZERO);
+        let frozen = frozen_money.unwrap_or(Decimal::ZERO);
+        let _ = sqlx::query("UPDATE shop SET shop_money = shop_money - $1 WHERE shop_id = $2")
+            .bind(delta)
+            .bind(shop_id)
+            .execute(self.pool())
+            .await;
+        let _ = sqlx::query(
+            "INSERT INTO shop_account_log \
+             (add_time, shop_money, frozen_money, \"type\", new_shop_money, \
+              new_frozen_money, shop_id, is_new) \
+             VALUES ($1, $2, $3, '4', $4, $5, $6, 1)",
+        )
+        .bind(now_i32())
+        .bind(old_shop)
+        .bind(frozen)
+        .bind(old_shop - delta)
+        .bind(frozen)
+        .bind(shop_id)
         .execute(self.pool())
         .await;
         Ok(())
@@ -1032,6 +1198,11 @@ impl SettlementService {
         if shop_refund == Decimal::ZERO {
             return Ok(());
         }
+        // 代客跨店单（我方新增）：已三方分成的订单走跨店冲正口径
+        // （平台按快照比例返还、两店按入账比例扣回），不再走单店扣回。
+        if self.proxy_split_clawback(order_id, shop_refund).await? {
+            return Ok(());
+        }
         if let Some(online_amount) = self.resolve_online_split(&order).await? {
             let decr = shop_money_decr_on_refund(shop_refund, order.paid_amount, online_amount);
             if decr != Decimal::ZERO {
@@ -1180,6 +1351,11 @@ impl SettlementService {
         if shop_refund == Decimal::ZERO {
             return Ok(());
         }
+        // 代客跨店单（我方新增）：已三方分成的订单走跨店冲正口径
+        // （平台按快照比例返还、两店按入账比例扣回），不再走单店扣回。
+        if self.proxy_split_clawback(order_id, shop_refund).await? {
+            return Ok(());
+        }
         if let Some(online_amount) = self.resolve_online_split(&order).await? {
             let decr = shop_money_decr_on_refund(shop_refund, order.paid_amount, online_amount);
             if decr != Decimal::ZERO {
@@ -1237,6 +1413,48 @@ pub fn shop_money_net_on_settle(paid: Decimal, online: Decimal, total_refund: De
     (balance - balance_refund).max(Decimal::ZERO)
 }
 
+/// 代客跨店三方分成（我方新增，论坛帖 547750）：基数 B、平台率 p%、
+/// 代下单店率 o% → (平台份, 下单店份, 履约店份)。
+///
+/// 平台/下单店按比例四舍五入到分；履约店 = 余数。合计 ≤100 的保存校验
+/// 保证余数 ≥ B×履约率（履约率是保底），未分配残值与舍入差都归履约店，
+/// 三方金额恒守恒。B ≤ 0 时全 0。履约率不入参：它由残值语义实现
+/// （配置的履约率只作保底口径）。
+#[must_use]
+pub fn compute_proxy_split(
+    base: Decimal,
+    platform_rate: Decimal,
+    proxy_rate: Decimal,
+) -> (Decimal, Decimal, Decimal) {
+    if base <= Decimal::ZERO {
+        return (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO);
+    }
+    let platform = (base * platform_rate / Decimal::from(100)).round_dp(2);
+    let proxy = (base * proxy_rate / Decimal::from(100)).round_dp(2);
+    let fulfill = base - platform - proxy;
+    (platform, proxy, fulfill)
+}
+
+/// 代客跨店退款冲正分摊（我方新增）：冲正额 C 按两店已入账金额比例
+/// 分摊（下单店份四舍五入到分，余数归履约店）。两店入账均为 0 时
+/// 全部归履约店（守恒兜底）。返回 (下单店扣回, 履约店扣回)。
+#[must_use]
+pub fn allocate_proxy_clawback(
+    clawback: Decimal,
+    proxy_amount: Decimal,
+    fulfill_amount: Decimal,
+) -> (Decimal, Decimal) {
+    if clawback <= Decimal::ZERO {
+        return (Decimal::ZERO, Decimal::ZERO);
+    }
+    let total = proxy_amount + fulfill_amount;
+    if total <= Decimal::ZERO {
+        return (Decimal::ZERO, clawback);
+    }
+    let proxy_part = (clawback * proxy_amount / total).round_dp(2);
+    (proxy_part, clawback - proxy_part)
+}
+
 /// Java \"shopMoneyDecrOnRefund\"：退款中按余额占比分摊的 shopMoney 扣减额。
 #[must_use]
 pub fn shop_money_decr_on_refund(
@@ -1276,6 +1494,58 @@ mod tests {
 
     fn d(v: impl Into<f64>) -> Decimal {
         Decimal::from_f64(v.into()).unwrap()
+    }
+
+    #[test]
+    fn proxy_split_default_rates_match_post_example() {
+        // 帖内设想 5/5/90：B=1000 → 平台 50 / 下单店 50 / 履约店 900
+        let (p, o, f) = compute_proxy_split(d(1000.0), d(5.0), d(5.0));
+        assert_eq!((p, o, f), (d(50.0), d(50.0), d(900.0)));
+    }
+
+    #[test]
+    fn proxy_split_residue_and_rounding_go_to_fulfill() {
+        // 合计 <100：未分配残值归履约店（10/10 配置 → 履约实得 80%）
+        let (p, o, f) = compute_proxy_split(d(100.0), d(10.0), d(10.0));
+        assert_eq!((p, o, f), (d(10.0), d(10.0), d(80.0)));
+        // 舍入：B=99.99, 5%/5% → 5.00/5.00（4.9995 四舍五入），履约 89.99，守恒
+        let (p, o, f) = compute_proxy_split(d(99.99), d(5.0), d(5.0));
+        assert_eq!(p + o + f, d(99.99));
+        assert_eq!(f, d(89.99));
+        // 履约保底：合计恰 100 时履约实得 = 配置履约率
+        let (_, _, f) = compute_proxy_split(d(200.0), d(30.0), d(20.0));
+        assert_eq!(f, d(100.0));
+    }
+
+    #[test]
+    fn proxy_split_non_positive_base_is_zero() {
+        assert_eq!(
+            compute_proxy_split(d(0.0), d(5.0), d(5.0)),
+            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO)
+        );
+        assert_eq!(
+            compute_proxy_split(d(-10.0), d(5.0), d(5.0)),
+            (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO)
+        );
+    }
+
+    #[test]
+    fn proxy_clawback_allocates_pro_rata_with_residue_to_fulfill() {
+        // 入账 下单店 50 / 履约店 900，冲正 95 → 按比例 5/90 分摊
+        let (o, f) = allocate_proxy_clawback(d(95.0), d(50.0), d(900.0));
+        assert_eq!(o + f, d(95.0));
+        assert_eq!(o, d(5.0));
+        assert_eq!(f, d(90.0));
+        // 两店入账为 0 → 全部归履约店（守恒兜底）
+        assert_eq!(
+            allocate_proxy_clawback(d(10.0), d(0.0), d(0.0)),
+            (Decimal::ZERO, d(10.0))
+        );
+        // 冲正为 0 → 全 0
+        assert_eq!(
+            allocate_proxy_clawback(d(0.0), d(50.0), d(900.0)),
+            (Decimal::ZERO, Decimal::ZERO)
+        );
     }
 
     #[test]

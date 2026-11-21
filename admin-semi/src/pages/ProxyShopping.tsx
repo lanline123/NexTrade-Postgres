@@ -157,6 +157,12 @@ export default function ProxyShopping() {
   const [pickupId, setPickupId] = useState<number | undefined>();
   const [pickupContactName, setPickupContactName] = useState('');
   const [pickupContactMobile, setPickupContactMobile] = useState('');
+  // 跨店履约（我方新增）：候选门店与所选履约店（undefined = 本店履约）
+  const [fulfillCandidates, setFulfillCandidates] = useState<any[]>([]);
+  const [fulfillShopId, setFulfillShopId] = useState<number | undefined>();
+  const isCrossFulfill =
+    fulfillShopId != null &&
+    fulfillCandidates.some((c) => Number(c.shopId) === fulfillShopId && !c.isSelf);
   // 地址编辑（对应旧版地址新增/编辑表单）
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [addressEditing, setAddressEditing] = useState<CheckAddress | null>(null);
@@ -332,6 +338,7 @@ export default function ProxyShopping() {
         pickupId: deliveryType === 2 ? pickupId : undefined,
         pickupContactName: deliveryType === 2 ? pickupContactName : undefined,
         pickupContactMobile: deliveryType === 2 ? pickupContactMobile : undefined,
+        fulfillShopId: fulfillShopId || undefined,
         buyerNote,
         ...patch,
       });
@@ -358,6 +365,7 @@ export default function ProxyShopping() {
         payTypeId,
         usePoint,
         useBalance,
+        fulfillShopId: fulfillShopId || undefined,
         buyerNote,
       });
       if (result) setCheckData(result);
@@ -377,8 +385,21 @@ export default function ProxyShopping() {
     }
   };
 
+  /** 跨店履约候选（我方新增）：开关关闭/平台视角时后端返回空列表，区块不渲染。 */
+  const loadFulfillCandidates = async (addrId?: number) => {
+    try {
+      const res = await apiGet<any>('/proxyShopping/order/check/fulfillCandidates', {
+        addressId: addrId,
+      });
+      setFulfillCandidates(Array.isArray(res) ? res : []);
+    } catch {
+      setFulfillCandidates([]);
+    }
+  };
+
   const goCheck = () => {
     if (!user || !cartItems.length) return;
+    setFulfillShopId(undefined);
     setStep('check');
     setCheckLoading(true);
     apiPost<any>('/proxyShopping/order/check/index', { userId: user.userId, flowType: 15, selectFrom: 1 })
@@ -387,6 +408,7 @@ export default function ProxyShopping() {
         const addresses: CheckAddress[] = result?.addressList || result?.addressInfo?.list || [];
         const selected = addresses.find((item) => item.isSelected === 1) || addresses[0];
         if (selected?.addressId) setAddressId(selected.addressId);
+        loadFulfillCandidates(selected?.addressId);
         if (result?.deliveryOption?.deliveryType) setDeliveryType(Number(result.deliveryOption.deliveryType));
         let payments: CheckPaymentType[] = result?.paymentTypes || [];
         if (!payments.length) {
@@ -435,6 +457,7 @@ export default function ProxyShopping() {
           pickupId: deliveryType === 2 ? pickupId : undefined,
           pickupContactName: deliveryType === 2 ? pickupContactName : undefined,
           pickupContactMobile: deliveryType === 2 ? pickupContactMobile : undefined,
+          fulfillShopId: fulfillShopId || undefined,
         },
       );
       Toast.success({
@@ -444,6 +467,8 @@ export default function ProxyShopping() {
       });
       setStep('index');
       setCheckData(null);
+      setFulfillShopId(undefined);
+      setFulfillCandidates([]);
       setBuyerNote('');
       setSelectedCouponIds([]);
       setUsePoint(0);
@@ -670,16 +695,18 @@ export default function ProxyShopping() {
                       <div className="proxy-product-cell">{item.subtotal != null ? money(item.subtotal) : '-'}</div>
                       <div className="proxy-product-cell">
                         <Space spacing={2}>
-                          <Button
-                            theme="borderless"
-                            size="small"
-                            onClick={() => {
-                              setPriceTarget(item);
-                              setPriceValue(Number(item.price || 0));
-                            }}
-                          >
-                            {t('改价')}
-                          </Button>
+                          {!isCrossFulfill && (
+                            <Button
+                              theme="borderless"
+                              size="small"
+                              onClick={() => {
+                                setPriceTarget(item);
+                                setPriceValue(Number(item.price || 0));
+                              }}
+                            >
+                              {t('改价')}
+                            </Button>
+                          )}
                           <Button theme="borderless" type="danger" size="small" onClick={() => removeCart(item)}>
                             {t('移除')}
                           </Button>
@@ -712,7 +739,7 @@ export default function ProxyShopping() {
               <div className="proxy-check-section">
                 <Text strong>{t('收货地址')}</Text>
                 {addresses.length ? (
-                  <RadioGroup value={addressId} onChange={(e) => { const next = Number(e.target.value); setAddressId(next); updateCheck({ addressId: next }); }}>
+                  <RadioGroup value={addressId} onChange={(e) => { const next = Number(e.target.value); setAddressId(next); loadFulfillCandidates(next); updateCheck({ addressId: next }); }}>
                     {addresses.map((addr) => (
                       <Radio key={addr.addressId} value={Number(addr.addressId)}>
                         {addr.contact} {addr.mobile}（
@@ -751,6 +778,38 @@ export default function ProxyShopping() {
                   ))}
                 </Space>
               </div>
+              {fulfillCandidates.some((c) => !c.isSelf) && (
+                <div className="proxy-check-section">
+                  <Text strong>{t('履约门店')}</Text>
+                  <Select
+                    style={{ width: 360 }}
+                    value={fulfillShopId ?? 0}
+                    optionList={[
+                      { label: t('本店履约'), value: 0 },
+                      ...fulfillCandidates
+                        .filter((c) => !c.isSelf)
+                        .map((c) => ({
+                          label: `${c.shopTitle || ''}${
+                            c.distanceMeters != null
+                              ? `（${(Number(c.distanceMeters) / 1000).toFixed(1)} km）`
+                              : ''
+                          }${c.recommended ? ` · ${t('推荐')}` : ''}`,
+                          value: Number(c.shopId),
+                        })),
+                    ]}
+                    onChange={(next: any) => {
+                      const id = Number(next) || undefined;
+                      setFulfillShopId(id);
+                      updateCheck({ fulfillShopId: id });
+                    }}
+                  />
+                  {isCrossFulfill && (
+                    <Text type="warning" style={{ display: 'block', marginTop: 6 }}>
+                      {t('跨店履约：价格以履约门店为准，不可改价；订单完成后按平台三方比例分成')}
+                    </Text>
+                  )}
+                </div>
+              )}
               <div className="proxy-check-section">
                 <Text strong>{t('配送方式')}</Text>
                 <RadioGroup

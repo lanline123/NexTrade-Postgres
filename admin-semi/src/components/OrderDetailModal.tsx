@@ -307,6 +307,45 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
               </div>
             </div>
 
+            {detail.proxySplit && (
+              <div className="order-detail-card">
+                <div className="order-detail-card-title">{t('跨店履约分成')}</div>
+                <div className="order-info-row is-block">
+                  <span>{t('下单店')}</span>
+                  <b>{detail.proxySplit.proxyShopTitle || detail.proxySplit.proxyShopId}</b>
+                </div>
+                <div className="order-info-row is-block">
+                  <span>{t('履约门店')}</span>
+                  <b>{detail.proxySplit.fulfillShopTitle || detail.proxySplit.fulfillShopId}</b>
+                </div>
+                <div className="order-info-row is-block">
+                  <span>{t('分成比例（平台/下单店/履约店）')}</span>
+                  <b>
+                    {detail.proxySplit.platformRate}% / {detail.proxySplit.proxyRate}% /{' '}
+                    {detail.proxySplit.fulfillRate}%
+                  </b>
+                </div>
+                {detail.proxySplit.splitStatus === 1 ? (
+                  <div className="order-info-row is-block">
+                    <span>{t('分成金额（平台/下单店/履约店）')}</span>
+                    <b>
+                      ¥ {detail.proxySplit.platformAmount} / ¥ {detail.proxySplit.proxyAmount} / ¥{' '}
+                      {detail.proxySplit.fulfillAmount}
+                    </b>
+                  </div>
+                ) : (
+                  <div className="order-info-row is-block">
+                    <span>{t('分成状态')}</span>
+                    <b>
+                      {detail.proxySplit.splitStatus === 2
+                        ? t('已跳过（线上分账渠道）')
+                        : t('待分成（订单完成结算时执行）')}
+                    </b>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="order-detail-card">
               <div className="order-detail-card-title">{t('备注信息')}</div>
               <div className="order-info-row is-block">

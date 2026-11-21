@@ -50,7 +50,8 @@ use nextrade_core::models::trade::order_admin::{
     OrderItemVO, OrderListQuery, OrderModifyConsigneeParam, OrderModifyMoneyParam,
     OrderModifyProductParam, OrderModifyShippingParam, OrderPageConfigVO, OrderShopVO,
     OrderStatus, OrderStatusCountVO, OrderUserVO, OrderVO, ParentOrderDetailVO, PayStatus,
-    ProductAddInfoVO, ShippingInfoVO, ShippingStatus, ShippingTraceVO, AftersalesApplyAdminParam,
+    ProductAddInfoVO, ProxySplitVO, ShippingInfoVO, ShippingStatus, ShippingTraceVO,
+    AftersalesApplyAdminParam,
     ORDER_DELIVER_TEMPLATE_DESCRIPTION, ORDER_DELIVER_TEMPLATE_HEADERS,
 };
 use nextrade_core::types::PageResult;
@@ -407,6 +408,8 @@ fn build_vo(input: VoInput<'_>) -> OrderVO {
         join_status: join_status_code,
         join_status_desc,
         groupon_promotion_record_id: groupon_record_id,
+        // 跨店分成摘要仅 detail() 回填（我方新增），列表/组装默认 None。
+        proxy_split: None,
         items: items.iter().map(to_item_vo).collect(),
         user: user.map(to_user_vo),
         shop: shop.map(to_shop_vo),
@@ -784,6 +787,29 @@ impl OrderAdminService {
                 .await?
                 .contains(&order_id),
         );
+        // 代客跨店分成摘要（我方新增）：有 proxy_order_ext 记录才回填。
+        if let Some(ext) = self
+            .repos
+            .trade
+            .order_admin
+            .find_proxy_order_ext(order_id)
+            .await?
+        {
+            vo.proxy_split = Some(ProxySplitVO {
+                proxy_shop_id: ext.proxy_shop_id,
+                proxy_shop_title: ext.proxy_shop_title,
+                fulfill_shop_id: ext.fulfill_shop_id,
+                fulfill_shop_title: ext.fulfill_shop_title,
+                platform_rate: ext.platform_rate,
+                proxy_rate: ext.proxy_rate,
+                fulfill_rate: ext.fulfill_rate,
+                split_base: ext.split_base,
+                platform_amount: ext.platform_amount,
+                proxy_amount: ext.proxy_amount,
+                fulfill_amount: ext.fulfill_amount,
+                split_status: ext.split_status,
+            });
+        }
         Ok(vo)
     }
 

@@ -930,6 +930,7 @@ impl PosCashierService {
             invoice_data: None,
             order_source: Some("pos".into()),
             pos_user_id: Some(admin_id),
+            line_price_overrides: None,
         };
 
         let order_service = crate::trade::order::OrderService::from_repos(self.repos.clone());

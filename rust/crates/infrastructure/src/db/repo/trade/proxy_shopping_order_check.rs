@@ -105,6 +105,18 @@ pub struct PickupQuery {
     pub offset: i64,
 }
 
+/// 店铺体系行（跨店履约候选集计算用，我方新增）。
+#[derive(Debug, Clone, Default, sqlx::FromRow)]
+pub struct ShopFamilyRow {
+    pub shop_id: i32,
+    pub shop_title: Option<String>,
+    pub shop_type: Option<i32>,
+    pub store_parent_id: Option<i32>,
+    pub status: Option<i32>,
+    pub shop_longitude: Option<Decimal>,
+    pub shop_latitude: Option<Decimal>,
+}
+
 #[derive(Clone)]
 pub struct ProxyShoppingOrderCheckRepository {
     pool: PgPool,
@@ -263,6 +275,57 @@ impl ProxyShoppingOrderCheckRepository {
     /// `RegionService#getRegionNamesByRegionIds`：按地区 ID 取名称（只读）。
     ///
     /// 空 \"ids\" 直接返回空（不发出无 \"IN\" 列表的非法 SQL）。
+    // ————————————————— 跨店履约（我方新增） —————————————————
+
+    /// 读单个店铺的体系归属字段（shop_type / store_parent_id / status /
+    /// 经纬度），供履约候选集计算；店铺不存在或已删返回 None。
+    pub async fn find_shop_family_row(&self, shop_id: i32) -> Result<Option<ShopFamilyRow>> {
+        let row = sqlx::query_as::<_, ShopFamilyRow>("SELECT shop_id, shop_title, shop_type, store_parent_id, status, shop_longitude, shop_latitude FROM shop WHERE shop_id = $1 AND is_delete = 0 LIMIT 1")
+            .bind(shop_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(row)
+    }
+
+    /// 同体系候选集：体系根（root）本人 + 其直属门店（store_parent_id = root）。
+    /// 只取未删除的店铺行，营业状态由服务层判定（候选展示需区分停业）。
+    pub async fn list_family_shops(&self, root_shop_id: i32) -> Result<Vec<ShopFamilyRow>> {
+        let rows = sqlx::query_as::<_, ShopFamilyRow>("SELECT shop_id, shop_title, shop_type, store_parent_id, status, shop_longitude, shop_latitude FROM shop WHERE is_delete = 0 AND (shop_id = $1 OR store_parent_id = $1) ORDER BY shop_id")
+            .bind(root_shop_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(rows)
+    }
+
+    /// 写代客跨店分成记录（一订单一行，order_id 唯一；重复写以冲突忽略
+    /// 兜底，提交链重试不产生双记录）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_proxy_order_ext(
+        &self,
+        order_id: i32,
+        proxy_shop_id: i32,
+        fulfill_shop_id: i32,
+        platform_rate: Decimal,
+        proxy_rate: Decimal,
+        fulfill_rate: Decimal,
+        add_time: i32,
+    ) -> Result<()> {
+        sqlx::query("INSERT INTO proxy_order_ext (order_id, proxy_shop_id, fulfill_shop_id, platform_rate, proxy_rate, fulfill_rate, split_status, add_time) VALUES ($1, $2, $3, $4, $5, $6, 0, $7) ON CONFLICT (order_id) DO NOTHING")
+            .bind(order_id)
+            .bind(proxy_shop_id)
+            .bind(fulfill_shop_id)
+            .bind(platform_rate)
+            .bind(proxy_rate)
+            .bind(fulfill_rate)
+            .bind(add_time)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
     pub async fn find_region_names(&self, ids: &[i32]) -> Result<Vec<RegionNameRow>> {
         if ids.is_empty() {
             return Ok(Vec::new());

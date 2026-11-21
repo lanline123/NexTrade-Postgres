@@ -703,9 +703,14 @@ const configPages: Record<string, ConfigPageDef> = {
     controls: {
       afterSalesReasonEnabled: 'switch',
       returnRestockEnabled: 'switch',
+      proxyCrossShopEnabled: 'switch',
     },
     fieldHelp: {
       returnRestockEnabled: '开启后，退货退款在商家确认收货时按退回数量回补商品库存；默认关闭（不回补）',
+      proxyCrossShopEnabled: '开启后，代客下单可选择同体系的其它门店履约，订单按履约门店价格计价（店员不可改价），订单完成后按下方三方比例分成',
+      proxyPlatformRate: '三方合计不得超过 100%；比例在下单时快照，改比例只影响新订单',
+      proxyShopRate: '代客下单店铺在订单完成结算时的分成比例',
+      proxyFulfillRate: '履约门店分成比例（保底：未分配残值与舍入差归履约门店）',
     },
     renderers: {
       afterSalesReasonList: (context) => (
@@ -716,6 +721,17 @@ const configPages: Record<string, ConfigPageDef> = {
       ),
     },
     validate: (values) => {
+      // 代客跨店三方分成：任一比例非法或合计 >100% 拒绝保存（后端同口径强校验）
+      const rateKeys = ['proxyPlatformRate', 'proxyShopRate', 'proxyFulfillRate'];
+      if (rateKeys.some((k) => values[k] !== undefined && values[k] !== null && values[k] !== '')) {
+        const rates = rateKeys.map((k) => Number(values[k]));
+        if (rates.some((r) => !Number.isFinite(r) || r < 0 || r > 100)) {
+          return '代客下单跨店分成比例须在 0~100 之间';
+        }
+        if (rates.reduce((a, b) => a + b, 0) > 100) {
+          return '代客下单跨店分成比例合计不能超过 100%';
+        }
+      }
       if (Number(values.afterSalesReasonEnabled) !== 1) return null;
       if (!Array.isArray(values.afterSalesReasonList) || values.afterSalesReasonList.length === 0) {
         return '开启售后原因功能后，请至少添加一项原因';

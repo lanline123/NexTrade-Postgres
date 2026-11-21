@@ -135,6 +135,12 @@ pub struct OrderCheckParam {
     pub buyer_note: Option<String>,
     pub select_from: Option<i32>,
     pub enable_change_price: Option<bool>,
+    /// 代客下单跨店履约门店（我方新增）：仅代客结算链透传，买家自助链恒空。
+    pub fulfill_shop_id: Option<i32>,
+    /// 代客跨店行价覆盖（我方新增）：cart_id → 履约门店单价，服务层解析后
+    /// 注入（不经前端传价）；命中行以覆盖价计价、不叠加活动/满减。
+    #[serde(skip)]
+    pub line_price_overrides: Option<std::collections::HashMap<i32, Decimal>>,
 }
 
 /// 店铺配送方式查询（Java `StoreShippingTypeQuery`）。

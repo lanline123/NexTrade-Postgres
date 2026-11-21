@@ -81,6 +81,11 @@ pub struct OrderCreateDTO {
     /// POS/代客下单后台管理员ID
     #[serde(default)]
     pub pos_user_id: Option<i32>,
+    /// 代客下单跨店履约的行价覆盖（我方新增）：cart_id → 履约门店单价。
+    /// 仅代客跨店提交时由服务层按履约店分配价解析后注入；命中行以覆盖价
+    /// 为最终计价单价、不叠加活动/满减。None/空 = 现行口径逐字不变。
+    #[serde(skip)]
+    pub line_price_overrides: Option<std::collections::HashMap<i32, Decimal>>,
 }
 
 /// 兼容前端三种 `useBalance` 入参：数字（余额抵扣金额）、布尔、字符串数字。
@@ -125,6 +130,7 @@ impl Default for OrderCreateDTO {
             invoice_data: None,
             order_source: None,
             pos_user_id: None,
+            line_price_overrides: None,
         }
     }
 }

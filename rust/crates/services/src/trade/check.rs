@@ -247,7 +247,16 @@ impl CheckService {
         let products = load_products(&self.repos, &product_ids).await?;
         let now = nextrade_common::utils::now_seconds() as i32;
         let skus = super::cart::load_cart_skus(&self.repos, &carts).await?;
-        let pricing = price_cart_activities(&self.repos, user_id, &carts, &products, &skus, now).await?;
+        let pricing = price_cart_activities(
+            &self.repos,
+            user_id,
+            &carts,
+            &products,
+            &skus,
+            now,
+            param.line_price_overrides.as_ref(),
+        )
+        .await?;
         let (seckill_total, groupon_total, time_discount_total, full_reduce_total) = (
             pricing.seckill.values().copied().sum::<Decimal>(),
             pricing.groupon.values().copied().sum::<Decimal>(),
@@ -1290,6 +1299,7 @@ pub(crate) async fn price_cart_activities(
     products: &HashMap<i32, Product>,
     skus: &HashMap<i32, nextrade_core::entities::ProductSku>,
     now: i32,
+    line_price_overrides: Option<&HashMap<i32, Decimal>>,
 ) -> Result<CartActivityPricing> {
     let mut result = CartActivityPricing::default();
     if carts.is_empty() {
@@ -1299,6 +1309,14 @@ pub(crate) async fn price_cart_activities(
     let groupon = load_groupon_prices(repos, carts, i64::from(now)).await?;
     let time = crate::marketing::time_discount::TimeDiscountService::new(repos.clone());
     for cart in carts {
+        // 代客跨店履约行（我方新增）：履约门店价即最终价，不叠加任何
+        // 活动价/满减，优惠分桶记 0。overrides 为空时不进此分支。
+        if let Some(overrides) = line_price_overrides {
+            if let Some(override_price) = overrides.get(&cart.cart_id) {
+                result.prices.insert(cart.cart_id, *override_price);
+                continue;
+            }
+        }
         let sku = super::cart::cart_line_sku(skus, cart);
         let base_price = super::cart::cart_base_price(products.get(&cart.product_id), sku, cart);
         let seckill_item = seckill
@@ -1332,8 +1350,21 @@ pub(crate) async fn price_cart_activities(
         .find_by_id(user_id)
         .await?
         .map(|u| u.rank_id);
+    // 跨店履约行不参与满减/满赠（履约价即最终价）：从满减入参中剔除。
+    let fr_carts: Vec<Cart>;
+    let fr_input: &[Cart] = match line_price_overrides {
+        Some(overrides) if !overrides.is_empty() => {
+            fr_carts = carts
+                .iter()
+                .filter(|c| !overrides.contains_key(&c.cart_id))
+                .cloned()
+                .collect();
+            &fr_carts
+        }
+        _ => carts,
+    };
     let (_, full_reduce, gifts) =
-        apply_full_reductions(repos, carts, products, &mut result.prices, now, rank_id).await?;
+        apply_full_reductions(repos, fr_input, products, &mut result.prices, now, rank_id).await?;
     result.full_reduce = full_reduce;
     result.gifts = gifts;
     Ok(result)

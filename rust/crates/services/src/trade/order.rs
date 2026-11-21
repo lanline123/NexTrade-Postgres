@@ -246,10 +246,23 @@ impl OrderService {
         // 拼团明细：(商品名, 拼团价信息)
         let mut groupon_lines: Vec<(String, crate::trade::check::GrouponPrice)> = Vec::new();
 
+        // 代客跨店履约行价（我方新增）：cart_id → 履约门店单价。
+        // 覆盖行为最终价，不叠加秒杀/拼团/限时折扣/满减（见 proxy_order_ext）。
+        let empty_line_overrides: std::collections::HashMap<i32, Decimal> =
+            std::collections::HashMap::new();
+        let line_overrides: &std::collections::HashMap<i32, Decimal> = dto
+            .line_price_overrides
+            .as_ref()
+            .unwrap_or(&empty_line_overrides);
+
         // 预计算活动单价（秒杀/拼团），再应用满减/满折得到最终结算价
         let mut line_prices: std::collections::HashMap<i32, Decimal> =
             std::collections::HashMap::new();
         for line in &lines {
+            if let Some(override_price) = line_overrides.get(&line.cart_id) {
+                line_prices.insert(line.cart_id, *override_price);
+                continue;
+            }
             let pid = line.product_id;
             let sku_id = line.sku_id.unwrap_or(0);
             let base_price = if pos_mode {
@@ -291,12 +304,24 @@ impl OrderService {
             .find_by_id(user_id)
             .await?
             .map(|u| u.rank_id);
+        // 跨店履约行不参与满减/满赠：满减入参剔除覆盖行（无覆盖时原样）。
+        let fr_lines: Vec<nextrade_core::entities::Cart>;
+        let fr_input: &[nextrade_core::entities::Cart] = if line_overrides.is_empty() {
+            &lines
+        } else {
+            fr_lines = lines
+                .iter()
+                .filter(|l| !line_overrides.contains_key(&l.cart_id))
+                .cloned()
+                .collect();
+            &fr_lines
+        };
         let applied_gifts = if pos_mode {
             Vec::new()
         } else {
             crate::trade::check::apply_full_reductions(
                 &self.repos,
-                &lines,
+                fr_input,
                 &products,
                 &mut line_prices,
                 now_activity,
@@ -317,10 +342,20 @@ impl OrderService {
                     products.get(&pid), super::cart::cart_line_sku(&skus, line), line,
                 )
             };
-            let seckill_item = seckill
-                .get(&(pid, sku_id))
-                .or_else(|| seckill.get(&(pid, 0)));
-            let groupon_line = groupon_prices.get(&line.cart_id);
+            // 跨店履约行（我方新增）：不挂秒杀/拼团活动语义。
+            let is_override_line = line_overrides.contains_key(&line.cart_id);
+            let seckill_item = if is_override_line {
+                None
+            } else {
+                seckill
+                    .get(&(pid, sku_id))
+                    .or_else(|| seckill.get(&(pid, 0)))
+            };
+            let groupon_line = if is_override_line {
+                None
+            } else {
+                groupon_prices.get(&line.cart_id)
+            };
             let (activity_price, is_pin) = if let Some(g) = groupon_line {
                 (g.price.min(base_price), true)
             } else {
@@ -340,8 +375,11 @@ impl OrderService {
             let price = merchandise_price + if pos_mode { Decimal::ZERO } else { super::cart::cart_extra_price(line) };
             let subtotal = price * Decimal::from(qty);
             product_amount += subtotal;
-            seckill_discount +=
-                (base_price - merchandise_price).max(Decimal::ZERO) * Decimal::from(qty);
+            // 跨店履约行与基准价的差额不是活动优惠，不计入 seckill_discount。
+            if !is_override_line {
+                seckill_discount +=
+                    (base_price - merchandise_price).max(Decimal::ZERO) * Decimal::from(qty);
+            }
             *store_amounts.entry(line.shop_id).or_default() += subtotal;
             if let Some(g) = groupon_line {
                 groupon_lines.push((

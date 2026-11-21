@@ -46,7 +46,8 @@ use axum::{
     Json, Router,
 };
 use nextrade_core::models::trade::proxy_shopping_order_check::{
-    AvailablePaymentTypeQuery, OrderCheckParam, PaymentTypeVO, PickupListVO, PickupPageQuery,
+    AvailablePaymentTypeQuery, FulfillCandidateVO, OrderCheckParam, PaymentTypeVO, PickupListVO,
+    PickupPageQuery,
 };
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult, AuthUser, TenantContext};
@@ -69,11 +70,11 @@ pub fn request_context_from_auth(auth: &AuthUser) -> RequestContext {
     RequestContext::new(auth.scoped_shop_id(), auth.admin_type.clone())
 }
 
-/// 本域 8 条路由（去 `/adminapi` 前缀的路径 + 原 Java handler）。
+/// 本域 9 条路由（去 `/adminapi` 前缀的路径 + 原 Java handler；末条 fulfillCandidates 为我方新增）。
 ///
 /// [`implemented_routes`] 的唯一来源；顺序与原 Java `ProxyShoppingOrderCheckController`
 /// 一致。
-const ROUTE_TABLE: [(&str, &str, &str); 8] = [
+const ROUTE_TABLE: [(&str, &str, &str); 9] = [
     // (HTTP method, 本模块路径, 原 Java handler)
     (
         "GET",
@@ -115,6 +116,12 @@ const ROUTE_TABLE: [(&str, &str, &str); 8] = [
         "/proxyShopping/order/check/submit",
         "ProxyShoppingOrderCheckController.submit",
     ),
+    // 我方新增（代客下单跨店履约，论坛帖 547750；原版无此接口）
+    (
+        "GET",
+        "/proxyShopping/order/check/fulfillCandidates",
+        "ProxyOrderCrossShop.fulfillCandidates",
+    ),
 ];
 
 /// 代客下单订单结算域路由（挂载于 `/adminapi` 下）。
@@ -144,6 +151,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             post(check_change_price_show),
         )
         .route("/proxyShopping/order/check/submit", post(check_submit))
+        .route(
+            "/proxyShopping/order/check/fulfillCandidates",
+            get(fulfill_candidates),
+        )
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -192,6 +203,30 @@ async fn pickup_list(
         .trade
         .proxy_shopping_order_check
         .pickup_list(&q)
+        .await?)
+}
+
+/// 跨店履约候选查询参数（我方新增）。
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FulfillCandidatesQuery {
+    /// 买家收货地址 id（用于按距离排序推荐）。
+    address_id: Option<i32>,
+}
+
+/// `GET /adminapi/proxyShopping/order/check/fulfillCandidates`：跨店履约
+/// 候选门店（我方新增，论坛帖 547750）。同体系营业店铺按与收货地址的
+/// 距离升序，第一位为推荐履约店；开关关闭时返回空列表。
+async fn fulfill_candidates(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(q): Query<FulfillCandidatesQuery>,
+) -> ApiResult<Vec<FulfillCandidateVO>> {
+    let ctx = request_context_from_auth(&auth);
+    ok(state
+        .trade
+        .proxy_shopping_order_check
+        .fulfill_candidates(q.address_id, &ctx)
         .await?)
 }
 

@@ -136,6 +136,53 @@ pub const CFG_ADMIN_SHOPPING_USE_POINT: &str = "adminShoppingUsePoint";
 /// `SettingsEnum.STORE_SHOW_OTHER_CITY_STORE`（`"storeShowOtherCityStore"`）。
 pub const CFG_STORE_SHOW_OTHER_CITY_STORE: &str = "storeShowOtherCityStore";
 
+// ——— 代客下单跨店履约 + 三方分成（我方新增，论坛帖 547750）———
+
+/// 跨店履约总开关（订单设置 `proxyCrossShopEnabled`，默认关）。
+pub const CFG_PROXY_CROSS_SHOP_ENABLED: &str = "proxyCrossShopEnabled";
+/// 平台分成比例 %（订单设置 `proxyPlatformRate`，默认 5）。
+pub const CFG_PROXY_PLATFORM_RATE: &str = "proxyPlatformRate";
+/// 代下单店分成比例 %（订单设置 `proxyShopRate`，默认 5）。
+pub const CFG_PROXY_SHOP_RATE: &str = "proxyShopRate";
+/// 履约店分成比例 %（订单设置 `proxyFulfillRate`，默认 90）。
+pub const CFG_PROXY_FULFILL_RATE: &str = "proxyFulfillRate";
+
+/// 跨店代客单改价拒绝文案（价格以履约门店为准，店员不可改价）。
+pub const MSG_CROSS_NO_CHANGE_PRICE: &str = "跨店履约代客单不可改价，价格以履约门店为准";
+/// 履约门店非法（体系外 / 停业 / 不存在）文案。
+pub const MSG_FULFILL_SHOP_INVALID: &str = "履约门店不属于当前店铺体系或已停业";
+/// 平台视角（无店铺作用域）不支持跨店履约文案。
+pub const MSG_CROSS_NEED_SHOP_SCOPE: &str = "跨店履约需以店铺账号操作代客下单";
+
+/// 店铺体系根：门店（shop_type=2 且 store_parent_id>0）的根是其父店铺；
+/// 其余（普通店铺 / 自提点 / 无父门店）根是自己。
+pub fn family_root_of(shop_type: Option<i32>, store_parent_id: Option<i32>, shop_id: i32) -> i32 {
+    match (shop_type, store_parent_id) {
+        (Some(2), Some(parent)) if parent > 0 => parent,
+        _ => shop_id,
+    }
+}
+
+/// 候选门店判定：与下单店同体系（同根）且营业中（status=1）。
+pub fn is_family_candidate(candidate_root: i32, root: i32, status: Option<i32>) -> bool {
+    candidate_root == root && status == Some(1)
+}
+
+/// 跨店模式解析结果（下单店 != 履约店且开关开启时才有）。
+#[derive(Debug, Clone)]
+pub struct CrossMode {
+    /// 履约门店 id。
+    pub fulfill_shop_id: i32,
+    /// 三方比例快照（%，下单时从订单设置读取）。
+    pub platform_rate: Decimal,
+    /// 同上：代下单店。
+    pub proxy_rate: Decimal,
+    /// 同上：履约店。
+    pub fulfill_rate: Decimal,
+    /// cart_id → 履约门店单价（服务端解析，永不信任前端价格）。
+    pub line_price_overrides: HashMap<i32, Decimal>,
+}
+
 /// `SettingsEnum.USE_WECHAT`。
 pub const CFG_USE_WECHAT: &str = "useWechat";
 /// `SettingsEnum.USE_ALIPAY`。
@@ -491,6 +538,279 @@ impl ProxyShoppingOrderCheckService {
         Ok(self.repo().find_config_val(code).await?.unwrap_or_default())
     }
 
+    // ————————————————— 跨店履约（我方新增） —————————————————
+
+    /// 读跨店四项配置：(开关, 平台%, 代下单店%, 履约店%)。
+    /// 比例缺失/脏数据回默认 5/5/90（与订单设置 FieldSpec 默认一致）。
+    async fn cross_split_config(&self) -> Result<(bool, Decimal, Decimal, Decimal)> {
+        let keys = [
+            CFG_PROXY_CROSS_SHOP_ENABLED,
+            CFG_PROXY_PLATFORM_RATE,
+            CFG_PROXY_SHOP_RATE,
+            CFG_PROXY_FULFILL_RATE,
+        ];
+        let cfg = self.repo().find_config_vals(&keys).await?;
+        let val = |k: &str| cfg.get(k).map(String::as_str).unwrap_or("");
+        let enabled = val(CFG_PROXY_CROSS_SHOP_ENABLED).trim() == "1";
+        let rate = |k: &str, default: i64| {
+            val(k)
+                .trim()
+                .parse::<Decimal>()
+                .unwrap_or_else(|_| Decimal::from(default))
+        };
+        Ok((
+            enabled,
+            rate(CFG_PROXY_PLATFORM_RATE, 5),
+            rate(CFG_PROXY_SHOP_RATE, 5),
+            rate(CFG_PROXY_FULFILL_RATE, 90),
+        ))
+    }
+
+    /// 解析跨店模式：未传履约店 / 履约店 = 下单店 / 开关关闭 → `None`
+    /// （现行口径，行为与改造前一致）。跨店时校验履约店在同体系且营业，
+    /// 并逐行解析履约价。平台视角（shop_id = 0）传跨店履约店直接拒绝。
+    async fn resolve_cross_mode(
+        &self,
+        param: &OrderCheckParam,
+        ctx: &RequestContext,
+        user_id: i32,
+    ) -> Result<Option<CrossMode>> {
+        let Some(fulfill_shop_id) = param.fulfill_shop_id.filter(|id| *id > 0) else {
+            return Ok(None);
+        };
+        let proxy_shop_id = ctx.shop_id_or_zero();
+        if fulfill_shop_id == proxy_shop_id {
+            return Ok(None);
+        }
+        let (enabled, platform_rate, proxy_rate, fulfill_rate) =
+            self.cross_split_config().await?;
+        if !enabled {
+            return Ok(None);
+        }
+        if proxy_shop_id <= 0 {
+            return Err(Error::biz(
+                SERVICE_DATA_ERROR,
+                MSG_CROSS_NEED_SHOP_SCOPE.to_string(),
+            ));
+        }
+        let proxy_row = self
+            .repo()
+            .find_shop_family_row(proxy_shop_id)
+            .await?
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MSG_SHOP_NOT_FOUND.to_string()))?;
+        let root = family_root_of(proxy_row.shop_type, proxy_row.store_parent_id, proxy_shop_id);
+        let fulfill_row = self
+            .repo()
+            .find_shop_family_row(fulfill_shop_id)
+            .await?
+            .ok_or_else(|| {
+                Error::biz(SERVICE_DATA_ERROR, MSG_FULFILL_SHOP_INVALID.to_string())
+            })?;
+        let fulfill_root = family_root_of(
+            fulfill_row.shop_type,
+            fulfill_row.store_parent_id,
+            fulfill_shop_id,
+        );
+        if !is_family_candidate(fulfill_root, root, fulfill_row.status) {
+            return Err(Error::biz(
+                SERVICE_DATA_ERROR,
+                MSG_FULFILL_SHOP_INVALID.to_string(),
+            ));
+        }
+        let line_price_overrides = self
+            .resolve_fulfill_prices(user_id, proxy_shop_id, fulfill_shop_id)
+            .await?;
+        Ok(Some(CrossMode {
+            fulfill_shop_id,
+            platform_rate,
+            proxy_rate,
+            fulfill_rate,
+            line_price_overrides,
+        }))
+    }
+
+    /// 逐行解析履约价：门店 SKU 价 → 门店商品价 → 基础 SKU 价 → 基础商品价。
+    /// 只对已勾选购物车行（与提交口径一致，未勾选时回退全部行）。
+    async fn resolve_fulfill_prices(
+        &self,
+        user_id: i32,
+        proxy_shop_id: i32,
+        fulfill_shop_id: i32,
+    ) -> Result<HashMap<i32, Decimal>> {
+        let cart_repo = &self.repos.trade.proxy_shopping_cart;
+        let mut rows = cart_repo
+            .list_carts(user_id, Some(proxy_shop_id), None, Some(1))
+            .await?;
+        if rows.is_empty() {
+            rows = cart_repo
+                .list_carts(user_id, Some(proxy_shop_id), None, None)
+                .await?;
+        }
+        let mut overrides: HashMap<i32, Decimal> = HashMap::new();
+        for row in &rows {
+            let sku_id = row.sku_id.unwrap_or(0);
+            let mut price = match if sku_id > 0 {
+                cart_repo.sku_snapshot(row.product_id, sku_id).await?
+            } else {
+                None
+            } {
+                Some(sku) => sku.sku_price,
+                None => None,
+            };
+            if price.is_none() {
+                price = cart_repo
+                    .product_snapshot(row.product_id)
+                    .await?
+                    .map(|p| p.product_price);
+            }
+            if let Some(sp) = self
+                .repos
+                .catalog
+                .product_stock
+                .find_store_product(row.product_id, fulfill_shop_id)
+                .await?
+            {
+                if let Some(p) = sp.product_price {
+                    price = Some(p);
+                }
+                if sku_id > 0 {
+                    if let Some(sps) = self
+                        .repos
+                        .catalog
+                        .product_stock
+                        .find_store_product_sku(sp.store_product_id, sku_id)
+                        .await?
+                    {
+                        if let Some(p) = sps.sku_price {
+                            price = Some(p);
+                        }
+                    }
+                }
+            }
+            if let Some(p) = price {
+                overrides.insert(row.cart_id, p);
+            }
+        }
+        Ok(overrides)
+    }
+
+    /// 把跨店模式注入核心结算参数（履约价覆盖 + 履约店标记）。
+    /// 非跨店时不改动参数 —— 结算页行为与改造前一致。
+    async fn inject_cross_mode(
+        &self,
+        param: &OrderCheckParam,
+        ctx: &RequestContext,
+        user_id: i32,
+        check_param: &mut nextrade_core::models::trade::check::OrderCheckParam,
+    ) -> Result<()> {
+        if let Some(mode) = self.resolve_cross_mode(param, ctx, user_id).await? {
+            check_param.fulfill_shop_id = Some(mode.fulfill_shop_id);
+            check_param.line_price_overrides = Some(mode.line_price_overrides);
+        }
+        Ok(())
+    }
+
+    /// 改价守卫（我方新增）：跨店模式下改价端点直接拒绝 —— 价格以履约
+    /// 门店为准，代下单店员不可改价。轻量判定（开关 + 履约店 != 下单店），
+    /// 不做完整体系校验（提交链会再验）。
+    async fn reject_change_price_if_cross(
+        &self,
+        param: &OrderCheckParam,
+        ctx: &RequestContext,
+    ) -> Result<()> {
+        let Some(fulfill_shop_id) = param.fulfill_shop_id.filter(|id| *id > 0) else {
+            return Ok(());
+        };
+        if fulfill_shop_id == ctx.shop_id_or_zero() {
+            return Ok(());
+        }
+        let (enabled, ..) = self.cross_split_config().await?;
+        if enabled {
+            return Err(Error::biz(
+                SERVICE_DATA_ERROR,
+                MSG_CROSS_NO_CHANGE_PRICE.to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// `GET /adminapi/proxyShopping/order/check/fulfillCandidates`：
+    /// 跨店履约候选门店（我方新增）。同体系营业店铺按与收货地址的距离
+    /// 升序，第一位标记推荐；开关关闭 / 平台视角返回空列表。
+    pub async fn fulfill_candidates(
+        &self,
+        address_id: Option<i32>,
+        ctx: &RequestContext,
+    ) -> Result<Vec<nextrade_core::models::trade::proxy_shopping_order_check::FulfillCandidateVO>>
+    {
+        use nextrade_core::models::trade::proxy_shopping_order_check::FulfillCandidateVO;
+        let proxy_shop_id = ctx.shop_id_or_zero();
+        if proxy_shop_id <= 0 {
+            return Ok(Vec::new());
+        }
+        let (enabled, ..) = self.cross_split_config().await?;
+        if !enabled {
+            return Ok(Vec::new());
+        }
+        let Some(proxy_row) = self.repo().find_shop_family_row(proxy_shop_id).await? else {
+            return Ok(Vec::new());
+        };
+        let root = family_root_of(proxy_row.shop_type, proxy_row.store_parent_id, proxy_shop_id);
+        let family = self.repo().list_family_shops(root).await?;
+        let addr_coords = match address_id.filter(|id| *id > 0) {
+            Some(id) => self
+                .repos
+                .member
+                .user_address_client
+                .find_by_id(id)
+                .await?
+                .map(|a| (a.longitude, a.latitude)),
+            None => None,
+        };
+        let mut out: Vec<FulfillCandidateVO> = Vec::new();
+        for shop in &family {
+            if shop.status != Some(1) {
+                continue;
+            }
+            let distance_meters = match (addr_coords, shop.shop_longitude, shop.shop_latitude) {
+                (Some((Some(_), Some(_))), Some(_), Some(_)) => {
+                    let (alng, alat) = addr_coords.unwrap();
+                    Some(
+                        crate::trade::proxy_shopping_product::haversine_meters(
+                            alng,
+                            alat,
+                            shop.shop_longitude,
+                            shop.shop_latitude,
+                        )
+                        .to_string()
+                        .parse::<f64>()
+                        .unwrap_or(0.0),
+                    )
+                }
+                _ => None,
+            };
+            out.push(FulfillCandidateVO {
+                shop_id: shop.shop_id,
+                shop_title: shop.shop_title.clone().unwrap_or_default(),
+                shop_type: shop.shop_type,
+                distance_meters,
+                recommended: false,
+                is_self: shop.shop_id == proxy_shop_id,
+            });
+        }
+        // 距离升序；无距离者排后；同组内保持 shop_id 升序（查询已排序）。
+        out.sort_by(|a, b| match (a.distance_meters, b.distance_meters) {
+            (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        });
+        if let Some(first) = out.first_mut() {
+            first.recommended = true;
+        }
+        Ok(out)
+    }
+
     /// `GET /adminapi/proxyShopping/order/check/getAvailablePaymentType`：获取可用支付方式。
     ///
     /// 对应 Java `OrderCheckServiceImpl#getAvailablePaymentType(flowType)`
@@ -657,7 +977,9 @@ impl ProxyShoppingOrderCheckService {
         param.is_cart_list = Some(true);
         param.shop_id = Some(ctx.shop_id_or_zero());
         self.apply_admin_settings(&mut param, ctx).await?;
-        let check_param = convert_to_check_param(&param)?;
+        let mut check_param = convert_to_check_param(&param)?;
+        self.inject_cross_mode(&param, ctx, user_id, &mut check_param)
+            .await?;
         let check_service = crate::trade::check::CheckService::new(self.repos.clone());
         check_service.order_check_index(user_id, &check_param).await
     }
@@ -681,7 +1003,9 @@ impl ProxyShoppingOrderCheckService {
         }
         param.shop_id = Some(ctx.shop_id_or_zero());
         self.apply_admin_settings(&mut param, ctx).await?;
-        let check_param = convert_to_check_param(&param)?;
+        let mut check_param = convert_to_check_param(&param)?;
+        self.inject_cross_mode(&param, ctx, user_id, &mut check_param)
+            .await?;
         let check_service = crate::trade::check::CheckService::new(self.repos.clone());
         check_service.order_check_update(user_id, &check_param).await
     }
@@ -701,7 +1025,9 @@ impl ProxyShoppingOrderCheckService {
         param.is_cart_list = Some(true);
         param.shop_id = Some(ctx.shop_id_or_zero());
         self.apply_admin_settings(&mut param, ctx).await?;
-        let check_param = convert_to_check_param(&param)?;
+        let mut check_param = convert_to_check_param(&param)?;
+        self.inject_cross_mode(&param, ctx, user_id, &mut check_param)
+            .await?;
         let check_service = crate::trade::check::CheckService::new(self.repos.clone());
         check_service.order_check_update_coupon(user_id, &check_param).await
     }
@@ -718,6 +1044,7 @@ impl ProxyShoppingOrderCheckService {
         param.flow_type = Some(FLOW_TYPE_ADMIN_SHOPPING);
         let user_id = validate_user_id_not_empty(&param)?;
         validate_change_price_value(&param)?;
+        self.reject_change_price_if_cross(&param, ctx).await?;
         param.select_from = Some(SELECT_FROM_CHECK_INDEX);
         param.shop_id = Some(ctx.shop_id_or_zero());
         param.is_cart_list = Some(false);
@@ -740,6 +1067,7 @@ impl ProxyShoppingOrderCheckService {
         param.flow_type = Some(FLOW_TYPE_ADMIN_SHOPPING);
         let user_id = validate_user_id_not_empty(&param)?;
         validate_change_price_value(&param)?;
+        self.reject_change_price_if_cross(&param, ctx).await?;
         param.shop_id = Some(ctx.shop_id_or_zero());
         param.is_cart_list = Some(resolve_change_price_show_is_cart_list(&param));
         param.only_show = Some(true);
@@ -782,6 +1110,26 @@ impl ProxyShoppingOrderCheckService {
         param.cash_change_amount = Some(CASH_AMOUNT_ZERO);
         param.shop_id = Some(ctx.shop_id_or_zero());
         self.apply_admin_settings(&mut param, ctx).await?;
+
+        // 跨店履约（我方新增）：解析履约店与履约价；跨店单禁止改价
+        // （价格以履约门店为准），携带任何改价参数直接拒绝。
+        let cross_mode = self.resolve_cross_mode(&param, ctx, user_id).await?;
+        if cross_mode.is_some() {
+            let has_change_price = param
+                .change_price_value
+                .is_some_and(|v| v != Decimal::ZERO)
+                || param.use_change_price == Some(true)
+                || param
+                    .cart_change_prices
+                    .as_ref()
+                    .is_some_and(|v| !v.is_empty());
+            if has_change_price {
+                return Err(Error::biz(
+                    SERVICE_DATA_ERROR,
+                    MSG_CROSS_NO_CHANGE_PRICE.to_string(),
+                ));
+            }
+        }
 
         // 查找该用户在代客下单（type=15）中已勾选的购物车行
         let cart_rows = self
@@ -846,6 +1194,9 @@ impl ProxyShoppingOrderCheckService {
             invoice_data,
             order_source: Some(ORDER_SOURCE_PROXY_SHOPPING.to_string()),
             pos_user_id: Some(admin_id),
+            line_price_overrides: cross_mode
+                .as_ref()
+                .map(|m| m.line_price_overrides.clone()),
         };
 
         let product_svc = crate::catalog::product::ProductService::new(self.repos.clone(), None);
@@ -869,6 +1220,23 @@ impl ProxyShoppingOrderCheckService {
             .order_admin
             .update_order(vo.order_id, &patch)
             .await;
+
+        // 跨店单落分成记录（下单店 / 履约店 / 比例快照）；结算链据此拆账。
+        // 写失败必须报错：无记录的跨店单会按同店口径结算，属资金口径错误。
+        if let Some(mode) = &cross_mode {
+            let now = nextrade_common::utils::now_seconds() as i32;
+            self.repo()
+                .insert_proxy_order_ext(
+                    vo.order_id,
+                    ctx.shop_id_or_zero(),
+                    mode.fulfill_shop_id,
+                    mode.platform_rate,
+                    mode.proxy_rate,
+                    mode.fulfill_rate,
+                    now,
+                )
+                .await?;
+        }
 
         let log_svc = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
         let _ = log_svc
@@ -1514,5 +1882,28 @@ mod tests {
         assert_eq!(FLOW_TYPE_ADMIN_SHOPPING, 15);
         assert_eq!(CASH_AMOUNT_ZERO, Decimal::ZERO);
         assert_eq!(SERVICE_DATA_ERROR, 1001);
+    }
+
+    #[test]
+    fn family_root_resolution() {
+        // 门店（type=2）挂父店铺 → 根是父店铺
+        assert_eq!(family_root_of(Some(2), Some(10), 21), 10);
+        // 普通店铺 → 根是自己（即使脏数据带了 parent）
+        assert_eq!(family_root_of(Some(1), Some(10), 21), 21);
+        // 门店无父（parent=0/None）→ 根是自己
+        assert_eq!(family_root_of(Some(2), Some(0), 21), 21);
+        assert_eq!(family_root_of(Some(2), None, 21), 21);
+        // 类型缺失 → 根是自己
+        assert_eq!(family_root_of(None, Some(10), 21), 21);
+    }
+
+    #[test]
+    fn family_candidate_requires_same_root_and_open() {
+        assert!(is_family_candidate(10, 10, Some(1)));
+        // 停业不可选
+        assert!(!is_family_candidate(10, 10, Some(0)));
+        assert!(!is_family_candidate(10, 10, None));
+        // 体系外不可选
+        assert!(!is_family_candidate(11, 10, Some(1)));
     }
 }
