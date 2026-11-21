@@ -2225,9 +2225,18 @@
 
 
 /* ===== PC 模块设置：现代化布局（字段/行为不变） ===== */
+/* 右栏加宽（仅 PC 编辑器）：共享壳右栏标准 380px（H5 编辑器同值），PC 设置项更密，
+   放宽到 400px（+20，不超过 H5 太多）；.pc-decorate-editor 仅 PC 编辑器壳根有，H5 不受影响 */
+.pc-decorate-editor .dec-shell__props {
+  width: 400px;
+  min-width: 400px;
+}
 .pc-module-settings {
-  margin: -16px;
-  width: calc(100% + 32px);
+  /* 原 margin:-16px + width:calc(100% + 32px) 出血写法在右栏内没有任何补偿 padding：
+     面板实宽比右栏多 32px——右侧溢出撑出右栏底部横向滚动条，左侧 16px 被裁，
+     且标题/页签/字段标签整体左移 16px 与 H5 编辑器基线错位（标题左缘 0、字段标签 -2 被裁）。
+     去出血后与 H5 共用同一左基线：标题区/页签左内边距 16px、字段行/分组标题左内边距 14px
+     （数值本就与共享壳 editor-shell.css 一致，错位全部来自这处出血） */
   background: #f7f8fa;
 }
 .pc-module-settings .dec-edit-title {
@@ -2288,6 +2297,11 @@
   border-radius: 10px;
   background: #fff;
   overflow: hidden;
+}
+/* 按钮单选组（渐变方向/商品来源等）选项总宽有固有最小值：窄行内允许换行，
+   避免横向溢出（其余行内控件经排查均为 flex + min-width:0 可收缩，无固定宽溢出） */
+.pc-module-settings .semi-radioGroup-buttonRadio {
+  flex-wrap: wrap;
 }
 .pc-module-settings .dec-edit-title-box {
   padding: 10px 14px;

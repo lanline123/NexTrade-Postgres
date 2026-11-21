@@ -785,7 +785,10 @@ function HeroCard({
   t: (key: string) => string;
 }) {
   const isGroup = card.productSource === 'productGroup';
-  const products: CenterProduct[] = isGroup ? groupProducts[cardIndex] || [] : card.products || [];
+  /* 滤掉编辑器设置补位的空占位条目（无 productId/图/名），避免渲染成无图+兜底价的幽灵商品；
+     全空时走下方「配置商品」空状态。productGroup 取数为真实商品行，同口径过滤无影响 */
+  const products: CenterProduct[] = (isGroup ? groupProducts[cardIndex] || [] : card.products || [])
+    .filter((p) => p?.productId || p?.pic?.picUrl || p?.pic?.picThumb || p?.productName);
   const className =
     variant === 'promo'
       ? 'dec-pc-home-hero__panel dec-pc-home-hero__promo-card'

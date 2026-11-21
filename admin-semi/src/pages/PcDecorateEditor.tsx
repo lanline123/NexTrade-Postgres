@@ -2098,10 +2098,15 @@ function HeroPreview({ data }: { data: Record<string, any> }) {
   const subtitleBg = (card: Record<string, any>) =>
     `linear-gradient(${gradientDirMap[card.moduleSubTitleBgType || 'leftRight'] || 'to right'}, ${card.moduleSubTitleBgColorA || '#FF4E4E'}, ${card.moduleSubTitleBgColorB || '#E1251B'})`;
 
-  /** 卡位商品渲染：productGroup 来源走 groupProductsMap，products 来源走 card.products */
+  /** 卡位空占位条目判定（编辑器设置补位写入）：无 productId、无图、无名即空位，渲染一律滤除防幽灵商品 */
+  const isEmptyHeroProduct = (p: Record<string, any>) => !p?.productId && !p?.pic?.picUrl && !p?.pic?.picThumb && !p?.productName;
+  const getRawCardProducts = (card: Record<string, any>): Array<Record<string, any>> =>
+    ((card.products || []) as Array<Record<string, any>>).filter((p) => !isEmptyHeroProduct(p));
+
+  /** 卡位商品渲染：productGroup 来源走 groupProductsMap，products 来源走 card.products（已滤空占位） */
   const getCardProducts = (card: Record<string, any>, idx: number): PreviewProduct[] => {
     if (card.productSource === 'productGroup') return groupProductsMap[idx] || [];
-    return ((card.products || []) as Array<Record<string, any>>).map((p) => ({
+    return getRawCardProducts(card).map((p) => ({
       productId: 0,
       productName: '',
       picUrl: p.pic?.picUrl || '',
@@ -2127,7 +2132,7 @@ function HeroPreview({ data }: { data: Record<string, any> }) {
         <div style={{ flex: 1, display: 'flex', gap: 6, minHeight: 0 }}>
           {products.length
             ? products.slice(0, 2).map((p, pi) => {
-                const rawP = ((card.products || [])[pi] || {}) as Record<string, any>;
+                const rawP = (getRawCardProducts(card)[pi] || {}) as Record<string, any>;
                 return (
                   <div key={pi} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
                     <div style={{ flex: 1, borderRadius: 6, overflow: 'hidden', background: '#f7f8fa', position: 'relative', minHeight: 0 }}>
@@ -4812,19 +4817,39 @@ function FieldControl({
     }
     case 'heroCards': {
       const cards = (Array.isArray(value) ? value : []) as Array<Record<string, any>>;
+      /* 卡位商品位恒为 2 个（用户口径 2026-11-21）：不足位以空占位条目垫后，
+         删除 = 清空该位为占位条目而非删条目，保证删后仍有点空位重新选品的入口。
+         占位条目字段与真实条目对齐（pic/price/label/labelBgColorA/labelBgColorB），
+         值全空：设置里渲染成「+ 点击选择商品」空框且不显示删除角标；
+         渲染端（编辑器预览/PC 前台）按无 productId/图/名滤除，不会出幽灵商品。 */
+      const HERO_PRODUCT_SLOTS = 2;
+      const emptyHeroProduct = (): Record<string, any> => ({
+        productId: 0,
+        productName: '',
+        pic: { picUrl: '', picThumb: '' },
+        price: '',
+        label: '',
+        labelBgColorA: '',
+        labelBgColorB: '',
+      });
+      const padHeroProducts = (products: unknown): Array<Record<string, any>> => {
+        const list = ((Array.isArray(products) ? products : []) as Array<Record<string, any>>).slice(0, HERO_PRODUCT_SLOTS);
+        while (list.length < HERO_PRODUCT_SLOTS) list.push(emptyHeroProduct());
+        return list;
+      };
       const updateCard = (index: number, updater: (c: Record<string, any>) => Record<string, any>) => {
         set(cards.map((c, i) => (i === index ? updater(c) : c)));
       };
       const updateProduct = (cardIndex: number, productIndex: number, patch: Record<string, any>) => {
         updateCard(cardIndex, (c) => ({
           ...c,
-          products: ((c.products || []) as Array<Record<string, any>>).map((p, i) => (i === productIndex ? { ...p, ...patch } : p)),
+          products: padHeroProducts(c.products).map((p, i) => (i === productIndex ? { ...p, ...patch } : p)),
         }));
       };
       const removeProduct = (cardIndex: number, productIndex: number) => {
         updateCard(cardIndex, (c) => ({
           ...c,
-          products: ((c.products || []) as Array<Record<string, any>>).filter((_, i) => i !== productIndex),
+          products: padHeroProducts(c.products).map((p, i) => (i === productIndex ? emptyHeroProduct() : p)),
         }));
       };
       return (
@@ -4928,7 +4953,7 @@ function FieldControl({
                   <div className="dec-hero-products-edit">
                     <div className="dec-hero-products-title">{t('选择商品')}</div>
                     <div className="dec-hero-products-list">
-                      {((card.products || []) as Array<Record<string, any>>).slice(0, 2).map((prod, pi) => (
+                      {padHeroProducts(card.products).map((prod, pi) => (
                         <div className="dec-hero-product-item" key={pi}>
                           <div className="dec-hero-product-item__left">
                             <div className="dec-hero-product-img-box" title={prod.productName || t('点击选择商品')} onClick={() => setHeroPicker({ cardIndex: ci, productIndex: pi })}>
@@ -5010,7 +5035,7 @@ function FieldControl({
                 if (row) {
                   updateCard(heroPicker.cardIndex, (c) => ({
                     ...c,
-                    products: (c.products || []).map((x: any, xi: number) => (xi === heroPicker.productIndex ? {
+                    products: padHeroProducts(c.products).map((x, xi) => (xi === heroPicker.productIndex ? {
                       ...x,
                       productId: row.productId,
                       productName: row.productName,

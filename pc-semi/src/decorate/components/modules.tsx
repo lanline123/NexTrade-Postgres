@@ -1882,10 +1882,15 @@ function HomeHero({ module, initialData }: ModuleProps) {
     // 与后台「主题风格」冲突。--general 由 RootLayout 注入，此处不再覆盖。
   };
 
-  const renderCardProducts = (card: any) => (
+  const renderCardProducts = (card: any) => {
+    /* 滤掉编辑器设置补位的空占位条目（无 productId/图/名），避免前台渲染成无图+兜底价的幽灵商品 */
+    const cardProducts = (Array.isArray(card.products) ? card.products : []).filter(
+      (p: any) => p?.productId || p?.pic?.picUrl || p?.pic?.picThumb || p?.productName,
+    );
+    return (
     <div className="dec-pc-home-hero__card-products">
-      {Array.isArray(card.products) && card.products.length ? (
-        card.products.slice(0, 2).map((rawProduct: any, index: number) => {
+      {cardProducts.length ? (
+        cardProducts.slice(0, 2).map((rawProduct: any, index: number) => {
           /* 价格回填覆盖（见上方 priceOverrides）：带 token 重拉到的同 id 商品
              只覆盖价格/门控/询价字段，pic/label 等装修快照字段保留原文 */
           const fresh = rawProduct?.productId ? priceOverrides[Number(rawProduct.productId)] : undefined;
@@ -1938,7 +1943,8 @@ function HomeHero({ module, initialData }: ModuleProps) {
         })
       ) : null}
     </div>
-  );
+    );
+  };
 
   const renderSubCata = () => {
     if (!activeFloor || !activeFloor.catList.length || typeof document === 'undefined') return null;
