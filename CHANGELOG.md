@@ -1484,3 +1484,9 @@
 ### 修复
 
 - **装修编辑器 - 视频号模块封面区（卡片中段）恒有图【原版有·我方对齐】**（用户 2026-11-21 16:03 实测：视频号「中间的样式不渲染」、小程序直播「也不渲染」）：视频号 compat Preview 改回原版机制——原版两分支均为 `cover || defaultCover`（打包图 videoNumberDefault.png），卡片中段恒有封面；我方此前以浅灰空块承接，而后台视频号账号 VO 无 cover 字段、该分支恒走空块，1:1 卡中段恒空。两分支统一 `src = 账号封面 || 默认封面`，删无引用 CSS；原版 PNG 不在快照仓与 ref-editor 摘录内（对应路径 404），以同构图内联 SVG 等价封面承接（深色渐变 + 播放钮，同 PcHomeHeroPreview 先例），图面为近似、机制逐字对齐。另定案：视频号/小程序直播在编辑器真实渲染画布不渲染的根因为嵌入页现网 H5 构建（app.090cfbfa.js，2026-11-20）早于两模块组件级门控修复（64d40b5/de3e070）——现网 chunk `mod-videoNumber.d4d62295.js`/`mod-live.fc067e02.js` 实测均恒 return null（包级实证）；main 侧代码已修、compat 面直播模块与原版逐项一致（含空态文案），两面恢复待 H5 覆盖发布，本批不含该项代码改动（详见 ~/workspace/videochannel-middle/REPORT.md）。
+
+## 0.0.2 续 · 2026-11-21 批次（链接字段清除钮改透明底删除钮，未部署——随下一 admin 合并版上线）
+
+### 修复
+
+- **Admin - 共享 LinkField 链接清除钮改透明背景【我方共享组件体验微调】**（用户 2026-11-21 16:16 反馈：编辑图片弹窗里链接字段的清除 X 已经放在输入框内最右侧、位置对了，但要把它设置成一个透明背景的删除按钮）：上一批（680b97d）清除钮常态背景已透明、但悬停带 rgba(16,24,40,.06) 浅灰填充。本批仅改 admin-semi/src/components/LinkPicker.css 一处：`.link-field-clear:hover` 去填充改 transparent，并补 `:focus-visible` 同口径——常态/悬停/聚焦背景全透明，悬停与聚焦仅图标色由 #98a2b3 加深为 #344054；尺寸（20px 命中区、图标 12px）、位置（Semi Input suffix 槽位）、显示条件（有值且非禁用时）与点击行为（mousedown/click 双 stopPropagation + onChange({}) 清空语义）逐字不变，LinkPicker.tsx 零改动。隔离性核验：类名 `.link-field-clear` 全仓仅 LinkField 清除钮一处使用，PicItemEditModal 内其余按钮走 Semi Button、不共用该类；decorate-editor.css 弹窗作用域对该类的覆盖仅 border-radius 直角口径、不涉背景，未动——改此一处即 LinkField 全部调用点（PicItemEditModal、H5 PicLinkField 适配层及各模块设置面、PcDecorateEditor、DecorateMobilePages、MessageLogs）同源受益，无逐点改动、无外溢。定性：共享组件 LinkField（通用组件登记册第 2 条）体验微调。验收：CI build-admin 绿后随下一 admin 合并版上线，部署后在 H5 编辑器编辑图片弹窗及任一模块设置的链接字段验：有链接时 X 在框内右侧、常态无底色、悬停无底色填充仅图标变深、点击清空且不顺带打开选链抽屉；报告 ~/workspace/linkfield-transparent/REPORT.md（工作区报告）。

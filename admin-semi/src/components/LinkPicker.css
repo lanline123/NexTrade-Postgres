@@ -11,8 +11,9 @@
 .link-field-input input {
   cursor: pointer;
 }
-/* 清除按钮：输入框内右侧小方钮（2026-11-21 改版，原框外独立按钮废止）。
-   20px 命中区、图标 12px、常态浅灰、悬停浅底深色；扁平方角与编辑器语言一致。 */
+/* 清除按钮：输入框内右侧小方钮（2026-11-21 改版，原框外独立按钮废止；
+   同日续批改透明底删除钮：常态/悬停/聚焦背景全透明，悬停仅图标加深）。
+   20px 命中区、图标 12px、常态浅灰、悬停/聚焦深灰；扁平方角与编辑器语言一致。 */
 .link-field-clear {
   display: inline-flex;
   align-items: center;
@@ -30,8 +31,9 @@
   cursor: pointer;
   flex-shrink: 0;
 }
-.link-field-clear:hover {
-  background: rgba(16, 24, 40, 0.06);
+.link-field-clear:hover,
+.link-field-clear:focus-visible {
+  background: transparent;
   color: #344054;
 }
 .link-field-clear svg {
