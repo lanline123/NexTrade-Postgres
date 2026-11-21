@@ -227,6 +227,7 @@ use nextrade_services::payment::with_draw_apply_client::WithDrawApplyClientServi
 use nextrade_services::payment::yeepay_config::YeepayConfigService;
 use nextrade_services::system::admin_msg::AdminMsgService;
 use nextrade_services::system::app_version_admin::AppVersionAdminService;
+use nextrade_services::system::license::LicenseService;
 use nextrade_services::system::system_update::SystemUpdateService;
 use nextrade_services::system::client_release::ClientReleaseService;
 use nextrade_services::system::area_code::AreaCodeService;
@@ -421,6 +422,8 @@ async fn main() -> anyhow::Result<()> {
         repos.clone(),
         app_version_admin.clone(),
     ));
+    // 授权系统客户端（我方新增）：实例身份 + 授权中心上报 + 判定缓存
+    let license = Arc::new(LicenseService::new(repos.clone()));
     let pc_navigation = Arc::new(PcNavigationService::new(repos.clone()));
     let pc_cat_floor = Arc::new(PcCatFloorService::new(repos.clone()));
     let pc = Arc::new(PcService::new(repos.clone()));
@@ -874,6 +877,7 @@ async fn main() -> anyhow::Result<()> {
         recommend: recommend.clone(),
         system_update: system_update.clone(),
         client_release: client_release.clone(),
+        license: license.clone(),
     });
     // ---- site_clone 域（站点搬家 P1，我方新增） ----
     let site_clone = Arc::new(nextrade_services::site_clone::Services {

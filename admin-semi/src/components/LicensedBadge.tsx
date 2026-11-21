@@ -1,49 +1,102 @@
+/**
+ * 顶栏授权徽标（我方新增，对接授权中心 auth.recy.cc 的判定）。
+ *
+ * 数据来自后端 `GET /adminapi/license/status`（经 `src/license.ts` 归一化）：
+ * - 已授权：绿色「已授权 · 商业版 / 企业版」；
+ * - 未授权（含已过期）：红色「未授权」，弹窗提示「本系统尚未获得授权，请联系授权方」；
+ * - 待确认（从未成功上报 / 状态口不可达）：灰色「授权状态待确认」。
+ *
+ * 状态由 AdminLayout 统一拉取后经 props 传入（与菜单版本控制共用同一份
+ * 状态）；无 props 时组件自行拉取兜底。fail-soft：拉取失败只显示灰色
+ * 待确认，绝不报错弹窗、绝不影响顶栏其余功能。
+ *
+ * 注：与原版授权码桩（旧 `/setting/licensed/index`）无关——旧徽标逻辑
+ * （有授权码才显示图标）已被本组件取代，旧接口保留给「授权信息」页。
+ */
+
 import { useEffect, useState } from 'react';
-import { Button, Modal, Typography } from '@douyinfe/semi-ui';
-import { IconInfoCircle } from '@douyinfe/semi-icons';
-import { apiGet } from '../api';
+import { Modal, Tag, Typography } from '@douyinfe/semi-ui';
+import {
+  fetchLicenseStatus,
+  licenseRank,
+  type LicenseStatus,
+} from '../license';
 import { useI18n } from '../i18n';
 
 const { Text } = Typography;
 
-interface LicensedInfo {
-  isLicensed?: number;
-  license?: string;
-  licensedTypeName?: string;
-  authorizedDomain?: string;
-  expirationTime?: string;
-  version?: string;
-}
+const TIER_NAME: Record<string, string> = {
+  commercial: '商业版',
+  enterprise: '企业版',
+};
 
-export default function LicensedBadge() {
+export default function LicensedBadge({ status: statusProp }: { status?: LicenseStatus }) {
   const { t } = useI18n();
-  const [info, setInfo] = useState<LicensedInfo | null>(null);
+  const [selfStatus, setSelfStatus] = useState<LicenseStatus | null>(null);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    apiGet<LicensedInfo>('/setting/licensed/index')
-      .then((result) => setInfo(result || null))
-      .catch(() => undefined);
-  }, []);
+    if (statusProp) return;
+    let alive = true;
+    void fetchLicenseStatus().then((status) => {
+      if (alive) setSelfStatus(status);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [statusProp]);
 
-  if (!info || Number(info.isLicensed) !== 1 || !info.license) return null;
+  const status = statusProp ?? selfStatus;
+  if (!status) return null;
+
+  const rank = licenseRank(status);
+  const isAuthorized = rank > 0;
+  const isUnknown = status.status === 'unknown';
+  const color = isAuthorized ? 'green' : isUnknown ? 'grey' : 'red';
+  const label = isAuthorized
+    ? `${t('已授权')} · ${t(TIER_NAME[status.tier ?? ''] ?? '')}`
+    : isUnknown
+      ? t('授权状态待确认')
+      : t('未授权');
 
   return (
     <>
-      <Button
-        icon={<IconInfoCircle />}
-        theme="borderless"
-        className="icon-btn"
-        title={t('授权信息')}
+      <Tag
+        color={color}
+        size="large"
         onClick={() => setVisible(true)}
-      />
+        style={{ cursor: 'pointer' }}
+        title={t('授权信息')}
+      >
+        {label}
+      </Tag>
       <Modal title={t('授权信息')} visible={visible} onCancel={() => setVisible(false)} footer={null} width={480}>
         <div className="licensed-info">
-          <div><Text type="tertiary">{t('授权类型')}</Text><span>{info.licensedTypeName || '-'}</span></div>
-          <div><Text type="tertiary">{t('授权域名')}</Text><span>{info.authorizedDomain || '-'}</span></div>
-          <div><Text type="tertiary">{t('到期时间')}</Text><span>{info.expirationTime || '-'}</span></div>
-          <div><Text type="tertiary">{t('系统版本')}</Text><span>{info.version || '-'}</span></div>
-          <div><Text type="tertiary">{t('授权码')}</Text><span className="licensed-code">{info.license}</span></div>
+          {!isAuthorized && !isUnknown && (
+            <div>
+              <Text type="danger">{t('本系统尚未获得授权，请联系授权方')}</Text>
+            </div>
+          )}
+          {isUnknown && (
+            <div>
+              <Text type="tertiary">{t('尚未完成首次授权校验，状态待确认')}</Text>
+            </div>
+          )}
+          <div><Text type="tertiary">{t('授权状态')}</Text><span>{label}</span></div>
+          {status.expired && (
+            <div><Text type="tertiary">{t('到期状态')}</Text><span>{t('已过期')}</span></div>
+          )}
+          <div><Text type="tertiary">{t('到期时间')}</Text><span>{status.expiresAt || '-'}</span></div>
+          {status.tier === 'enterprise' && (
+            <div>
+              <Text type="tertiary">{t('子域名额度')}</Text>
+              <span>
+                {status.subdomainsUsed ?? '-'} / {status.subdomainLimit ?? '-'}
+              </span>
+            </div>
+          )}
+          <div><Text type="tertiary">{t('校验时间')}</Text><span>{status.checkedAt || '-'}</span></div>
+          <div><Text type="tertiary">{t('实例标识')}</Text><span className="licensed-code">{status.instanceKey || '-'}</span></div>
         </div>
       </Modal>
     </>

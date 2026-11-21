@@ -29,6 +29,12 @@ import {
   getCachedFederationSettings,
   type FederationSettings,
 } from '../federation';
+import {
+  fetchLicenseStatus,
+  filterNavGroupsByLicense,
+  getCachedLicenseStatus,
+  type LicenseStatus,
+} from '../license';
 import MenuSearch from '../components/MenuSearch';
 import AdminMessageCenter, { type MsgAccountKind } from '../components/AdminMessageCenter';
 import LicensedBadge from '../components/LicensedBadge';
@@ -263,15 +269,37 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
     };
   }, []);
 
+  /**
+   * 授权菜单版本控制（我方新增，仅渲染层）：先用本地缓存值渲染，挂载后拉
+   * 后端授权状态刷新；档位划分见 license.ts 的 MENU_MIN_TIER 集中映射表
+   * （未授权/未知摘平台级菜单、商业版摘万象互联、企业版全开）。状态口
+   * 不可达时回落缓存/unknown，绝不锁死其余菜单。不拦 ?page= 直达。
+   */
+  const [licenseStatus, setLicenseStatus] = useState<LicenseStatus>(() =>
+    getCachedLicenseStatus(),
+  );
+  useEffect(() => {
+    let alive = true;
+    void fetchLicenseStatus().then((status) => {
+      if (alive) setLicenseStatus(status);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   /** 全量菜单（含角色专属组）：商户端/供应商端登录后在平台组后追加自己的自助页面组。 */
   const roleNavGroups = useMemo(() => navGroupsForRole(localStorage.getItem('adminType')), []);
   const visibleNavGroups = useMemo(
     () =>
-      filterNavGroupsByFederation(
-        filterNavGroupsBySystemMode(roleNavGroups, systemMode),
-        federationSettings,
+      filterNavGroupsByLicense(
+        filterNavGroupsByFederation(
+          filterNavGroupsBySystemMode(roleNavGroups, systemMode),
+          federationSettings,
+        ),
+        licenseStatus,
       ),
-    [roleNavGroups, systemMode, federationSettings],
+    [roleNavGroups, systemMode, federationSettings, licenseStatus],
   );
 
   const groups = useMemo(() => {
@@ -644,7 +672,7 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
           </div>
 
           <div className="topbar-right">
-            <LicensedBadge />
+            <LicensedBadge status={licenseStatus} />
             <Popover
               trigger="custom"
               visible={messageVisible}

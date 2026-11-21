@@ -196,7 +196,26 @@ async fn login(
         .unwrap_or("unknown")
         .to_string();
     let vo = state.identity.auth.login(&dto, &ip).await?;
+    trigger_license_checkin(&state, &headers);
     Ok(Json(ApiResponse::success(vo)))
+}
+
+/// 管理员登录成功后触发一次授权上报（我方新增，fail-soft）：
+/// fire-and-forget 异步执行，授权中心不可达也绝不影响登录；adminHost 取
+/// 请求的 X-Forwarded-Host / Host（部署在反代后时以转发头为准）。
+fn trigger_license_checkin(state: &AdminState, headers: &axum::http::HeaderMap) {
+    let host = headers
+        .get("X-Forwarded-Host")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or_else(|| headers.get("host").and_then(|v| v.to_str().ok()))
+        .map(str::to_string);
+    nextrade_services::system::license::LicenseService::spawn_checkin(
+        state.repos.clone(),
+        host,
+    );
 }
 
 /// `POST /adminapi/login/mobileSignin`：后台手机验证码登录。
@@ -212,6 +231,7 @@ async fn login_mobile(
         .unwrap_or("unknown")
         .to_string();
     let vo = state.identity.auth.login_mobile(&dto, &ip).await?;
+    trigger_license_checkin(&state, &headers);
     Ok(Json(ApiResponse::success(vo)))
 }
 

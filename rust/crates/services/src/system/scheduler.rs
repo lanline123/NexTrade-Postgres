@@ -85,8 +85,29 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(purchase_auto_finish_loop(repos.clone())),
         tokio::spawn(proxy_hall_timeout_loop(repos.clone())),
         tokio::spawn(shop_label_auto_award_loop(repos.clone())),
+        tokio::spawn(license_checkin_loop(repos.clone())),
         tokio::spawn(exchange_rate_sync_loop(repos)),
     ]
+}
+
+/// 授权上报循环（我方新增）：启动后先报一次，之后每 6 小时一次
+/// （`NEXTTRADE_SCHEDULER__LICENSE_SECS` 可调）。上报本身 fail-soft——
+/// 授权中心不可达时静默等下个周期，绝不影响进程其余功能；判定与缓存
+/// 逻辑全在 `system::license::LicenseService::checkin`。
+async fn license_checkin_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 50,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(
+        env_secs("NEXTTRADE_SCHEDULER__LICENSE_SECS", 6 * 3600).max(60),
+    ));
+    loop {
+        ticker.tick().await;
+        crate::system::license::LicenseService::new(repos.clone())
+            .checkin(None)
+            .await;
+    }
 }
 
 /// 代客接单大厅超时兜底循环（`NEXTTRADE_SCHEDULER__PROXY_HALL_SECS`，
