@@ -1,0 +1,237 @@
+/* 新建页模板库弹窗（原版 TemplateLibrary.vue 布局口径：头部搜索 / 三行筛选 /
+   卡片网格；扁平方角，与后台整体风格一致） */
+.tpl-lib {
+    display: flex;
+    flex-direction: column;
+    max-height: 82vh;
+}
+
+.tpl-lib-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 0 12px;
+}
+
+.tpl-lib-search {
+    width: 280px;
+}
+
+.tpl-lib-close {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--semi-color-text-2);
+    display: inline-flex;
+    align-items: center;
+    padding: 4px;
+}
+
+.tpl-lib-close:hover {
+    color: var(--semi-color-text-0);
+}
+
+.tpl-lib-filters {
+    border-top: 1px solid var(--semi-color-border);
+    border-bottom: 1px solid var(--semi-color-border);
+    padding: 10px 0 4px;
+    margin-bottom: 14px;
+}
+
+.tpl-lib-filter-row {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.tpl-lib-filter-label {
+    flex: 0 0 52px;
+    line-height: 26px;
+    color: var(--semi-color-text-1);
+    font-size: 13px;
+}
+
+.tpl-lib-filter-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    align-items: center;
+    min-height: 26px;
+}
+
+.tpl-lib-tag {
+    padding: 2px 12px;
+    line-height: 22px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--semi-color-text-1);
+    border: 1px solid transparent;
+    user-select: none;
+}
+
+.tpl-lib-tag:hover {
+    color: var(--semi-color-primary);
+}
+
+.tpl-lib-tag.active {
+    color: var(--semi-color-primary);
+    border-color: var(--semi-color-primary);
+    background: var(--semi-color-primary-light-default);
+}
+
+.tpl-lib-color-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    border: 1px solid var(--semi-color-border);
+    box-sizing: border-box;
+}
+
+.tpl-lib-color-dot.is-all {
+    background: var(--semi-color-fill-1);
+    color: var(--semi-color-text-2);
+    font-size: 11px;
+}
+
+.tpl-lib-color-dot.active {
+    box-shadow: 0 0 0 2px var(--semi-color-bg-0), 0 0 0 4px var(--semi-color-primary);
+}
+
+.tpl-lib-body {
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.tpl-lib-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+}
+
+@media (max-width: 1100px) {
+    .tpl-lib-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.tpl-lib-card {
+    border: 1px solid var(--semi-color-border);
+    background: var(--semi-color-bg-0);
+    display: flex;
+    flex-direction: column;
+    min-height: 196px;
+}
+
+.tpl-lib-thumb {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: #f7f8fa;
+    overflow: hidden;
+}
+
+.tpl-lib-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.tpl-lib-thumb-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--semi-color-text-3);
+    font-size: 13px;
+    padding: 0 10px;
+    text-align: center;
+}
+
+.tpl-lib-mask {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.tpl-lib-card:hover .tpl-lib-mask {
+    display: flex;
+}
+
+.tpl-lib-card-meta {
+    padding: 8px 10px 10px;
+}
+
+.tpl-lib-card-name {
+    font-size: 13px;
+    color: var(--semi-color-text-0);
+    line-height: 20px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tpl-lib-card-sub {
+    font-size: 12px;
+    color: var(--semi-color-text-2);
+    line-height: 18px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tpl-lib-card-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    border: 1px solid var(--semi-color-border);
+}
+
+.tpl-lib-card-blank {
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    border-style: dashed;
+    color: var(--semi-color-text-2);
+    gap: 8px;
+}
+
+.tpl-lib-card-blank:hover {
+    color: var(--semi-color-primary);
+    border-color: var(--semi-color-primary);
+}
+
+.tpl-lib-blank-plus {
+    font-size: 34px;
+    line-height: 1;
+    font-weight: 300;
+}
+
+.tpl-lib-blank-text {
+    font-size: 13px;
+}
+
+.tpl-lib-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--semi-color-text-2);
+    padding: 36px 0;
+    font-size: 13px;
+}
+
+.tpl-lib-footer {
+    padding-top: 12px;
+    color: var(--semi-color-text-2);
+    font-size: 12px;
+    text-align: right;
+}

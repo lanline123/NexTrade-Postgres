@@ -476,7 +476,7 @@ export default function ListPage<T extends Record<string, any>>({
               {t('刷新')}
             </Button>
             {drawer && (
-              <Button theme="solid" type="primary" icon={<IconPlus />} onClick={openCreate}>
+              <Button theme="solid" type="primary" icon={<IconPlus />} onClick={drawer.onCreateClick ?? openCreate}>
                 {t(drawer.addText || '新增')}
               </Button>
             )}

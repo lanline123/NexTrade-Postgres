@@ -684,6 +684,20 @@ export function MobileDecoratePageList({
           width: 600,
           createApi: '/decorate/decorate/create',
           updateApi: '/decorate/decorate/update',
+          // 新建直达编辑器新建模式（原版口径·模板库补齐）：原版移动端列表
+          // 「添加页面」不预创建、直接进编辑器新建模式并自动弹模板库，创建
+          // 延迟到编辑器首次保存；此前我方为抽屉填名预创建、模板无从选起。
+          // 抽屉本身保留（行内编辑信息仍走 updateApi），仅新建按钮改道。
+          ...(editPage === 'mobileDecorateEditor'
+            ? {
+                onCreateClick: () => {
+                  window.open(
+                    `${window.location.origin}/?page=mobileDecorateEditor&pageType=${pageType ?? 1}`,
+                    '_blank',
+                  );
+                },
+              }
+            : {}),
           toPayload: (values) => ({ ...values, decorateType, ...(pageType ? { pageType } : {}) }),
           sections: [
             {

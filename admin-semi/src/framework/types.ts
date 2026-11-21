@@ -67,6 +67,10 @@ export interface FormDrawerConfig {
   deleteApi?: string;
   idField?: string;
   toPayload?: (values: Record<string, any>, mode: 'create' | 'edit') => Record<string, any>;
+  /** 新建按钮点击回调（可选）：提供时替代默认的打开新建抽屉流程（编辑仍走抽屉）。
+   * 移动装修列表用它直达编辑器新建模式（原版口径：移动端新建先进编辑器弹模板库，
+   * PC 端保留抽屉表单）。 */
+  onCreateClick?: () => void;
 }
 
 export interface FilterConfig {

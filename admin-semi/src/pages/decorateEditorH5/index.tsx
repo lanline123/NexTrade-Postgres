@@ -23,6 +23,7 @@ import ModuleToolbar from "./components/ModuleToolbar";
 import Canvas from "./components/Canvas";
 import SettingsPanel from "./components/SettingsPanel";
 import CopyPageDrawer from "./components/CopyPageDrawer";
+import TemplateLibraryModal from "./components/TemplateLibraryModal";
 import EditorShell from "../../components/decorate/EditorShell";
 import EditorLocaleSwitch from "../../components/decorate/EditorLocaleSwitch";
 import DecorateLoading from "../components/DecorateLoading";
@@ -74,6 +75,10 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
     const [preview, setPreview] = useState(false);
     /** 「从其他页面复制」抽屉开关 */
     const [copyVisible, setCopyVisible] = useState(false);
+    /** 新建页模板库弹窗（原版有·我方补齐）：新建模式自动弹出一次，选空白/关闭
+     * 后不再重弹（与原版一致，编辑器内无重开入口） */
+    const [tplVisible, setTplVisible] = useState(false);
+    const tplShownRef = useRef(false);
     /** 详情加载态（2026-11-18 立规、2026-11-19 加载门沿用）：加载失败（接口/H5
      * 服务未部署或不可用）出提示卡 + 重试，画布不落到假空页面上（防误存覆盖
      * 真实数据）；加载中则由入口加载门覆盖（见文件头），仅超时兜底后仍在途
@@ -209,6 +214,16 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
         const timer = window.setTimeout(() => setGateLifted(true), GATE_TIMEOUT_MS);
         return () => window.clearTimeout(timer);
     }, []);
+
+    // 新建模式：加载门撤下后自动弹出模板库（原版进编辑器即弹；我方等门撤下
+    // 避免弹窗被加载屏覆盖）。仅弹一次；选模板走 applyTemplate、选空白/关闭
+    // 保持空白页，创建仍延迟到首次保存（ensureCreated）。
+    useEffect(() => {
+        if (isAddMode && gateLifted && !tplShownRef.current) {
+            tplShownRef.current = true;
+            setTplVisible(true);
+        }
+    }, [isAddMode, gateLifted]);
 
     /** 延迟创建：新建场景首次保存时校验名称并创建记录 */
     const ensureCreated = async (): Promise<boolean> => {
@@ -576,6 +591,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             </div>
             </EditorShell>
             <CopyPageDrawer visible={copyVisible} decorateType={decorateType} onClose={() => setCopyVisible(false)} />
+            <TemplateLibraryModal visible={tplVisible} pageType={pageType} onClose={() => setTplVisible(false)} />
         </div>
     );
 }
