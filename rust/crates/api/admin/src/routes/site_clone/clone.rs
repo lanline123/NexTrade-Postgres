@@ -142,7 +142,16 @@ async fn import_execute(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<CloneExecuteDTO>,
 ) -> ApiResult<SiteCloneImportJob> {
-    ok(state.site_clone.clone.execute(&dto, auth.id, &auth.username).await?)
+    let job = state
+        .site_clone
+        .clone
+        .execute(&dto, auth.id, &auth.username)
+        .await?;
+    // 导入商品可保留源站上架状态（keep_product_status），新品不在任何单品
+    // 入队路径上，图搜索引随之全量对账（全量任务按 job_key 去重，
+    // 图搜未启用时入队函数自跳过）。
+    crate::routes::system::image_search::enqueue_full_sync(&state).await;
+    ok(job)
 }
 
 async fn job_list(

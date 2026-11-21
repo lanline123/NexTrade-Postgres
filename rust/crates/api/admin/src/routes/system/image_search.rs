@@ -560,9 +560,22 @@ async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<()
         scanned += 1;
         if let Some(url) = url {
             let pic_name = format!("product-{pid}.jpg");
-            if check_exists(&client, &region, &key, &secret, &index, pid, &pic_name)
-                .await
-                .unwrap_or(false)
+            // 单品同步的替换语义（2026-11-21 补，缺陷 D7）：PicName 恒为
+            // product-{id}.jpg，CheckImageExists 只报存在性、无法判断索引图
+            // 是否仍是现行主图——改图后存在性恒命中会让新图永不入索引
+            // （2026-11-20 P1 实证：A03/A09 经 MCP 换主图后自搜不命中自身，
+            // 当时只定位到入队缺口；即便走了已挂钩的后台保存路径，本处
+            // 跳过同样会吞掉新图）。单品路径（后台保存/上下架/MCP/手动
+            // syncProduct）改为先删后加；全量路径保留存在性跳过（全库
+            // 重传成本不可接受，其职责是成员对账 + 下架残留清理，
+            // 图片新鲜度由单品路径在变更时保证）。
+            if product_id > 0 {
+                let _ = delete_image(&client, &region, &key, &secret, &index, pid, &pic_name).await;
+            }
+            if product_id == 0
+                && check_exists(&client, &region, &key, &secret, &index, pid, &pic_name)
+                    .await
+                    .unwrap_or(false)
             {
                 skipped += 1;
             } else {

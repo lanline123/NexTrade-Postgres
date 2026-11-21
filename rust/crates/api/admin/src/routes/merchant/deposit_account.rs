@@ -201,6 +201,11 @@ async fn run_due_check(
 ) -> ApiResult<()> {
     require_platform(&tenant)?;
     state.merchant.deposit_account.run_due_check().await?;
+    // 到期处罚 action=2 会整店下架商品，图搜索引随之全量对账（全量任务
+    // 按 job_key 去重，图搜未启用时入队函数自跳过）。注：服务层定时扫描
+    // （scheduler 每日 run_due_check）无 AdminState 可挂钩，其下架残留由
+    // 查询侧 product_status=1 过滤兜底不外显，下次全量构建即对账。
+    crate::routes::system::image_search::enqueue_full_sync(&state).await;
     ok(())
 }
 

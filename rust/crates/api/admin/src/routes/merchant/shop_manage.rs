@@ -82,7 +82,7 @@ use axum::{
 };
 use serde::Deserialize;
 use nextrade_core::models::merchant::shop_manage::{
-    BatchDTO, LoginChooseParam, OperateDTO, PosLoginSettingPayload, ShopListQuery,
+    shop_status, BatchDTO, LoginChooseParam, OperateDTO, PosLoginSettingPayload, ShopListQuery,
     ShopSettingPayload, ShopVO, ShopWritePayload, StaffShowVO, StoreListVO, UpdateFieldDTO,
     VendorSettingUpdateParam, VendorSettingVO,
 };
@@ -656,6 +656,11 @@ async fn shop_setting(
         .shop_manage
         .setting(&p, Some(shop_id))
         .await?;
+    if p.status == Some(shop_status::PAUSE) {
+        // 停业时服务层已整店下架商品（off_shelf_shop_products），图搜索引
+        // 随之全量对账（全量任务按 job_key 去重，图搜未启用时入队函数自跳过）。
+        crate::routes::system::image_search::enqueue_full_sync(&state).await;
+    }
     ok("设置成功")
 }
 

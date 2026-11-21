@@ -3,6 +3,9 @@
 //! 启用且配置阿里云图库时，使用阿里云 ImageSearch RPC `SearchImageByPic`；
 //! 未启用/未配置/云请求失败返回明确业务错误。
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
 use axum::{
     extract::{Multipart, State},
     routing::{get, post},
@@ -22,6 +25,42 @@ use nextrade_security::web::{ok, ApiResult, AppError};
 use crate::PublicState;
 
 type HmacSha1 = Hmac<Sha1>;
+
+// ————————————————————— D5 限频（2026-11-21 补） —————————————————————
+//
+// 每次图搜 = 阿里云 2 次云调用（AuthorizeFileUpload + SearchImageByPic），
+// 实例规格仅 1 QPS；此前匿名连发 12/12 全通、无任何节流（2026-11-20 P1
+// 实证，缺陷 D5），刷量可挤占正常用户。口径与联邦限流同构（进程内固定
+// 窗口计数，见 services/hub/federation.rs）：IP 与登录账号双维度，
+// 10 分钟窗口各 20 次，任一超限返回 429。capabilities/results 不调
+// 云端，不限频。进程内计数与现行单实例部署一致；多实例需改 Redis 计数。
+
+/// 限频窗口长度（秒）。
+const SEARCH_RATE_WINDOW_SECS: i64 = 600;
+/// 单窗口单维度最大搜索次数。
+const SEARCH_RATE_LIMIT: u32 = 20;
+
+fn search_rate_windows() -> &'static Mutex<HashMap<String, (i64, u32)>> {
+    static WINDOWS: OnceLock<Mutex<HashMap<String, (i64, u32)>>> = OnceLock::new();
+    WINDOWS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// 记一次搜索并返回是否放行（固定窗口：窗口过期即重置计数）。
+fn search_rate_allow(key: &str, now: i64) -> bool {
+    let mut windows = search_rate_windows()
+        .lock()
+        .unwrap_or_else(|p| p.into_inner());
+    // 键随 IP 增长，超量时顺带清理过期窗口，防内存膨胀。
+    if windows.len() > 10_000 {
+        windows.retain(|_, (start, _)| now - *start < SEARCH_RATE_WINDOW_SECS);
+    }
+    let entry = windows.entry(key.to_string()).or_insert((now, 0));
+    if now - entry.0 >= SEARCH_RATE_WINDOW_SECS {
+        *entry = (now, 0);
+    }
+    entry.1 += 1;
+    entry.1 <= SEARCH_RATE_LIMIT
+}
 
 const KEYS: [&str; 15] = [
     "imageSearchEnabled",
@@ -111,6 +150,19 @@ async fn search(
     let region = cfg(&rows, "imageSearchAliyunRegionId").trim();
     if key_id.is_empty() || key_secret.is_empty() || index.is_empty() || region.is_empty() {
         return Err(AppError(Error::biz(400, "图像搜索服务未配置")));
+    }
+
+    // D5 限频：IP + 登录账号双维度（见上方限频段说明）。置于配置校验
+    // 之后、读上传体之前，超限请求既不落云端调用也不耗上传带宽。
+    let now = nextrade_common::utils::now_seconds();
+    let ip = nextrade_security::web::client_ip(&headers);
+    if !search_rate_allow(&format!("ip:{ip}"), now) {
+        return Err(AppError(Error::biz(429, "图片搜索过于频繁，请稍后再试")));
+    }
+    if let Some(uid) = crate::optional_user_id(&state, &headers) {
+        if !search_rate_allow(&format!("user:{uid}"), now) {
+            return Err(AppError(Error::biz(429, "图片搜索过于频繁，请稍后再试")));
+        }
     }
 
     let mut file: Option<Vec<u8>> = None;
@@ -350,6 +402,25 @@ mod tests {
     #[test]
     fn percent_encoding_matches_aliyun_rules() {
         assert_eq!(percent_encode("a b+c/中"), "a%20b%2Bc%2F%E4%B8%AD");
+    }
+
+    #[test]
+    fn search_rate_limit_blocks_after_limit_and_resets_next_window() {
+        let key = "ip:test-rate-limit-window";
+        let now = 1_700_000_000;
+        for _ in 0..SEARCH_RATE_LIMIT {
+            assert!(search_rate_allow(key, now));
+        }
+        assert!(!search_rate_allow(key, now));
+        // 下一窗口重新放行。
+        assert!(search_rate_allow(key, now + SEARCH_RATE_WINDOW_SECS));
+    }
+
+    #[test]
+    fn search_rate_limit_dimensions_are_independent() {
+        let now = 1_700_100_000;
+        assert!(search_rate_allow("ip:test-independent-a", now));
+        assert!(search_rate_allow("user:test-independent-b", now));
     }
 
     #[test]
