@@ -2,7 +2,9 @@
  * 一份样式同时服务「商品设置」与「商品分组 → 第 N 组 → 选择商品」。
  * 设计（2026-11-14 按用户意见改版）：扁平直角、无圆角与浮起阴影；
  * 默认一行 2 个、横向卡片（左图右文），紧凑模式保留竖排小卡但同样直角。
- * 组件自带样式，不依赖 decorate-editor.css 的旧 .dec-prod-pick__* 规则。 */
+ * 组件自带样式，不依赖 decorate-editor.css 的旧 .dec-prod-pick__* 规则。
+ * 2026-11-21 配套选品弹窗（商品选择器）现代化：序号角标改主题色与弹窗
+ * 选中角标同色系，添加按钮补键盘焦点态，悬停反馈口径与弹窗卡片对齐。 */
 
 .dec-pick {
   --dec-pick-accent: var(--primary, var(--semi-color-primary, #1456f0));
@@ -98,7 +100,7 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  background: rgba(16, 24, 40, 0.72);
+  background: var(--dec-pick-accent);
   color: #fff;
   font-size: 11px;
   line-height: 18px;
@@ -184,6 +186,10 @@
   border-color: var(--dec-pick-accent);
   color: var(--dec-pick-accent);
   background: color-mix(in srgb, var(--dec-pick-accent) 4%, #fff);
+}
+.dec-pick__add:focus-visible {
+  outline: 2px solid var(--dec-pick-accent);
+  outline-offset: 1px;
 }
 .dec-pick__add-icon {
   display: grid;

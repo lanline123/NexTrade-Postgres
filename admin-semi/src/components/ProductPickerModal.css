@@ -1,32 +1,80 @@
-/* 选择商品弹窗（现代化卡片网格）—— 2026-11-15 自 pages/decorate-editor.css 迁出，与 components/ProductPickerModal.tsx 同行 */
+/* 商品选择器弹窗 —— 2026-11-15 自 pages/decorate-editor.css 迁出，与 components/ProductPickerModal.tsx 同行
+ * 2026-11-21 现代化改版：左侧类目栏 + 右侧商品区布局，扁平直角（用户偏好），
+ * 选中态 = 主题色边框 + 主题色角标勾选，与 ProductPickGrid 的直角口径一致。 */
 .dec-prod-picker__count { font-size: 12px; color: var(--semi-color-text-2); margin-left: auto; }
+
+.dec-prod-picker__layout { display: flex; gap: 0; border: 1px solid #eaecf0; }
+
+/* 左侧类目栏 */
+.dec-prod-picker__cats {
+  flex: 0 0 216px;
+  max-height: 566px;
+  overflow-y: auto;
+  border-right: 1px solid #eaecf0;
+  background: #fbfcfe;
+  padding: 6px 0;
+}
+.dec-prod-picker__cat {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: #344054;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.dec-prod-picker__cat:hover { background: #f2f5f9; }
+.dec-prod-picker__cat.is-active {
+  background: color-mix(in srgb, var(--semi-color-primary) 8%, #fff);
+  border-left-color: var(--semi-color-primary);
+  color: var(--semi-color-primary);
+  font-weight: 600;
+}
+.dec-prod-picker__cat-arrow {
+  display: grid;
+  place-items: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  color: #98a2b3;
+}
+.dec-prod-picker__cat-arrow.is-empty { visibility: hidden; }
+.dec-prod-picker__cat-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 右侧商品区 */
+.dec-prod-picker__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .dec-prod-picker__body {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
   gap: 10px;
-  max-height: 400px;
+  height: 520px;
   overflow-y: auto;
-  padding: 2px;
+  padding: 12px;
+  align-content: start;
 }
-.dec-prod-picker__loading { display: grid; place-items: center; grid-column: 1 / -1; padding: 32px 0; }
+.dec-prod-picker__loading,
+.dec-prod-picker__empty { display: grid; place-items: center; grid-column: 1 / -1; padding: 48px 0; }
 .dec-prod-picker__card {
   display: flex;
   flex-direction: column;
-  border: 1px solid #edf0f4;
-  border-radius: 10px;
-  overflow: hidden;
+  border: 1px solid #e4e7ec;
   background: #fff;
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
-.dec-prod-picker__card:hover {
-  border-color: #d5dde6;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
-}
+.dec-prod-picker__card:hover { border-color: #98a2b3; background: #fbfcfe; }
 .dec-prod-picker__card.is-active {
   border-color: var(--semi-color-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--semi-color-primary) 14%, transparent);
+  box-shadow: 0 0 0 1px var(--semi-color-primary);
+  background: color-mix(in srgb, var(--semi-color-primary) 4%, #fff);
 }
 .dec-prod-picker__pic {
   position: relative;
@@ -38,17 +86,14 @@
 .dec-prod-picker__pic-empty { display: grid; place-items: center; width: 100%; height: 100%; color: #b6bec9; font-size: 12px; }
 .dec-prod-picker__check {
   position: absolute;
-  right: 6px;
-  top: 6px;
+  right: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
   width: 20px;
   height: 20px;
-  border-radius: 999px;
   background: var(--semi-color-primary);
   color: #fff;
-  font-size: 12px;
-  line-height: 20px;
-  text-align: center;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
 }
 .dec-prod-picker__meta { padding: 6px 8px 8px; min-width: 0; }
 .dec-prod-picker__name {
@@ -62,4 +107,11 @@
   overflow: hidden;
 }
 .dec-prod-picker__price { margin-top: 3px; font-size: 12.5px; font-weight: 600; color: var(--semi-color-danger); }
-.dec-prod-picker__pager { display: flex; justify-content: flex-end; padding-top: 12px; }
+.dec-prod-picker__pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-top: 1px solid #eaecf0;
+}
+.dec-prod-picker__total { font-size: 12px; color: var(--semi-color-text-2); }
