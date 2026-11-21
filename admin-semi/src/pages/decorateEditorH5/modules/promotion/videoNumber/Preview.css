@@ -11,9 +11,6 @@
     object-fit: cover;
     display: block;
 }
-.module-promotion-video-number .video-card__cover--empty {
-    background: #f3f4f6;
-}
 .module-promotion-video-number .video-card__mask {
     position: absolute;
     left: 0;

@@ -5,8 +5,11 @@
  * live（92×92 封面 + 标题（颜色按 titleColorType：default #2A2A2A / theme #155BD4 / custom titleColor）+
  * 商品图（productImages 优先，pickPic 取图 ≤3；为空回退账号 productImage）+ 作者行 + 「立即预约」CTA）。
  * 账号数据取既有接口 /content/wechatVideoAccount/list（后台视频号管理同源，size 100，不改路径），
- * currentVideoNumber = videoNumberId 命中项或首项。原版默认封面为打包资源图、本机无此资源：
- * 无封面时以浅灰占位块承接；作者小图标以同尺寸内联 SVG 承接（原版为 assets/live/videoNumber.svg）。
+ * currentVideoNumber = videoNumberId 命中项或首项。默认封面对齐原版：原版两分支均为
+ * `cover || defaultCover`（打包资源 videoNumberDefault.png，卡片中段恒有图）——该 PNG 不在
+ * 快照仓与 ref-editor 摘录内、无从取原文件，此处以同构图内联 SVG 等价封面承接（深色渐变 +
+ * 播放钮，同 PcHomeHeroPreview 的 EMPTY_IMG_BG 先例），机制与原版逐字一致（video/live 两分支
+ * 均 src = 账号封面 || 默认封面）；作者小图标以同尺寸内联 SVG 承接（原版为 assets/live/videoNumber.svg）。
  * 写回对齐原版 Preview：选项加载后 videoNumberId 为空时把首个视频号 ID 写回模块
  * （原版 liveTitle 回填因其选项 liveTitle 恒为 "" 而为空写，此处不复刻空写）。
  * Preview 无 onChange 入参，写回经 editorStore.updateModule 按挂载时捕获的模块对象引用定位条目。
@@ -22,6 +25,15 @@ import "./Preview.css";
 const DEFAULT_TITLE_COLOR = "#2A2A2A";
 const THEME_TITLE_COLOR = "#155BD4";
 const DEFAULT_LIKES = 158;
+
+/**
+ * 默认封面（原版打包资源 videoNumberDefault.png 的等价承接，原文件不在任何可得来源内）：
+ * 1:1 图面——深色渐变底 + 中央播放钮（绿盘白三角，与下方 VideoAccountIcon 同绿 #2BA640）。
+ * video 分支整卡（1:1）与 live 分支 92×92 封面盒均以 object-fit: cover 消费，同原版。
+ */
+const DEFAULT_COVER = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="750" height="750" viewBox="0 0 750 750"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#374151"/><stop offset="1" stop-color="#14532d"/></linearGradient></defs><rect width="750" height="750" fill="url(#g)"/><circle cx="610" cy="130" r="150" fill="#ffffff" opacity="0.06"/><circle cx="120" cy="640" r="190" fill="#ffffff" opacity="0.05"/><circle cx="375" cy="375" r="118" fill="#ffffff" opacity="0.14"/><circle cx="375" cy="375" r="86" fill="#2BA640"/><path d="M352 318v114c0 16 18 26 32 18l88-57c13-8 13-27 0-35l-88-57c-14-8-32 2-32 17z" fill="#ffffff"/></svg>`
+)}`;
 
 function VideoAccountIcon({ size = 16 }: { size?: number }) {
     return (
@@ -104,11 +116,7 @@ export default function VideoNumberPreview({ data }: { data: Record<string, any>
                 <div className="video-number-container" style={cssText(frameFormat.innerPadding, frameFormat.boxRadius)}>
                     {module.contentType === "video" ? (
                         <div className="video-card video-card--video" style={{ borderRadius: radius }}>
-                            {current?.cover ? (
-                                <img className="video-card__cover" style={{ borderRadius: radius }} src={current.cover} alt="视频号封面" />
-                            ) : (
-                                <div className="video-card__cover video-card__cover--empty" style={{ borderRadius: radius }} />
-                            )}
+                            <img className="video-card__cover" style={{ borderRadius: radius }} src={current?.cover || DEFAULT_COVER} alt="视频号封面" />
                             <div className="video-card__mask">
                                 <div className="video-card__author">
                                     <VideoAccountIcon size={16} />
@@ -120,11 +128,7 @@ export default function VideoNumberPreview({ data }: { data: Record<string, any>
                     ) : (
                         <div className="video-card video-card--live" style={{ borderRadius: radius, backgroundColor: frame.backgroundColor || "#ffffff" }}>
                             <div className="coverBox" style={{ borderRadius: radius }}>
-                                {current?.cover ? (
-                                    <img className="video-card__cover" style={{ borderRadius: radius }} src={current.cover} alt="视频号封面" />
-                                ) : (
-                                    <div className="video-card__cover video-card__cover--empty" style={{ borderRadius: radius }} />
-                                )}
+                                <img className="video-card__cover" style={{ borderRadius: radius }} src={current?.cover || DEFAULT_COVER} alt="视频号封面" />
                             </div>
                             <div className="video-card__live-content">
                                 <div className="video-card__live-title" style={{ color: liveTitleColor }}>
