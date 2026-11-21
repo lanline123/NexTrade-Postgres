@@ -47,7 +47,9 @@ import {
   IconGlobe,
   IconUser,
   IconPlus,
+  IconRedo,
   IconRefresh,
+  IconUndo,
 } from '@douyinfe/semi-icons';
 import { apiGet, apiPost } from '../api';
 import { loadMallSettings, resolveMallUrl } from '../mall';
@@ -59,6 +61,7 @@ const tl = (key: string, params?: Record<string, string | number>) =>
 import DecorateLoading from './components/DecorateLoading';
 import ProductPickGrid, { mergePickedItems, type ProductPickItem } from '../components/ProductPickGrid';
 import TemplateImportModal from '../components/TemplateImportModal';
+import PcCopyPageDrawer from './PcCopyPageDrawer';
 import ProductPickerModal from '../components/ProductPickerModal';
 import BuyBtnStylePicker, { BUY_BTN_STYLE_OPTIONS_UNIFIED } from '../components/BuyBtnStylePicker';
 import { fillDemoProducts } from '../components/demoProductFill';
@@ -132,6 +135,17 @@ interface PcDecorateEditorProps {
   onExit?: () => void;
 }
 
+/** 撤销/重做整页文档快照（与保存数据同形状 {pageModule, moduleList}） */
+interface PcDocSnapshot {
+  pageModule: Record<string, any>;
+  moduleList: EditorModule[];
+}
+
+/** 撤销历史上限（步）：整页快照每份约数十 KB，内存有界（口径同 H5 editorStore） */
+const HISTORY_LIMIT = 100;
+/** 高频变更合并窗（毫秒）：同合并键在此窗内连续变更只记一步（口径同 H5 editorStore） */
+const HISTORY_COALESCE_MS = 800;
+
 /** 设置区白卡容器（标准白卡口径）。必须定义在模块级：在组件内定义会使每次渲染
  * 产生新的组件类型，React 会整棵卸载重挂其子树——输入框打字时逐字丢焦点/丢字
  * （v46 验收发现的页面设置/头部设置丢字问题即此）。 */
@@ -155,6 +169,8 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const dirtyRef = useRef(false);
   /** 「从模板导入」弹窗（模板平台 tpl.recy.cc，我方新增）：导入成功后跳到新页继续编辑 */
   const [tplImportVisible, setTplImportVisible] = useState(false);
+  /** 「从其他页面复制」抽屉（原版有·我方补齐）：选站内已有页面套用到当前页 */
+  const [copyVisible, setCopyVisible] = useState(false);
   const handleTplImported = (info: { decorateId: number }) => {
     setTplImportVisible(false);
     const from = new URLSearchParams(window.location.search).get('from');
@@ -192,6 +208,94 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const markDirty = () => {
     dirtyRef.current = true;
   };
+
+  /* ================= 会话级撤销/重做（我方新增，编辑器第二批） =================
+   * 口径与 H5 编辑器 editorStore 历史内核一致：全部文档变更在变更前对整页文档
+   * {pageModule, moduleList} 做深拷贝快照压入历史栈（上限 100 步）；设置面板的
+   * 高频连续变更（滑杆/输入/颜色）按合并键在 800ms 窗内只记一步；保存点快照在
+   * 加载完成 / 保存成功时刷新，撤销/重做后脏标记以「当前文档 ≠ 保存点」比对回落
+   * ——撤回保存点即未脏（退出确认与 beforeunload 随之解除），保存后历史保留、
+   * 可撤销跨越保存点。PC 编辑器为 useState 单文件实现，历史放 ref、按钮可用性
+   * 单独用 state 派生。 */
+  const historyPastRef = useRef<PcDocSnapshot[]>([]);
+  const historyFutureRef = useRef<PcDocSnapshot[]>([]);
+  const savedDocJsonRef = useRef('');
+  const coalesceRef = useRef<{ key: string; at: number } | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const cloneDocSnapshot = (pm: Record<string, any>, ml: EditorModule[]): PcDocSnapshot =>
+    JSON.parse(JSON.stringify({ pageModule: pm, moduleList: ml })) as PcDocSnapshot;
+
+  const syncHistoryFlags = () => {
+    setCanUndo(historyPastRef.current.length > 0);
+    setCanRedo(historyFutureRef.current.length > 0);
+  };
+
+  /** 变更前记录一步：新变更清空重做栈；同合并键 800ms 内只记一步（滑动刷新时刻）；
+   * 与栈顶相同的快照不重复压栈 */
+  const recordHistory = (coalesceKey?: string) => {
+    historyFutureRef.current = [];
+    const now = Date.now();
+    const last = coalesceRef.current;
+    if (coalesceKey && last && last.key === coalesceKey && now - last.at <= HISTORY_COALESCE_MS) {
+      coalesceRef.current = { key: coalesceKey, at: now };
+      syncHistoryFlags();
+      return;
+    }
+    const snap = cloneDocSnapshot(pageModule, moduleList);
+    const top = historyPastRef.current[historyPastRef.current.length - 1];
+    if (!top || JSON.stringify(top) !== JSON.stringify(snap)) {
+      historyPastRef.current.push(snap);
+      if (historyPastRef.current.length > HISTORY_LIMIT) historyPastRef.current.shift();
+    }
+    coalesceRef.current = coalesceKey ? { key: coalesceKey, at: now } : null;
+    syncHistoryFlags();
+  };
+
+  /** 基线切换（加载完成）：双栈清空、以当前文档为保存点（新页面不串旧历史） */
+  const resetHistory = (pm: Record<string, any>, ml: EditorModule[]) => {
+    historyPastRef.current = [];
+    historyFutureRef.current = [];
+    coalesceRef.current = null;
+    savedDocJsonRef.current = JSON.stringify({ pageModule: pm, moduleList: ml });
+    syncHistoryFlags();
+  };
+
+  /** 写回快照：选中下标越界收敛；脏标记与保存点比对回落 */
+  const applyDocSnapshot = (doc: PcDocSnapshot) => {
+    const next = cloneDocSnapshot(doc.pageModule, doc.moduleList);
+    setPageModule(next.pageModule);
+    setModuleList(next.moduleList);
+    setActiveIndex((cur) => (cur >= next.moduleList.length ? next.moduleList.length - 1 : cur));
+    dirtyRef.current = JSON.stringify(next) !== savedDocJsonRef.current;
+  };
+
+  const undo = () => {
+    const past = historyPastRef.current;
+    if (past.length === 0) return;
+    historyFutureRef.current.push(cloneDocSnapshot(pageModule, moduleList));
+    const doc = past.pop() as PcDocSnapshot;
+    coalesceRef.current = null;
+    applyDocSnapshot(doc);
+    syncHistoryFlags();
+  };
+
+  const redo = () => {
+    const future = historyFutureRef.current;
+    if (future.length === 0) return;
+    historyPastRef.current.push(cloneDocSnapshot(pageModule, moduleList));
+    const doc = future.pop() as PcDocSnapshot;
+    coalesceRef.current = null;
+    applyDocSnapshot(doc);
+    syncHistoryFlags();
+  };
+
+  // 快捷键监听经 ref 调最新闭包（undo/redo 依赖当前文档 state，避免过期捕获）
+  const historyOpsRef = useRef({ undo, redo });
+  useEffect(() => {
+    historyOpsRef.current = { undo, redo };
+  });
 
   const isLoginPage = pageType === 5;
   const isSearchPage = pageType === 6;
@@ -344,7 +448,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
             ];
           }
         }
-        setModuleList(list.map((item, idx) => ({
+        const normalizedList: EditorModule[] = list.map((item, idx) => ({
           moduleIndex: item.moduleIndex ?? Date.now() + idx,
           type: item.type,
           url: item.url || 'pc',
@@ -352,7 +456,10 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           isShow: item.isShow !== false,
           fixed: item.fixed,
           module: normalizeLegacyBuyBtn(item.type, normalizeLegacyTitle(item.type, item.module || {})),
-        })));
+        }));
+        setModuleList(normalizedList);
+        // 撤销/重做基线：加载完成即保存点（历史清空、换页不串历史）
+        resetHistory(pm, normalizedList);
       })
       .catch((e) => Toast.error(e?.message || t('加载装修数据失败')))
       .finally(() => alive && setLoading(false));
@@ -369,6 +476,29 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
+  // 会话级撤销/重做快捷键（我方新增，口径同 H5 编辑器）：Ctrl+Z 撤销 /
+  // Ctrl+Shift+Z、Ctrl+Y 重做（macOS 含 Cmd）。焦点在输入框/文本域/下拉/
+  // 可编辑区时不拦截——文本编辑走控件自身的原生撤销，其值变化仍经 onChange
+  // 记入历史（合并记录），不丢步。
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key !== 'z' && key !== 'y') return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
+      if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        historyOpsRef.current.redo();
+      } else {
+        e.preventDefault();
+        historyOpsRef.current.undo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   // 画布按容器宽度等比缩放，避免 1600px 画布出现横向滚动条
@@ -445,6 +575,10 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
       }
       Toast.success(mode === 'draft' ? t('草稿已保存') : t('发布成功'));
       dirtyRef.current = false;
+      // 撤销/重做保存点刷新（口径同 H5 markAsSaved）：历史保留、可撤销跨越保存点，
+      // 脏标记靠与保存点比对回落；跨保存点不合并高频变更
+      savedDocJsonRef.current = JSON.stringify({ pageModule, moduleList });
+      coalesceRef.current = null;
     } catch (e: any) {
       Toast.error(e?.message || t('保存失败'));
     } finally {
@@ -495,6 +629,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     // 演示商品真实化（用户口径 2026-11-21，与 H5 编辑器同机制）：入库前把
     // defaults 里的演示商品换成商城在售商品随机抽样，失败/无在售则移除演示位
     await fillDemoProducts(item.module as Record<string, any>, def.type);
+    recordHistory();
     setModuleList((prev) => [...prev, item]);
     setActiveIndex(moduleList.length);
     setPanelTab('module');
@@ -518,6 +653,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     };
     // 演示商品真实化（用户口径 2026-11-21）：同 addModule
     await fillDemoProducts(item.module as Record<string, any>, def.type);
+    recordHistory();
     setModuleList((prev) => [...prev.slice(0, index), item, ...prev.slice(index)]);
     setActiveIndex(index);
     setPanelTab('module');
@@ -526,12 +662,14 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   };
 
   const removeModule = (index: number) => {
+    recordHistory();
     setModuleList((prev) => prev.filter((_, i) => i !== index));
     if (activeIndex === index) setActiveIndex(-1);
     markDirty();
   };
 
   const copyModule = (index: number) => {
+    recordHistory();
     const clone: EditorModule = { ...JSON.parse(JSON.stringify(moduleList[index])), moduleIndex: Date.now() };
     setModuleList((prev) => [...prev.slice(0, index + 1), clone, ...prev.slice(index + 1)]);
     markDirty();
@@ -540,6 +678,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const moveModule = (index: number, dir: -1 | 1) => {
     const target = index + dir;
     if (target < 0 || target >= moduleList.length) return;
+    recordHistory();
     setModuleList((prev) => {
       const next = [...prev];
       [next[index], next[target]] = [next[target], next[index]];
@@ -550,12 +689,14 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   };
 
   const toggleShow = (index: number) => {
+    recordHistory();
     setModuleList((prev) => prev.map((m, i) => (i === index ? { ...m, isShow: !m.isShow } : m)));
     markDirty();
   };
 
   const dropModule = (from: number, to: number) => {
     if (from === to) return;
+    recordHistory();
     setModuleList((prev) => {
       const next = [...prev];
       const [moved] = next.splice(from, 1);
@@ -566,11 +707,67 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   };
 
   const updateActiveModule = (updater: (m: Record<string, any>) => Record<string, any>) => {
+    // 设置面板每次 onChange 整对象替换模块数据：按模块下标合并高频连续变更
+    recordHistory(`upd:${activeIndex}`);
     setModuleList((prev) => prev.map((m, i) => (i === activeIndex ? { ...m, module: updater(m.module) } : m)));
     markDirty();
   };
 
   const activeModule = activeIndex >= 0 && activeIndex < moduleList.length ? moduleList[activeIndex] : null;
+
+  /** 「从其他页面复制」套用（原版有·我方补齐）：源页已发布 data 整页套用到当前页——
+   * moduleList 全量替换（按加载同口径归一；当前页为登录/搜索页时维持其固定模块
+   * 约束，与加载逻辑一致），pageModule 合并（当前页独有键保留、pcHeader 补默认），
+   * 置脏走既有存草稿/发布流、不自动发布；整页套用本身记一步历史，误复制可撤销退回 */
+  const applyCopiedPage = (source: { pageModule?: Record<string, any>; moduleList?: EditorModule[] }) => {
+    recordHistory();
+    const mergedPm: Record<string, any> = { ...pageModule, ...(source.pageModule || {}) };
+    mergedPm.pcHeader = { ...PC_HEADER_DEFAULTS, ...(mergedPm.pcHeader || {}) };
+    let list = Array.isArray(source.moduleList) ? source.moduleList : [];
+    if (pageType === 6) {
+      list = list.filter((item: any) => item.type === 'pcSearchResult');
+      if (!list.some((item: any) => item.type === 'pcSearchResult')) {
+        list = [
+          {
+            moduleIndex: Date.now(),
+            type: 'pcSearchResult',
+            url: 'pcSearch',
+            label: '搜索结果',
+            isShow: true,
+            module: { ...PC_SEARCH_RESULT_DEFAULTS },
+          } as EditorModule,
+        ];
+      }
+    }
+    if (pageType === 5) {
+      list = list.filter((item: any) => item.type === 'pcLogin');
+      if (!list.some((item: any) => item.type === 'pcLogin')) {
+        list = [
+          {
+            moduleIndex: Date.now(),
+            type: 'pcLogin',
+            url: 'pcLogin',
+            label: '登录页',
+            isShow: true,
+            module: { ...PC_LOGIN_DEFAULTS },
+          } as EditorModule,
+        ];
+      }
+    }
+    setPageModule(mergedPm);
+    setModuleList(list.map((item, idx) => ({
+      moduleIndex: item.moduleIndex ?? Date.now() + idx,
+      type: item.type,
+      url: item.url || 'pc',
+      label: item.label || MODULE_DEF_MAP.get(item.type)?.label || item.type,
+      isShow: item.isShow !== false,
+      fixed: item.fixed,
+      module: normalizeLegacyBuyBtn(item.type, normalizeLegacyTitle(item.type, item.module || {})),
+    })));
+    setActiveIndex(-1);
+    markDirty();
+    Toast.success(t('已复制所选页面装修内容'));
+  };
 
   /* 模块库分组：36 个模块统一按 def.group 五组展示（LIB_GROUP_ORDER 定序、LIB_META.order 组内排序）；
      登录/搜索页维持单组。 */
@@ -679,6 +876,15 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           children={localeChildren}
         />
         <div style={{ flex: 1 }} />
+        <Button theme="light" disabled={!canUndo} title={t('撤销 (Ctrl+Z)')} icon={<IconUndo />} onClick={undo}>
+          {t('撤销')}
+        </Button>
+        <Button theme="light" disabled={!canRedo} title={t('重做 (Ctrl+Shift+Z)')} icon={<IconRedo />} onClick={redo}>
+          {t('重做')}
+        </Button>
+        <Button theme="light" onClick={() => setCopyVisible(true)}>
+          {t('从其他页面复制')}
+        </Button>
         <Button theme="light" onClick={() => setTplImportVisible(true)}>
           {t('从模板导入')}
         </Button>
@@ -714,6 +920,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
                 onChange={(patch) => {
                   const index = moduleList.findIndex((m) => m.type === 'pcLogin');
                   if (index < 0) return;
+                  recordHistory(`login:${index}`);
                   setModuleList((prev) => prev.map((m, i) => (i === index ? { ...m, module: { ...m.module, ...patch } } : m)));
                   markDirty();
                 }}
@@ -724,13 +931,13 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
             <SettingsCard>
               <PageSettingsPanel
                 pageModule={pageModule}
-                onChange={(next) => { setPageModule(next); markDirty(); }}
+                onChange={(next) => { recordHistory('page'); setPageModule(next); markDirty(); }}
               />
             </SettingsCard>
           )}
           {!isLoginPage && panelTab === 'pcHeader' && (
             <SettingsCard>
-              <PcHeaderPanel header={pageModule.pcHeader || {}} onChange={(next) => { setPageModule({ ...pageModule, pcHeader: next }); markDirty(); }} />
+              <PcHeaderPanel header={pageModule.pcHeader || {}} onChange={(next) => { recordHistory('pcheader'); setPageModule({ ...pageModule, pcHeader: next }); markDirty(); }} />
             </SettingsCard>
           )}
           {!isLoginPage && panelTab === 'module' && (
@@ -884,6 +1091,11 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
         platform="pc"
         onClose={() => setTplImportVisible(false)}
         onImported={handleTplImported}
+      />
+      <PcCopyPageDrawer
+        visible={copyVisible}
+        onClose={() => setCopyVisible(false)}
+        onApply={applyCopiedPage}
       />
     </EditorShell>
   );
