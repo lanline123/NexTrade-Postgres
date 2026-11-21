@@ -23,6 +23,14 @@
  * 首个使用方为 H5 首焦轮播的导航文字列表（banner navList）。
  * 样式：pages/decorate-editor.css 的 .dec-pic-grid* / .dec-pic-modal*
  * （PC 与 H5 编辑器入口均已引入该样式表）。
+ * 编辑弹窗现代化（2026-11-21，用户在 10023 页提出）：弹窗壳改直角扁平
+ * （.dec-pic-modal__dialog 作用域：描边 + 柔和投影、头/脚描边分隔）、
+ * 工具栏改浅底描边操作条、预览区改描边面板、字段标签加重；功能与数据
+ * 契约零变化（选图/清除/素材中心更换/标题/描述/链接/删除/拖拽排序全保留）。
+ * 圆角口径核查（同日）：.dec-pic-grid__card / .dec-pic-modal__preview /
+ * uploader 条目在 main 现行 CSS 中已为 border-radius: 0（直角扁平，与用户
+ * 在现网旧版 admin 上看到的 14px 圆角不是同一版本），本批保持 0 不回加。
+ * 通用组件登记：~/workspace/shared-components.md 第 1 条。
  */
 import { useState } from 'react';
 import { Button, Input, Modal, Toast } from '@douyinfe/semi-ui';
@@ -141,7 +149,7 @@ export function PicListEditor({
     showImage ? (
       <div className="dec-pic-modal">
         <div className="dec-pic-modal__toolbar">
-          <Button size="small" icon={<IconPlus />} onClick={() => setProductPickerOpen(true)}>
+          <Button size="small" theme="light" type="primary" icon={<IconPlus />} onClick={() => setProductPickerOpen(true)}>
             {t('从商品选择图片')}
           </Button>
           <span className="dec-pic-modal__toolbar-hint">{t('可用商品头图或商品相册图片')}</span>
@@ -252,6 +260,7 @@ export function PicListEditor({
         </button>
       )}
       <Modal
+        className="dec-pic-modal__dialog"
         title={showImage ? t('编辑图片') : t('编辑条目')}
         visible={editIndex !== null}
         onCancel={() => setEditIndex(null)}
