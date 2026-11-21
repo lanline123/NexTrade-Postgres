@@ -720,7 +720,7 @@ impl GiftOrderService {
                     .repos
                     .payment
                     .refund_apply
-                    .sum_occupied_by_order(unit_id)
+                    .sum_occupied_by_order(unit_id, 0)
                     .await
                     .unwrap_or(Decimal::ZERO);
                 let refundable = (order.paid_amount - occupied).max(Decimal::ZERO);
