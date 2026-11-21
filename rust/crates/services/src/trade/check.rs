@@ -24,10 +24,12 @@ use std::sync::Arc;
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 
+use nextrade_core::entities::o2o::ShopLocalDeliveryConfig;
 use nextrade_core::entities::{
     Cart, Coupon, GrouponPromotion, GrouponPromotionItem, Product, SeckillItem, ShippingTpl,
     ShippingTplInfo, UserAddress,
 };
+use nextrade_core::models::trade::local_delivery::{local_delivery_fee, min_order_shortfall};
 use nextrade_core::models::catalog::exchange::CART_TYPE_EXCHANGE;
 use nextrade_core::models::trade::check::{
     allocate_discount, build_payment_types, calc_points, calc_shipping_fee, config_enabled,
@@ -298,7 +300,7 @@ impl CheckService {
         let flow_type = param.flow_type.unwrap_or(1);
 
         // —— 运费模板 ——
-        let shipping = calculate_shipping(
+        let mut shipping = calculate_shipping(
             &self.repos,
             &carts,
             &products,
@@ -306,6 +308,46 @@ impl CheckService {
             param.delivery_type,
         )
         .await?;
+
+        // —— 同城配送配置接线（我方新增）：基础运费改写 + 起送价差额 ——
+        // 仅同城配送（delivery_type = 3）时消费门店同城配置：
+        // 基础运费 > 0 的店铺以配置口径（基础 + 距离溢价）替换
+        // 模板运费；起送价按该店商品金额（活动价计价、优惠券/
+        // 积分抵扣前，与下方 store_amounts 同基数）逐店判定，
+        // 结果写入逐店 VO 的 isNotReachMinOrderAmount /
+        // minOrderAmountDiff（H5 已有提示与提交禁用，下单端同
+        // 口径硬拦截）。非同城或未配的店铺行为与此前逐字一致。
+        let is_local_delivery = param.delivery_type == Some(3);
+        let local_cfgs = if is_local_delivery {
+            let shop_ids: Vec<i32> = shop_groups.keys().copied().collect();
+            load_local_delivery_cfgs(&self.repos, &shop_ids).await?
+        } else {
+            HashMap::new()
+        };
+        if is_local_delivery {
+            apply_local_delivery_fees(
+                &self.repos,
+                &local_cfgs,
+                &mut shipping,
+                &carts,
+                &products,
+                Some(address_id),
+            )
+            .await?;
+        }
+        let min_order_shortfalls: HashMap<i32, Decimal> = if is_local_delivery {
+            local_cfgs
+                .iter()
+                .filter(|(_, cfg)| cfg.enabled == 1)
+                .filter_map(|(shop_id, cfg)| {
+                    let amount = store_amounts.get(shop_id).copied().unwrap_or_default();
+                    min_order_shortfall(amount, cfg.min_order_amount)
+                        .map(|diff| (*shop_id, diff))
+                })
+                .collect()
+        } else {
+            HashMap::new()
+        };
 
         // —— 优惠券（店铺范围 + 多店分摊）——
         let coupon_service = CouponService::new(self.repos.clone());
@@ -631,8 +673,11 @@ impl CheckService {
                     format!("店铺 {shop_id}")
                 },
                 no_shipping: 0,
-                min_order_amount_diff: "0".to_string(),
-                is_not_reach_min_order_amount: false,
+                min_order_amount_diff: min_order_shortfalls
+                    .get(shop_id)
+                    .map(|diff| diff.to_string())
+                    .unwrap_or_else(|| "0".to_string()),
+                is_not_reach_min_order_amount: min_order_shortfalls.contains_key(shop_id),
                 carts: carts_vo,
                 total: CartStoreTotalVO {
                     coupon_ids: coupons.valid_selected.clone(),
@@ -1668,14 +1713,16 @@ pub(crate) fn product_price(products: &HashMap<i32, Product>, cart: &Cart) -> De
 /// 口径：包邮商品/包邮模板/满额包邮 = 0；按件或按重、首件首重 + 续件续重。
 /// 地区规则：地址地区命中模板区域时用该区域，否则用默认区域（`is_default=1`）或首条。
 ///
-/// 同城配送费口径核查结论（2026-11-21，论坛帖 467744 送达时间批）：
-/// 本函数是结算运费的**唯一**计算路径——快递与同城配送
+/// 同城配送费口径（2026-11-21 送达时间批核查 + 本批接线）：
+/// 本函数是运费模板计费的唯一实现——快递与同城配送
 /// （delivery_type = 3）共用同一模板计费，自提（2）恒 0；满额包邮
 /// 在 `calc_shipping_fee` 内按**店铺商品金额**与模板区域行
-/// `free_price` 判定，同城订单同享、无同城专属分支。门店同城配
-/// 置的 `base_delivery_fee`（基础运费）仅为配置面字段，**不进入**
-/// 本结算计费（前端结算页亦不叠加），勿在此另起同城计费分支
-/// 造成双轨。
+/// `free_price` 判定。门店同城配置的基础运费/起送价此前从未被
+/// 消费（同批核查登记为存量缺口）；现已接线，但**不在本函数内**
+/// 另起分支：结算与下单在取得本函数结果后，对同城单统一调用
+/// [`apply_local_delivery_fees`] 按配置口径改写逐店运费（基础
+/// 运费 > 0 的店铺以配置为准，其余店铺仍为模板结果含满额包
+/// 邮），保持单轨不双轨。
 pub(crate) async fn calculate_shipping(
     repos: &Repositories,
     carts: &[Cart],
@@ -1796,6 +1843,132 @@ pub(crate) async fn calculate_shipping(
         total += store_fee;
     }
     Ok(ShippingCalc { total, per_store })
+}
+
+/// 批量载入门店同城配送配置（结算页与下单共用同一口径，见
+/// [`nextrade_core::models::trade::local_delivery`]）：无配置行
+/// 的店铺不出现在结果中，调用方按「未配 = 不接线」处理。
+pub(crate) async fn load_local_delivery_cfgs(
+    repos: &Repositories,
+    shop_ids: &[i32],
+) -> Result<HashMap<i32, ShopLocalDeliveryConfig>> {
+    if shop_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let rows = repos
+        .o2o
+        .config
+        .find_local_delivery_for_shops(shop_ids)
+        .await?;
+    Ok(rows.into_iter().map(|c| (c.shop_id, c)).collect())
+}
+
+/// 同城基础运费接线：把逐店运费从运费模板结果替换为门店同城
+/// 配置口径（基础运费 + 可选距离溢价）。仅对「同城配送已开启
+/// 且基础运费 > 0」的店铺生效；未配/为 0 的店铺逐字沿用模板
+/// 结果。该店全部商品为包邮商品时保持模板结果（恒 0），不因
+/// 基础运费覆盖包邮承诺。调用方须保证仅在同城配送
+/// （delivery_type / shipping_method = 3）时调用。
+pub(crate) async fn apply_local_delivery_fees(
+    repos: &Repositories,
+    cfgs: &HashMap<i32, ShopLocalDeliveryConfig>,
+    calc: &mut ShippingCalc,
+    carts: &[Cart],
+    products: &HashMap<i32, Product>,
+    address_id: Option<i32>,
+) -> Result<()> {
+    let mut by_shop: HashMap<i32, Vec<&Cart>> = HashMap::new();
+    for cart in carts {
+        by_shop.entry(cart.shop_id).or_default().push(cart);
+    }
+    for (shop_id, lines) in &by_shop {
+        let Some(cfg) = cfgs.get(shop_id) else {
+            continue;
+        };
+        if cfg.enabled != 1 || cfg.base_delivery_fee <= Decimal::ZERO {
+            continue;
+        }
+        let all_free_shipping = lines.iter().all(|c| {
+            products
+                .get(&c.product_id)
+                .map(|p| p.free_shipping == 1)
+                .unwrap_or(false)
+        });
+        if all_free_shipping {
+            continue;
+        }
+        let pricing_enabled = cfg.distance_pricing_enabled == 1;
+        let rules: Vec<(Decimal, Decimal, Decimal)> = if pricing_enabled {
+            repos
+                .o2o
+                .config
+                .find_local_pricing(*shop_id)
+                .await?
+                .into_iter()
+                .map(|(threshold, unit, fee, _sort)| (threshold, unit, fee))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let distance_km = if pricing_enabled {
+            local_delivery_distance_km(repos, address_id, *shop_id).await?
+        } else {
+            None
+        };
+        let fee = local_delivery_fee(
+            cfg.base_delivery_fee,
+            pricing_enabled,
+            &rules,
+            distance_km,
+        );
+        calc.per_store.insert(*shop_id, fee);
+    }
+    calc.total = calc.per_store.values().copied().sum();
+    Ok(())
+}
+
+/// 买家地址 → 门店距离（公里）：任一坐标缺失返回 None（溢价
+/// 记 0，不阻断结算/下单）。与 `build_delivery_option` 的超距
+/// 判定同一 Haversine 口径（其实测单位为米，见该处实现）。
+async fn local_delivery_distance_km(
+    repos: &Repositories,
+    address_id: Option<i32>,
+    shop_id: i32,
+) -> Result<Option<Decimal>> {
+    let Some(address_id) = address_id.filter(|id| *id > 0) else {
+        return Ok(None);
+    };
+    if shop_id <= 0 {
+        return Ok(None);
+    }
+    let address = repos
+        .member
+        .user_address_client
+        .find_by_id(address_id)
+        .await?;
+    let Some(address) = address else {
+        return Ok(None);
+    };
+    let (Some(lng), Some(lat)) = (address.longitude, address.latitude) else {
+        return Ok(None);
+    };
+    let shop_coord: Option<(Option<Decimal>, Option<Decimal>)> = sqlx::query_as(
+        "SELECT shop_longitude, shop_latitude FROM shop WHERE shop_id = $1",
+    )
+    .bind(shop_id)
+    .fetch_optional(&repos.pool)
+    .await
+    .map_err(|e| Error::Database(e.to_string()))?;
+    let Some((Some(shop_lng), Some(shop_lat))) = shop_coord else {
+        return Ok(None);
+    };
+    let meters = crate::trade::proxy_shopping_product::haversine_meters(
+        Some(lng),
+        Some(lat),
+        Some(shop_lng),
+        Some(shop_lat),
+    );
+    Ok(Some(meters / Decimal::from(1000)))
 }
 
 /// 选择模板区域：优先命中地址地区，其次默认区域，最后首条。

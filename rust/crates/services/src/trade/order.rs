@@ -708,7 +708,7 @@ impl OrderService {
         }
 
         // —— 运费模板（与结算页同一函数）——
-        let shipping = crate::trade::check::calculate_shipping(
+        let mut shipping = crate::trade::check::calculate_shipping(
             &self.repos,
             &lines,
             &products,
@@ -720,6 +720,31 @@ impl OrderService {
             },
         )
         .await?;
+
+        // —— 同城配送配置接线（我方新增，与结算页同一口径）——
+        // 仅同城配送（method = 3）且非 POS、非送礼物时消费门店
+        // 同城配置：基础运费 > 0 的店铺以配置口径改写运费（见
+        // trade::check::apply_local_delivery_fees）；配置同时供
+        // 下方起送价校验复用。POS 收银恒为自提（method = 2）不
+        // 触发；送礼物单配送由领取环节定址，运费不按门店同城
+        // 配置改写（与送达时段豁免同口径）。
+        let local_cfgs = if effective_shipping_method == 3 && !pos_mode && !gift_mode {
+            let shop_ids: Vec<i32> = store_amounts.keys().copied().collect();
+            let cfgs = crate::trade::check::load_local_delivery_cfgs(&self.repos, &shop_ids)
+                .await?;
+            crate::trade::check::apply_local_delivery_fees(
+                &self.repos,
+                &cfgs,
+                &mut shipping,
+                &lines,
+                &products,
+                dto.address_id,
+            )
+            .await?;
+            cfgs
+        } else {
+            std::collections::HashMap::new()
+        };
         let shipping_fee = shipping.total;
 
         // —— 积分抵扣（与结算页同一函数）——
@@ -908,6 +933,35 @@ impl OrderService {
         } else {
             crate::trade::reservation::build_plan(&self.repos, dto, &items).await?
         };
+
+        // —— 同城配送起送价校验（我方新增接线）——
+        // 与时段校验同门（同城 + 非 POS + 非送礼物）：逐店以
+        // 商品金额（活动价计价、优惠券/积分抵扣前，与结算页
+        // store_amounts 同基数）比对门店同城配置的起送价，
+        // 未达明确报错（店铺、起送价、差额），不静默放行。
+        // 结算页已下发同口径差额并禁用提交，此处为提交兜底。
+        if effective_shipping_method == 3 && !pos_mode && !gift_mode {
+            for (shop_id, amount) in &store_amounts {
+                let Some(cfg) = local_cfgs.get(shop_id) else {
+                    continue;
+                };
+                if cfg.enabled != 1 {
+                    continue;
+                }
+                if let Some(diff) = nextrade_core::models::trade::local_delivery::min_order_shortfall(
+                    *amount,
+                    cfg.min_order_amount,
+                ) {
+                    return Err(Error::biz(
+                        1001,
+                        format!(
+                            "店铺 {shop_id} 同城配送未达到起送价 ¥{}，还差 ¥{diff} 才能下单",
+                            cfg.min_order_amount
+                        ),
+                    ));
+                }
+            }
+        }
 
         let order = Order {
             is_presale: if presale_row.is_some() { 1 } else { 0 },
