@@ -12,9 +12,13 @@ interface Props {
     module: any;
     moduleIndex?: number;
     index?: number;
+    /** 独立模块形态（分发器按 type 顶层分发时注入）：消费 titleAlign/titleWeight；各模块内嵌直引不传、渲染口径与改造前逐字一致 */
+    standaloneTitle?: boolean;
+    /** 编辑器嵌入预览态（仅 decoratePreview 经分发器注入）：独立形态 showTitle 关闭时出占位条；店面恒不传、恒零输出 */
+    editorPreview?: boolean;
 }
 
-export default function CommonTitle({ module }: Props) {
+export default function CommonTitle({ module, standaloneTitle, editorPreview }: Props) {
     const titleBackgroundImage = useMemo(() => productImage(module?.titleBackgroundPic), [module?.titleBackgroundPic]);
     const titleFormat = useMemo(() => {
         const radius = designPxToRpx(module.titleRadius);
@@ -32,12 +36,21 @@ export default function CommonTitle({ module }: Props) {
     }, [module]);
 
     if (module.showTitle != 1) {
+        // 店面（含全部内嵌场景）恒零输出；仅编辑器嵌入预览里的独立形态出浅灰
+        // 占位条，让隐藏的标题条在真实渲染画布上仍有槽位、可点选找回。
+        if (standaloneTitle && editorPreview) {
+            return (
+                <View className="decorate-common-title-hidden">
+                    <Text>{t("标题条已隐藏——在设置中开启「显示标题栏」恢复")}</Text>
+                </View>
+            );
+        }
         return null;
     }
 
     return (
         <View
-            className={`image-ad-title decorate-common-title ad-title_style__${module.titleStyle}`}
+            className={`image-ad-title decorate-common-title ad-title_style__${module.titleStyle}${standaloneTitle ? ` ad-title_align__${module.titleAlign ?? 1}` : ""}`}
             style={titleFormat.titleBackground + titleFormat.titleRadius}
         >
             <View className="image-ad-title-l">
@@ -46,7 +59,10 @@ export default function CommonTitle({ module }: Props) {
                         <Image className="title-pic" src={titleBackgroundImage} />
                     </View>
                 )}
-                <View className="image-ad-title-h" style={"color: " + module.titleColor}>
+                <View
+                    className="image-ad-title-h"
+                    style={"color: " + module.titleColor + (standaloneTitle ? ";font-weight: " + (module.titleWeight || "normal") : "")}
+                >
                     {t(module.titleText ?? "")}
                 </View>
                 <View className="image-ad-title-d" style={"color: " + module.descColor}>

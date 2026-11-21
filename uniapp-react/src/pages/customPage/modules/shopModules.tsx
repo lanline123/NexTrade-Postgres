@@ -99,6 +99,12 @@ export default function ShopModules({ modules, shopInfo, onRefreshShopDetail, mo
                     props.shopInfo = shopInfo;
                     props.onRefreshShopDetail = onRefreshShopDetail;
                 }
+                // 贴附标题条独立分发标记（与 DecorateModules 同口径，2026-11-21）：
+                // 店铺页顶层分发的 commonTitle 同为独立模块形态；内嵌直引不经此处。
+                if (mod.type === "commonTitle") {
+                    props.standaloneTitle = true;
+                    if (moduleErrorPlaceholder) props.editorPreview = true;
+                }
                 return (
                     <ModuleErrorBoundary key={mod.moduleIndex ?? index} moduleType={mod.type} moduleIndex={index} resetKey={mod} placeholder={moduleErrorPlaceholder}>
                         <Suspense fallback={null}>

@@ -28,6 +28,10 @@ shopInfo?: import("@/types/shop/shop").ShopDetailItem;
 onRefreshShopDetail?: (shopId?: number) => void;
 /** 会员页沉浸式（原版会员页分发口径）：仅 userInfo3 收到，分发器按 pageModule.immersive + 首个可见模块判定 */
 immersive?: boolean;
+/** 贴附标题条独立分发（我方新增口径）：仅 commonTitle 被分发器按 type 顶层分发时为 true；各模块内嵌直引（module.title）不传。独立形态才消费 titleAlign/titleWeight 并允许编辑器占位 */
+standaloneTitle?: boolean;
+/** 编辑器嵌入预览态（我方新增口径）：仅编辑器嵌入预览页（decoratePreview）经分发器透传为 true；真实店面恒不传。commonTitle 独立形态据此在 showTitle 关闭时出占位条而非零输出 */
+editorPreview?: boolean;
 }
 
 type ModuleLoader = () => Promise<{ default: ComponentType<DecorateModuleProps>}>;

@@ -1,5 +1,26 @@
-/* 通用标题 预览补充样式（自 uniapp-react commonTitle/index.scss 换算，rpx→px ×0.5；
+/* 贴附标题条 预览补充样式（自 uniapp-react commonTitle/index.scss 换算，rpx→px ×0.5；
    image-ad-title 基础样式由全局 module.css 提供） */
+
+/* 独立形态标题位置（2026-11-21 放开消费）：居中时标题居中、「更多」绝对贴右，
+   镜像全局 module.less 中文本标题 .ad-title_align__2 的口径（right 取标题条内边距 10px） */
+.module-common_title .image-ad-title.ad-title_align__2 {
+    justify-content: center;
+}
+.module-common_title .image-ad-title.ad-title_align__2 .image-ad-title-r {
+    position: absolute;
+    right: 10px;
+}
+
+/* showTitle 关闭时的画布占位条（仅编辑器预览出现，店面渲染零输出） */
+.common-title-hidden-tip {
+    padding: 6px 10px;
+    background: #f5f5f5;
+    border: 1px dashed #d9d9d9;
+    color: #999;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+}
 .title-pic-box {
     display: flex;
     align-items: center;

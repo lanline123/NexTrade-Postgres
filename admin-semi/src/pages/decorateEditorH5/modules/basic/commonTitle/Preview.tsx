@@ -1,11 +1,16 @@
 /**
- * 通用标题 预览（DOM 类名逐字对齐 uniapp-react 渲染端 commonTitle/index.tsx + index.scss）
+ * 贴附标题条 预览（DOM 类名逐字对齐 uniapp-react 渲染端 commonTitle/index.tsx + index.scss）
  *
  * 渲染端结构：image-ad-title ad-title_style__N（背景/圆角经 formatTitle 规则）>
  * image-ad-title-l > title-pic-box > img.title-pic（有背景图时）+ image-ad-title-h +
  * image-ad-title-d；showMore=1 时右侧 image-ad-title-r > more-link「查看更多」。
- * showTitle != 1 时渲染端返回 null，预览保持一致。背景渐变规则与渲染端一致：
- * titleBackground2 非空时线性渐变，否则 titleBackground 纯色。
+ * 背景渐变规则与渲染端一致：titleBackground2 非空时线性渐变，否则 titleBackground 纯色。
+ *
+ * 与渲染端的两处刻意差异（2026-11-21 用户拍板，仅独立模块路径）：
+ * - 独立形态消费 titleAlign/titleWeight（根节点 ad-title_align__N 类 + 标题 fontWeight，
+ *   镜像文本标题口径；渲染端独立分发路径同口径，嵌套形态两端均不消费）；
+ * - showTitle != 1 时渲染端（店面）返回 null、本预览改出浅灰占位条——本组件仅在
+ *   编辑器画布内运行，占位让隐藏的标题条仍可在画布上点选找回，不会流到前台。
  *
  * 根节点必须带 module-ad-con 类：全局 module.css 中 .image-ad-title 的全部规则
  * 以 `.module-ad-con .image-ad-title` 为祖先选择器（原版 View.vue 恒被宿主模块
@@ -37,20 +42,29 @@ export default function CommonTitlePreview({ data }: { data: Record<string, any>
         };
     }, [module]);
 
-    if (Number(module.showTitle) !== 1) return null;
+    if (Number(module.showTitle) !== 1) {
+        return (
+            <div className="module-ad-con module-common_title">
+                <div className="common-title-hidden-tip">标题条已隐藏——在设置中开启「显示标题栏」恢复</div>
+            </div>
+        );
+    }
 
     const titleBackgroundImage = productImage(module.titleBackgroundPic);
 
     return (
         <div className="module-ad-con module-common_title">
-            <div className={`image-ad-title ad-title_style__${module.titleStyle}`} style={cssText(titleFormat.titleBackground, titleFormat.titleRadius)}>
+            <div
+                className={`image-ad-title ad-title_style__${module.titleStyle} ad-title_align__${module.titleAlign ?? 1}`}
+                style={cssText(titleFormat.titleBackground, titleFormat.titleRadius)}
+            >
                 <div className="image-ad-title-l">
                     {titleBackgroundImage ? (
                         <div className="title-pic-box">
                             <img className="title-pic" src={titleBackgroundImage} alt="" />
                         </div>
                     ) : null}
-                    <div className="image-ad-title-h" style={{ color: module.titleColor }}>
+                    <div className="image-ad-title-h" style={{ color: module.titleColor, fontWeight: module.titleWeight as any }}>
                         {module.titleText}
                     </div>
                     <div className="image-ad-title-d" style={{ color: module.descColor }}>

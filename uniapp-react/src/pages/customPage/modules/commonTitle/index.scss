@@ -12,3 +12,25 @@
 .decorate-common-title .icon-youjiantou {
     font-size: 34rpx;
 }
+
+/* 独立形态标题位置（2026-11-21 放开消费，分发器顶层分发时根节点带 ad-title_align__N 类）：
+   居中时标题居中、「更多」绝对贴右，镜像 titleAd 的 align__2 口径；right 取标题条
+   水平内边距 20rpx，使「更多」与左对齐常态流的落位一致（admin 预览面同口径 10px） */
+.decorate-common-title.ad-title_align__2 {
+    justify-content: center;
+}
+.decorate-common-title.ad-title_align__2 .image-ad-title-r {
+    position: absolute;
+    right: 20rpx;
+}
+
+/* 编辑器嵌入预览占位条（独立形态 showTitle 关闭时由组件渲染；店面永不产生此节点） */
+.decorate-common-title-hidden {
+    padding: 12rpx 20rpx;
+    background: #f5f5f5;
+    border: 2rpx dashed #d9d9d9;
+    color: #999;
+    font-size: 24rpx;
+    line-height: 36rpx;
+    text-align: center;
+}

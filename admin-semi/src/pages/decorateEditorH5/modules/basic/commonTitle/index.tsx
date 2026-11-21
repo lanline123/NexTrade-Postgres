@@ -1,5 +1,6 @@
 /**
- * 通用标题 模块（渲染端 registry 独有 type，编辑器新注册；
+ * 贴附标题条 模块（原显示名「通用标题」，2026-11-21 用户拍板改名区分定位；
+ * 内部 type 仍为 commonTitle、数据结构不变。渲染端 registry 独有 type，编辑器新注册；
  * 默认值字段对齐 uniapp-react 渲染端 customPage/modules/commonTitle/index.tsx 读取的 module 字段）
  *
  * 注意：本模块的数据本身即标题对象（渲染端直接读 module.showTitle 等），
@@ -45,9 +46,14 @@ export const commonTitleDefaults = {
     }
 };
 
+/** 模块说明（模块库悬停与设置面板提示共用一句：与「文本标题」的区别） */
+export const commonTitleDesc =
+    "贴附式标题条：紧贴下方模块的帽子条，背景色/渐变/小图标刷在标题条本身、只圆上两角；需要独立成段的白底标题块请用「文本标题」";
+
 registerModule({
     type: "commonTitle",
-    label: "通用标题",
+    label: "贴附标题条",
+    desc: commonTitleDesc,
     icon: '<i class="h5-mod-ico">🏷️</i>',
     url: "mobile",
     platform: "mobile",

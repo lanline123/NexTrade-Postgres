@@ -153,7 +153,8 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
                 return {
                     key: `${m.type}@${m.url}`,
                     label: t(m.label),
-                    title: t(m.label),
+                    // 有模块说明（desc）时悬停展示说明、便于区分定位（如贴附标题条 vs 文本标题）；无说明仍为名称
+                    title: t(m.desc || m.label),
                     icon: ParkIcon ? (
                         <ParkIcon size={28} strokeWidth={3.5} theme="outline" />
                     ) : (

@@ -1022,6 +1022,9 @@ export function PicListEditorField({
  * type 门控：'title' 显示标题位置/标题粗细且隐藏显示标题栏/标题背景色/标题图片；
  * 'product' 多背景渐变色与风格三；'seckill2' 隐藏描述两项；其余为默认形态。
  * enableMoreType 时「显示查看更多」升级为「显示右侧内容」二选（更多链接/倒计时）。
+ * enableAlignWeight（默认关）：在默认形态上额外放开标题位置/标题粗细两项——仅
+ * commonTitle 独立模块（贴附标题条）经用户 2026-11-21 拍板启用；嵌套形态与
+ * 'title' 形态均不传此开关，门控与改造前逐字一致。
  */
 export function TitleSettingsField({
     data,
@@ -1029,8 +1032,9 @@ export function TitleSettingsField({
     field = "title",
     titleType = "",
     enableMoreType = false,
+    enableAlignWeight = false,
     label
-}: FieldProps & { field?: string; titleType?: string; enableMoreType?: boolean; label?: string }) {
+}: FieldProps & { field?: string; titleType?: string; enableMoreType?: boolean; enableAlignWeight?: boolean; label?: string }) {
     const { t } = useI18n();
     const title = data?.[field] ?? {};
     const set = (patch: Patch) => onChange({ [field]: { ...title, ...patch } });
@@ -1073,7 +1077,7 @@ export function TitleSettingsField({
                           ]
                 }
             />
-            {isTitle ? (
+            {isTitle || enableAlignWeight ? (
                 <RadioRowField
                     {...sub}
                     field="titleAlign"
@@ -1092,7 +1096,7 @@ export function TitleSettingsField({
             <RangeField {...sub} field="titleRadius" label="标题圆角" max={30} />
             <TextField {...sub} field="titleText" label="标题内容" placeholder="请输入标题内容" />
             <ColorField {...sub} field="titleColor" label="标题颜色" resetValue={defaultTitle.titleColor} />
-            {isTitle ? (
+            {isTitle || enableAlignWeight ? (
                 <RadioRowField
                     {...sub}
                     field="titleWeight"

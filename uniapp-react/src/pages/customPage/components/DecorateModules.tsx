@@ -186,6 +186,15 @@ export default function DecorateModules({ modules, pageModles, scrollTop, onLoad
                     if (mod.type === "userInfo3" || mod.type === "user-info3") {
                         props.immersive = !!(pageModles && pageModles.immersive) && index === firstVisibleModuleIndex;
                     }
+                    // 贴附标题条独立分发标记（2026-11-21）：经本分发器顶层分发的
+                    // commonTitle 是独立模块形态（消费 titleAlign/titleWeight、编辑器
+                    // 嵌入态可出隐藏占位）；各模块内嵌的同名组件为直引、不经此处，
+                    // 恒不带标记、渲染口径不变。editorPreview 仅当本分发处于编辑器
+                    // 嵌入预览（moduleErrorPlaceholder 为真）时透传，真实店面不带。
+                    if (mod.type === "commonTitle") {
+                        props.standaloneTitle = true;
+                        if (moduleErrorPlaceholder) props.editorPreview = true;
+                    }
                     return (
                         <View key={mod.moduleIndex} className={show ? "show" : ""}>
                             {wrapSlot(
