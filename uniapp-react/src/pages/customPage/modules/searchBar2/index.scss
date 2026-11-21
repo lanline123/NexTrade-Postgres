@@ -1,6 +1,11 @@
+/* 口径（2026-11-21 修复）：原版 uniapp 样式表中的 px 字面量（边框 1px、左图标 20px、
+   间距 8px）在 uni-app 的 H5 构建中即 CSS px 原值，但 Taro 的 pxtransform 对 px 与
+   rpx 同按 /40 换算 rem（1px→.025rem、画布根字号 20px 下仅 0.5px，边框亚像素不可见；
+   20px→.5rem=10px，图标减半）。逐字搬运即中此陷阱，故边框与左图标改按 rpx 书写：
+   2rpx=1px、40rpx=20px、16rpx=8px（@375 宽），与原版呈现值逐项一致。 */
 .decorate-search-bar2 .oversea-sousuo-box {
     .oversea-sousuo {
-        border: 1px solid #1a1a1a;
+        border: 2rpx solid #1a1a1a;
         border-radius: 8rpx;
         display: flex;
         justify-content: center;
@@ -9,8 +14,8 @@
 
         .search-icon-left {
             flex-shrink: 0;
-            margin-right: 8px;
-            font-size: 20px;
+            margin-right: 16rpx;
+            font-size: 40rpx;
             color: #999;
         }
 
