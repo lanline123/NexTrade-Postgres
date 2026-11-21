@@ -265,7 +265,7 @@ export default function ShopCustomers() {
       form.append('file', importFile);
       const res = await fetch('/adminapi/user/shopMember/importErrorData', {
         method: 'POST',
-        headers: { Authorization: <redacted>, ...getContextHeaders() },
+        headers: { Authorization: `Bearer ${getToken()}`, ...getContextHeaders() },
         body: form,
       });
       if (!res.ok) throw new Error(t('下载失败'));
