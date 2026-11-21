@@ -332,7 +332,6 @@ export interface ModuleDef {
   group: string;
   overseasOnly?: boolean;
   hiddenInLibrary?: boolean;
-  legacy?: boolean;
   note?: string;
   desc?: string;
   defaults: () => Record<string, any>;

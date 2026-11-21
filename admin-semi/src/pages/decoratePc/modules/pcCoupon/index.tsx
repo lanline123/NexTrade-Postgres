@@ -2,7 +2,7 @@
 import type { ModuleDef } from '../../contract/pcModuleContract';
 import { registerPcModule } from '../../contract/pcModuleContract';
 
-const def: ModuleDef = { type: 'pcCoupon', label: '优惠券模块', group: '旧版', legacy: true, note: '内容由营销-优惠券"首页显示"决定', defaults: () => ({}), settings: [], summary: () => '优惠券' };
+const def: ModuleDef = { type: 'pcCoupon', label: '优惠券模块', group: '营销活动', note: '内容由营销-优惠券"首页显示"决定', defaults: () => ({}), settings: [], summary: () => '优惠券' };
 
 registerPcModule(def);
 

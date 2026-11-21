@@ -34,33 +34,6 @@ fn ms(sec: Option<i32>) -> Option<i64> {
     sec.map(|s| i64::from(s) * 1000)
 }
 
-/// 解析模板样式版本（对应 `DecorateServiceImpl#resolveHomeStyleVersion`）。
-///
-/// 真相源为前端存入的 `data.pageModule.homeStyleVersion`（"new"/"old"），
-/// `data` 为空时回退 `draft_data`；两者皆空的全新模板兜底 `"new"`，
-/// 有数据但字段缺失/解析异常兜底 `"old"`（兼容历史存量页面）。
-pub fn resolve_home_style_version(d: &Decorate) -> String {
-    let json = if d.data.as_deref().is_some_and(|s| !s.trim().is_empty()) {
-        d.data.clone()
-    } else {
-        d.draft_data.clone()
-    };
-    let Some(json) = json.filter(|s| !s.trim().is_empty()) else {
-        // 尚未保存任何页面内容的新建模板默认按新版返回
-        return "new".into();
-    };
-    match serde_json::from_str::<serde_json::Value>(&json) {
-        Ok(v) => v
-            .get("pageModule")
-            .and_then(|m| m.get("homeStyleVersion"))
-            .and_then(|s| s.as_str())
-            .filter(|s| !s.is_empty())
-            .map(str::to_string)
-            .unwrap_or_else(|| "old".into()),
-        Err(_) => "old".into(),
-    }
-}
-
 /// 逗号分隔整数列表解析（`decorateType=1,2`）。
 pub fn parse_i32_csv(raw: &Option<String>) -> Vec<i32> {
     raw.as_deref()
@@ -177,8 +150,6 @@ pub struct DecorateVO {
     pub binded_h5_id: Option<i32>,
     /// 绑定的 H5 页面名称
     pub bingding_h5_name: Option<String>,
-    /// 模板样式版本 new/old
-    pub home_style_version: Option<String>,
     /// 扩展：父级/语言（原 Java VO 未暴露，编辑器多语言保存需要）
     pub parent_id: Option<i32>,
     pub locale_id: Option<i32>,
@@ -205,7 +176,6 @@ impl From<&Decorate> for DecorateVO {
             sort_order: d.sort_order,
             binded_h5_id: d.binded_h5_id,
             bingding_h5_name: None,
-            home_style_version: Some(resolve_home_style_version(d)),
             parent_id: d.parent_id,
             locale_id: d.locale_id,
             share_info: parse_json_opt(&d.share_info),
@@ -844,18 +814,5 @@ mod tests {
         assert_eq!(dto.sort_order, Some(1));
         assert_eq!(dto.decorate_type, Some(2));
         assert_eq!(dto.status, Some(0));
-    }
-
-    #[test]
-    fn empty_template_is_new_style() {
-        let d = Decorate::default();
-        assert_eq!(resolve_home_style_version(&d), "new");
-    }
-
-    #[test]
-    fn missing_style_version_falls_back_old() {
-        let mut d = Decorate::default();
-        d.data = Some(r#"{"pageModule":{}}"#.into());
-        assert_eq!(resolve_home_style_version(&d), "old");
     }
 }

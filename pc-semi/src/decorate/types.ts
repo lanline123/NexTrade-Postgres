@@ -46,7 +46,6 @@ export interface PageModule {
   backgroundImage?: DecoratePic;
   backgroundRepeat?: number;
   backgroundSize?: number;
-  homeStyleVersion?: 'new' | 'old';
   pcHeader?: PcHeaderConfig;
   [key: string]: unknown;
 }

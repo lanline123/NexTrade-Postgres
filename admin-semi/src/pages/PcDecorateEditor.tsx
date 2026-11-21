@@ -4,9 +4,9 @@
  * 数据契约（与原版逐字段一致，透传不裁剪）：
  * - data = { pageModule, moduleList }
  * - pageModule = { type:'page', module:{}, backgroundRepeat:'', backgroundSize:'', style:0,
- *                  headerStyle:1, homeStyleVersion:'new'|'old', pcHeader?(仅新版) }
+ *                  headerStyle:1, pcHeader? }
  * - moduleList 项 = { moduleIndex: Date.now(), type, url:'pc', label, isShow, module:{...defaults} }
- * - 新套 20 模块 kebab-case（pc-home-hero / pc-image-ad / ...），旧套 16 模块 camelCase 仅兼容历史数据
+ * - 36 模块统一注册（新套 20 个 kebab-case + 原旧套 16 个 camelCase；2026-11-21 用户拍板取消新/旧版之分、全部并入首页模块库）
  * - 加载: GET decorate/decorate/detail?id&decorateType=2&localeId=0&parentId=0
  * - 保存: POST decorate/decorate/saveDraft | publish  body {id, decorateType:2, pageType:1, localeId:0, parentId:0, data}
  */
@@ -95,25 +95,21 @@ import {
   type ModuleDef, type PicItem, type SettingFieldDef,
 } from './decoratePc/contract/pcModuleContract';
 
-/* 模块定义自 Step 3 起拆至 decoratePc/modules/<type>/ 自注册，此处按原顺序从注册表取回（数据格式不变）。 */
-const NEW_MODULE_DEFS: ModuleDef[] = [
+/* 模块定义自 Step 3 起拆至 decoratePc/modules/<type>/ 自注册，此处按原顺序从注册表取回（数据格式不变）。
+   2026-11-21 用户拍板取消「旧版首页」：原旧套 16 个 camelCase 模块与新套 20 个统一注册、统一进库，不再分新/旧版。 */
+const ALL_MODULE_DEFS: ModuleDef[] = [
   'pc-banner2', 'pc-group-banner', 'pc-image-ad', 'pc-image-nav', 'pc-image-square-ad', 'pc-image-hotarea',
   'pc-home-quick-nav', 'pc-category-nav', 'pc-category-nav3', 'pc-product', 'pc-product-group', 'pc-recommend-product',
   'pc-home-coupon', 'pc-home-seckill', 'pc-home-groupon', 'pc-home-hero', 'pc-notice', 'pc-title-ad', 'pc-divider', 'pc-spacer',
-].map((t) => getPcModuleDef(t)!);
-const LEGACY_MODULE_DEFS: ModuleDef[] = [
   'pcBanner', 'pcBanner2', 'pcGroupBanner', 'pcImageAd', 'pcCustomAd1', 'pcCustomAd2', 'pcCatProductNormal', 'pcCatProductWide',
   'pcCatProductSimple', 'pcRecommendProduct', 'pcSeckill', 'pcCoupon', 'pcGroupon', 'pcCategoryNav', 'pcCategoryNav3', 'pcCatWide',
 ].map((t) => getPcModuleDef(t)!);
-const ALL_MODULE_DEFS = [...NEW_MODULE_DEFS, ...LEGACY_MODULE_DEFS];
 const MODULE_DEF_MAP = new Map(ALL_MODULE_DEFS.map((d) => [d.type, d]));
 const PC_LOGIN_MODULE_DEF: ModuleDef = getPcModuleDef('pcLogin')!;
 MODULE_DEF_MAP.set('pcLogin', PC_LOGIN_MODULE_DEF);
 const PC_SEARCH_RESULT_MODULE_DEF: ModuleDef = getPcModuleDef('pcSearchResult')!;
 MODULE_DEF_MAP.set('pcSearchResult', PC_SEARCH_RESULT_MODULE_DEF);
-const LEGACY_TYPES = new Set(LEGACY_MODULE_DEFS.map((d) => d.type));
-
-const LIB_GROUP_ORDER = ['商品展示', '图片与轮播', '导航入口', '营销活动', '基础排版', '旧版'];
+const LIB_GROUP_ORDER = ['商品展示', '图片与轮播', '导航入口', '营销活动', '基础排版'];
 
 /* 模块库元数据（排序 order + 图标）已合并到共享总表 components/editorModuleIcons.ts，
    顶部以 PC_LIB_META as LIB_META 导入，与 H5 的 MODULE_ICONPARK 单一源维护。 */
@@ -290,7 +286,6 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
         if (typeof pm.title !== 'string') pm.title = '';
         // 新版头部装修默认值合并（原版 mergePcHeaderDefaults 语义）
         pm.pcHeader = { ...PC_HEADER_DEFAULTS, ...(pm.pcHeader || {}) };
-        if (!pm.homeStyleVersion) pm.homeStyleVersion = 'new';
         setPageModule(pm);
         let list = Array.isArray(source.moduleList) ? source.moduleList : [];
         if (currentPageType === 6) {
@@ -392,12 +387,9 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   });
 
   const getSaveData = () => {
-    const hasLegacy = moduleList.some((m) => LEGACY_TYPES.has(m.type));
-    const homeStyleVersion: 'new' | 'old' = hasLegacy ? 'old' : 'new';
-    const pm: any = { ...pageModule, homeStyleVersion };
-    if (homeStyleVersion !== 'new') {
-      delete pm.pcHeader; // 原版契约：旧版不携带头部装修
-    }
+    // 2026-11-21 取消新/旧版：homeStyleVersion 不再写入（存量页残留值保存时自然剔除、收敛），pcHeader 一律保留。
+    const pm: any = { ...pageModule };
+    delete pm.homeStyleVersion;
     return { pageModule: pm, moduleList: moduleList.map((m) => ({ ...m })) };
   };
 
@@ -447,36 +439,6 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     } catch (e: any) {
       Toast.error(e?.message || t('修改失败'));
     }
-  };
-
-  /** 切换首页装修版本（原版 onSwitchHomeVersion：清空另一套模块，旧版还会清掉头部装修） */
-  const switchHomeVersion = (target: 'new' | 'old') => {
-    const toNew = target === 'new';
-    const clearCount = toNew
-      ? moduleList.filter((m) => LEGACY_TYPES.has(m.type)).length
-      : moduleList.filter((m) => !LEGACY_TYPES.has(m.type)).length;
-    const clearLabel = toNew ? t('旧版') : t('新版');
-    const targetLabel = toNew ? t('新版') : t('旧版');
-    const clearsHeader = !toNew; // 切旧版时 pcHeader 头部装修数据会随保存一并清空
-    const clearParts: string[] = [];
-    if (clearCount > 0) clearParts.push(t('{count} 个{mode}模块', { count: clearCount, mode: clearLabel }));
-    if (clearsHeader) clearParts.push(t('头部装修数据'));
-    Modal.confirm({
-      title: t('切换首页装修版本'),
-      content: t('切换到{target}后，将清空当前画布上的{parts}；一经预览、保存草稿或发布，将无法恢复。确认切换？', { target: targetLabel, parts: clearParts.join(t('和')) || t('无关内容') }),
-      okText: t('确认切换'),
-      cancelText: t('取消'),
-      onOk: () => {
-        setModuleList((prev) => prev.filter((m) => (LEGACY_TYPES.has(m.type) ? !toNew : toNew)));
-        setPageModule((prev) => {
-          const next: any = { ...prev, homeStyleVersion: target };
-          if (target === 'old') delete next.pcHeader;
-          return next;
-        });
-        markDirty();
-        Toast.success(t('已切换到{target}首页', { target: targetLabel }));
-      },
-    });
   };
 
   const addModule = async (def: ModuleDef) => {
@@ -584,16 +546,13 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
 
   const activeModule = activeIndex >= 0 && activeIndex < moduleList.length ? moduleList[activeIndex] : null;
 
-  /* 模块库分组：新版页按 def.group 五组（LIB_GROUP_ORDER 定序、LIB_META.order 组内排序）；
-     旧版语境（页面版本为旧版或画布含旧版模块）只出「旧版」组；登录/搜索页维持单组。 */
-  const isLegacyContext = pageModule.homeStyleVersion === 'old' || moduleList.some((m) => LEGACY_TYPES.has(m.type));
+  /* 模块库分组：36 个模块统一按 def.group 五组展示（LIB_GROUP_ORDER 定序、LIB_META.order 组内排序）；
+     登录/搜索页维持单组。 */
   const libSourceDefs = isLoginPage
     ? [PC_LOGIN_MODULE_DEF]
     : isSearchPage
       ? [PC_SEARCH_RESULT_MODULE_DEF]
-      : isLegacyContext
-        ? LEGACY_MODULE_DEFS
-        : NEW_MODULE_DEFS.filter((d) => !d.hiddenInLibrary);
+      : ALL_MODULE_DEFS.filter((d) => !d.hiddenInLibrary);
   const toLibItem = (def: ModuleDef) => {
     const LibIcon = LIB_META[def.type]?.Icon || ViewGridList;
     return {
@@ -684,7 +643,6 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           />
           {hasDraft && <Tag color="blue">{t('草稿')}</Tag>}
           {dirtyRef.current && <Tag color="orange">{t('未保存')}</Tag>}
-          {getSaveData().pageModule.homeStyleVersion === 'new' ? <Tag color="green">{t('新版装修')}</Tag> : <Tag color="grey">{t('旧版兼容')}</Tag>}
         </Space>
         {/* 语言切换（原版有 · 2026-11-21 补齐）：切换当前装修页的语言版本（整页跳转） */}
         <EditorLocaleSwitch
@@ -737,10 +695,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
             <SettingsCard>
               <PageSettingsPanel
                 pageModule={pageModule}
-                legacyCount={moduleList.filter((m) => LEGACY_TYPES.has(m.type)).length}
-                newCount={moduleList.filter((m) => !LEGACY_TYPES.has(m.type)).length}
                 onChange={(next) => { setPageModule(next); markDirty(); }}
-                onSwitchVersion={(target) => switchHomeVersion(target)}
               />
             </SettingsCard>
           )}
@@ -811,7 +766,6 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
                 )}
                 {moduleList.map((item, index) => {
                   const isActive = activeIndex === index;
-                  const isLegacy = LEGACY_TYPES.has(item.type);
                   return (
                     <div
                       key={item.moduleIndex}
@@ -841,7 +795,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
                         setPanelTab('module');
                       }}
                     >
-                      {isActive && <span className="pc-decorate-module__tag">{t(item.label)}{isLegacy ? '（' + t('旧版') + '）' : ''}</span>}
+                      {isActive && <span className="pc-decorate-module__tag">{t(item.label)}</span>}
                       <ModuleErrorBoundary key={item.moduleIndex} label={item.type}>
                         <ModulePreview type={item.type} data={item.module} />
                       </ModuleErrorBoundary>
@@ -2611,19 +2565,12 @@ function PcHeaderPreviewStrip({ header, onOpen, regionText, active }: { header: 
 
 function PageSettingsPanel({
   pageModule,
-  legacyCount,
-  newCount,
   onChange,
-  onSwitchVersion,
 }: {
   pageModule: Record<string, any>;
-  legacyCount: number;
-  newCount: number;
   onChange: (next: Record<string, any>) => void;
-  onSwitchVersion: (target: 'new' | 'old') => void;
 }) {
   const { t } = useI18n();
-  const currentVersion = pageModule.homeStyleVersion === 'old' ? 'old' : 'new';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Text strong>{t('页面设置')}</Text>
@@ -2632,21 +2579,6 @@ function PageSettingsPanel({
         <Text type="tertiary" size="small">{t('页面标题（可不填，默认为页面名称）')}</Text>
         <Input value={pageModule.title || ''} onChange={(v) => onChange({ ...pageModule, title: v })} placeholder={t('请输入页面标题')} />
       </div>
-
-      {/* 头部风格仅服务旧版头部；新版 PC 首页走 pcHeader，故新版时隐藏（原版同逻辑） */}
-      {currentVersion === 'old' && (
-        <div>
-          <Text type="tertiary" size="small">{t('头部风格')}</Text>
-          <RadioGroup
-            value={Number(pageModule.headerStyle) === 2 ? 2 : 1}
-            onChange={(e: any) => onChange({ ...pageModule, headerStyle: Number(e.target.value) })}
-            type="button"
-          >
-            <Radio value={1}>{t('默认风格')}</Radio>
-            <Radio value={2}>{t('简约风格')}</Radio>
-          </RadioGroup>
-        </div>
-      )}
 
       <div>
         <Text type="tertiary" size="small">{t('标题栏背景颜色')}</Text>
@@ -2698,23 +2630,6 @@ function PageSettingsPanel({
           <Radio value={2}>{t('纵向100%')}</Radio>
           <Radio value={3}>{t('100%填充')}</Radio>
         </RadioGroup>
-      </div>
-
-      <div style={{ borderTop: '1px solid var(--semi-color-border)', paddingTop: 12 }}>
-        <Text type="tertiary" size="small">{t('首页装修版本')}</Text>
-        <RadioGroup
-          value={currentVersion}
-          onChange={(e: any) => onSwitchVersion(e.target.value as 'new' | 'old')}
-          type="button"
-          style={{ marginTop: 4 }}
-        >
-          <Radio value="new">{t('新版首页')}</Radio>
-          <Radio value="old">{t('旧版首页')}</Radio>
-        </RadioGroup>
-        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <Text type="tertiary" size="small"><b>{t('新版首页：')}</b>{t('支持可视化网格、高级轮播等新模块，顶部带 PC 头部实时预览，排版更现代。当前 {count} 个模块。', { count: newCount })}</Text>
-          <Text type="tertiary" size="small"><b>{t('旧版首页：')}</b>{t('使用传统全宽占位模块，无头部预览，适合维护旧有页面。当前 {count} 个模块。', { count: legacyCount })}</Text>
-        </div>
       </div>
     </div>
   );

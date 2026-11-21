@@ -2,7 +2,7 @@
 import type { ModuleDef } from '../../contract/pcModuleContract';
 import { registerPcModule } from '../../contract/pcModuleContract';
 
-const def: ModuleDef = { type: 'pcCustomAd2', label: '自定义模块二', group: '旧版', legacy: true, defaults: () => ({ linkList: [], picList: [], picList2: [], picList3: [] }), settings: [{ kind: 'picList', key: 'picList', label: '左侧大图' }, { kind: 'linkList', key: 'linkList', label: '左侧链接' }, { kind: 'picList', key: 'picList2', label: '中间广告图', picDesc: true }, { kind: 'picList', key: 'picList3', label: '右侧广告图', picDesc: true }], summary: () => '三列自定义' };
+const def: ModuleDef = { type: 'pcCustomAd2', label: '自定义模块二', group: '图片与轮播', defaults: () => ({ linkList: [], picList: [], picList2: [], picList3: [] }), settings: [{ kind: 'picList', key: 'picList', label: '左侧大图' }, { kind: 'linkList', key: 'linkList', label: '左侧链接' }, { kind: 'picList', key: 'picList2', label: '中间广告图', picDesc: true }, { kind: 'picList', key: 'picList3', label: '右侧广告图', picDesc: true }], summary: () => '三列自定义' };
 
 registerPcModule(def);
 

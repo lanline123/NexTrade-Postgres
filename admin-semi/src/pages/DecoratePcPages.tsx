@@ -95,7 +95,6 @@ interface DecorateRow {
   status?: number;
   /** 毫秒时间戳 */
   updateTime?: number;
-  homeStyleVersion?: string;
   sortOrder?: number;
 }
 
@@ -364,11 +363,6 @@ export function PcDecorateHome() {
             value={row.decorateTitle || ''}
             onConfirm={(val) => handleRename(row.decorateId, val)}
           />
-          {row.decorateType === 2 && row.pageType === 1 && row.homeStyleVersion === 'old' && (
-            <Tag size="small" color="grey">
-              {t('旧版')}
-            </Tag>
-          )}
         </Space>
       ),
     },
