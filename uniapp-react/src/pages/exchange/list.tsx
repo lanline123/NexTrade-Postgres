@@ -5,7 +5,7 @@ import Taro from "@tarojs/taro";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import Masonry from "@/components/masonry/Masonry";
 import EmptyBox from "@/components/empty-box/EmptyBox";
-import { getExchangeList } from "@/api/exchange/exchange";
+import { exchangeCoupon, getExchangeList } from "@/api/exchange/exchange";
 import useList from "@/hooks/useList";
 import { useProductStyle } from "@/hooks/useProductStyle";
 import { useConfigStore } from "@/store/config";
@@ -31,6 +31,8 @@ export default function ExchangeList() {
 
     // 对应旧 setup 阶段 uni.getStorageSync("userInfo")
     const [userInfo] = useState<Record<string, any>>(() => Taro.getStorageSync("userInfo") || {});
+    // 当前积分（兑换券成功后按接口返回的剩余积分即时更新头部展示）
+    const [points, setPoints] = useState<number>(Number(userInfo.points || 0));
 
     // 对应旧 onMounted（#ifdef H5）
     useEffect(() => {
@@ -61,6 +63,36 @@ export default function ExchangeList() {
 
     const { styleMap } = useProductStyle(lsit);
 
+    // 券型兑换品（我方新增）与商品型分开陈列：券区在上、商品瀑布流在下
+    const couponItems = (lsit || []).filter((item: any) => Number(item.exchangeType) === 2);
+    const productItems = (lsit || []).filter((item: any) => Number(item.exchangeType) !== 2);
+
+    /** 积分兑换优惠券：确认弹窗（券名/面额/所需积分/折算来源）→ 即时兑换 */
+    const onExchangeCoupon = (item: any) => {
+        const need = Number(item.exchangeIntegral || 0);
+        const sourceNote = item.integralSource === "platform" ? `（${t("按平台统一比折算")}）` : "";
+        Taro.showModal({
+            title: t("确认兑换"),
+            content: `${t("使用")} ${need} ${integralName}${t("兑换")}「${item.couponName || ""}」${sourceNote}？`,
+            confirmText: t("确认兑换"),
+            success: async (res) => {
+                if (!res.confirm) return;
+                try {
+                    const result: any = await exchangeCoupon({ id: Number(item.id) });
+                    const data = result?.data || {};
+                    if (typeof data.remainingPoints === "number") {
+                        setPoints(data.remainingPoints);
+                    } else {
+                        setPoints((prev) => Math.max(0, prev - need));
+                    }
+                    Taro.showToast({ title: t("兑换成功"), icon: "success" });
+                } catch (error: any) {
+                    Taro.showToast({ title: error?.message || t("兑换失败"), icon: "none" });
+                }
+            }
+        });
+    };
+
     /** 国内版积分兑换页头部背景图（带文字 banner） */
     const exchangeBg = `url(${staticResource("exchange/exchange-bg.png")})`;
 
@@ -76,7 +108,7 @@ export default function ExchangeList() {
                     <View className="header-bg" style={{ backgroundImage: headerBg }} />
                     <View className="header-text">
                         {" "}
-                        {t("当前积分{0}", { 0: userInfo.points || 0 })}{" "}
+                        {t("当前积分{0}", { 0: points })}{" "}
                     </View>
                     {/* 中文用带文字的国内 banner（不叠加标题）；非中文用纯装饰海外图，叠加标题文案 */}
                     {!isZh && (
@@ -87,8 +119,45 @@ export default function ExchangeList() {
                     <>
                         {total > 0 && (
                             <View className="exchange-list">
-                                {/* TODO(MIGRATION)：旧 :is-exchange="true" 在旧 masonry 中未声明（等同透传空属性），此处省略 */}
-                                <Masonry commodityList={lsit} type="exchange" styleMap={styleMap} />
+                                {couponItems.length > 0 && (
+                                    <View className="exchange-coupons">
+                                        <View className="exchange-coupons-title">{t("积分兑券")}</View>
+                                        {couponItems.map((item: any) => (
+                                            <View className="exchange-coupon-card" key={item.id}>
+                                                <View className="coupon-face">
+                                                    <View className="coupon-face-money">
+                                                        {Number(item.couponMoney || 0) > 0
+                                                            ? `¥${Number(item.couponMoney)}`
+                                                            : t("折扣券")}
+                                                    </View>
+                                                    <View className="coupon-face-threshold">
+                                                        {Number(item.minOrderAmount || 0) > 0
+                                                            ? `${t("满")}¥${Number(item.minOrderAmount)}${t("可用")}`
+                                                            : t("无门槛")}
+                                                    </View>
+                                                </View>
+                                                <View className="coupon-main">
+                                                    <View className="coupon-name">{item.couponName}</View>
+                                                    <View className="coupon-points">
+                                                        {Number(item.exchangeIntegral || 0)} {integralName}
+                                                        {item.integralSource === "platform" && (
+                                                            <View className="coupon-source">{t("平台统一比")}</View>
+                                                        )}
+                                                    </View>
+                                                </View>
+                                                <View className="coupon-btn" onClick={() => onExchangeCoupon(item)}>
+                                                    {t("兑换")}
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                                {productItems.length > 0 && (
+                                    <>
+                                        {/* TODO(MIGRATION)：旧 :is-exchange="true" 在旧 masonry 中未声明（等同透传空属性），此处省略 */}
+                                        <Masonry commodityList={productItems} type="exchange" styleMap={styleMap} />
+                                    </>
+                                )}
                             </View>
                         )}
                         {total === 0 && (

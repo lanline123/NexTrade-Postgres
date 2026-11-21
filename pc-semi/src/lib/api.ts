@@ -786,6 +786,16 @@ export interface ExchangeItem {
   productPrice?: number | string;
   discountsPrice?: number | string;
   exchangeIntegral?: number;
+  /** 兑换类型（我方新增）：1=商品 2=优惠券 */
+  exchangeType?: number;
+  couponId?: number;
+  couponName?: string;
+  couponMoney?: number | string;
+  couponDiscount?: number | string;
+  minOrderAmount?: number | string;
+  couponShopId?: number;
+  /** 积分价来源：self=单品自设 / platform=平台统一比折算 */
+  integralSource?: string;
   [key: string]: unknown;
 }
 

@@ -35,7 +35,7 @@ use nextrade_core::models::marketing::points_exchange::{
 };
 use nextrade_core::{Error, Result};
 
-const SELECT: &str = "SELECT id, product_id, exchange_integral, points_deducted_amount, is_hot, is_enabled, sku_id FROM points_exchange";
+const SELECT: &str = "SELECT id, product_id, exchange_integral, points_deducted_amount, is_hot, is_enabled, sku_id, exchange_type, coupon_id FROM points_exchange";
 
 /// 积分商品域仓储。
 #[derive(Clone)]
@@ -58,18 +58,20 @@ impl PointsExchangeRepository {
     }
 
     /// 分页（Java `list`：关键字→商品 id、上架未删除商品、启用时校验 sku、isHot/isEnabled）。
+    /// 券型行（我方新增）按券模板有效性与券名关键字匹配，不走商品有效性过滤。
     pub async fn paginate(
         &self,
         q: &PointsExchangeListQuery,
         product_ids: Option<&[i32]>,
+        coupon_ids: Option<&[i32]>,
         limit: i64,
         offset: i64,
     ) -> Result<(i64, Vec<PointsExchange>)> {
         let mut cq: QueryBuilder<'_, Postgres> = QueryBuilder::new("SELECT COUNT(*) FROM points_exchange WHERE 1 = 1");
-        Self::push_filters(&mut cq, q, product_ids);
+        Self::push_filters(&mut cq, q, product_ids, coupon_ids);
         let total: (i64,) = cq.build_query_as().fetch_one(&self.pool).await.map_err(map_err)?;
         let mut rq: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!("{SELECT} WHERE 1 = 1"));
-        Self::push_filters(&mut rq, q, product_ids);
+        Self::push_filters(&mut rq, q, product_ids, coupon_ids);
         rq.push(q.order_clause());
         rq.push(format!(" LIMIT {limit} OFFSET {offset}"));
         let rows: Vec<PointsExchange> = rq.build_query_as().fetch_all(&self.pool).await.map_err(map_err)?;
@@ -80,14 +82,33 @@ impl PointsExchangeRepository {
         qb: &mut QueryBuilder<'_, Postgres>,
         q: &PointsExchangeListQuery,
         product_ids: Option<&[i32]>,
+        coupon_ids: Option<&[i32]>,
     ) {
         if let Some(ids) = product_ids {
-            qb.push(" AND product_id IN (");
-            Self::push_int_list(qb, ids);
-            qb.push(")");
+            // 关键字命中：商品型按商品 id、券型按券模板 id（券名解析结果）；
+            // 任一侧为空集时该侧恒假，避免空 IN 列表。
+            qb.push(" AND ((exchange_type <> 2 AND ");
+            if ids.is_empty() {
+                qb.push("1 = 0");
+            } else {
+                qb.push("product_id IN (");
+                Self::push_int_list(qb, ids);
+                qb.push(")");
+            }
+            qb.push(") OR (exchange_type = 2 AND ");
+            let cids = coupon_ids.unwrap_or(&[]);
+            if cids.is_empty() {
+                qb.push("1 = 0");
+            } else {
+                qb.push("coupon_id IN (");
+                Self::push_int_list(qb, cids);
+                qb.push(")");
+            }
+            qb.push("))");
         } else {
-            // 无关键字：内联商品有效性（Java innerJoin + product_status=1 + is_delete=0）
-            qb.push(" AND EXISTS (SELECT 1 FROM product p WHERE p.product_id = points_exchange.product_id AND p.product_status = 1 AND p.is_delete = 0)");
+            // 无关键字：按类型内联有效性（商品型 = Java innerJoin + product_status=1
+            // + is_delete=0；券型 = 券模板未删除）。
+            qb.push(" AND ((exchange_type = 2 AND EXISTS (SELECT 1 FROM coupon c WHERE c.coupon_id = points_exchange.coupon_id AND c.is_delete = 0)) OR (exchange_type <> 2 AND EXISTS (SELECT 1 FROM product p WHERE p.product_id = points_exchange.product_id AND p.product_status = 1 AND p.is_delete = 0)))");
         }
         if let Some(is_enabled) = q.is_enabled {
             qb.push(" AND is_enabled = ");
@@ -100,6 +121,30 @@ impl PointsExchangeRepository {
             qb.push(" AND is_hot = ");
             qb.push_bind(is_hot);
         }
+    }
+
+    /// 未删除且名称命中的券模板 id（券型行关键字解析；我方新增）。
+    pub async fn find_coupon_ids_by_name(&self, keyword: &str) -> Result<Vec<i32>> {
+        let rows: Vec<(i32,)> = sqlx::query_as(
+            "SELECT coupon_id FROM coupon WHERE is_delete = 0 AND coupon_name ILIKE $1",
+        )
+        .bind(format!("%{keyword}%"))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
+    /// 同券模板重复校验（券型，我方新增；口径同商品型 getCount）。
+    pub async fn count_by_coupon(&self, coupon_id: i32, exclude_id: i32) -> Result<i64> {
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM points_exchange WHERE exchange_type = 2 AND coupon_id = $1 AND id <> $2")
+                .bind(coupon_id)
+                .bind(exclude_id)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(row.0)
     }
 
     /// 已上架未删除且名称命中的商品 id（关键字为空由服务层跳过）。
@@ -159,7 +204,7 @@ impl PointsExchangeRepository {
 
     pub async fn insert(&self, entity: &PointsExchange) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO points_exchange (product_id, exchange_integral, points_deducted_amount, is_hot, is_enabled, sku_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+            "INSERT INTO points_exchange (product_id, exchange_integral, points_deducted_amount, is_hot, is_enabled, sku_id, exchange_type, coupon_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
         )
         .bind(entity.product_id)
         .bind(entity.exchange_integral)
@@ -167,6 +212,8 @@ impl PointsExchangeRepository {
         .bind(entity.is_hot)
         .bind(entity.is_enabled)
         .bind(entity.sku_id)
+        .bind(entity.exchange_type)
+        .bind(entity.coupon_id)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
@@ -175,7 +222,7 @@ impl PointsExchangeRepository {
 
     pub async fn update(&self, entity: &PointsExchange) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE points_exchange SET product_id = $1, exchange_integral = $2, points_deducted_amount = $3, is_hot = $4, is_enabled = $5, sku_id = $6 WHERE id = $7",
+            "UPDATE points_exchange SET product_id = $1, exchange_integral = $2, points_deducted_amount = $3, is_hot = $4, is_enabled = $5, sku_id = $6, exchange_type = $7, coupon_id = $8 WHERE id = $9",
         )
         .bind(entity.product_id)
         .bind(entity.exchange_integral)
@@ -183,6 +230,8 @@ impl PointsExchangeRepository {
         .bind(entity.is_hot)
         .bind(entity.is_enabled)
         .bind(entity.sku_id)
+        .bind(entity.exchange_type)
+        .bind(entity.coupon_id)
         .bind(entity.id)
         .execute(&self.pool)
         .await

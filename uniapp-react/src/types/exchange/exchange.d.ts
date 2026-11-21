@@ -35,6 +35,16 @@ export interface ExchangeListFilterResult {
     productStock: number;
     discountsPrice: string;
     productSku: ExchangeListProductSku | null;
+    // 券型兑换品字段（我方新增）：exchangeType=2 时商品字段为空，
+    // exchangeIntegral 已是生效价（自设或平台统一比折算）
+    exchangeType?: number;
+    couponId?: number;
+    couponName?: string;
+    couponMoney?: string;
+    couponDiscount?: string;
+    minOrderAmount?: string;
+    couponShopId?: number;
+    integralSource?: string;
 }
 
 export interface ExchangeListProductSku {

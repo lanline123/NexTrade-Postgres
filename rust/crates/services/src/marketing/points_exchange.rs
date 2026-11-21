@@ -20,12 +20,16 @@
 //!
 //! 若未来产品要求店铺级隔离，需先给 `points_exchange` 增加 `shop_id` 列并回填归属。
 //!
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use nextrade_core::entities::promotion::PointsExchange;
 use nextrade_core::models::marketing::points_exchange::{
-    BatchDTO, OperateDTO, PointsExchangeCreateDTO, PointsExchangeListQuery, PointsExchangeUpdateDTO,
-    PointsExchangeVO, UpdateFieldDTO, MSG_DUPLICATE, MSG_NOT_EXISTS, MSG_SKU_DISABLED,
+    resolve_coupon_points, resolve_effective_coupon_scale, BatchDTO, OperateDTO,
+    PointsExchangeCreateDTO, PointsExchangeListQuery, PointsExchangeUpdateDTO, PointsExchangeVO,
+    UpdateFieldDTO, EXCHANGE_TYPE_COUPON, KEY_INTEGRAL_COUPON_SCALE, KEY_INTEGRAL_SCALE,
+    MSG_COUPON_DUPLICATE, MSG_COUPON_FACE_REQUIRED, MSG_COUPON_NOT_EXISTS, MSG_DUPLICATE,
+    MSG_NOT_EXISTS, MSG_SKU_DISABLED,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::{Error, Result};
@@ -54,19 +58,20 @@ impl PointsExchangeService {
     ) -> Result<PageResult<PointsExchangeVO>> {
         let page = to_page_query(q.page, q.size);
         let (limit, offset) = q.limit_offset();
-        let product_ids = match q.effective_keyword() {
+        let (product_ids, coupon_ids) = match q.effective_keyword() {
             Some(keyword) => {
-                let ids = self.repo().find_valid_product_ids_by_name(keyword).await?;
-                if ids.is_empty() {
+                let pids = self.repo().find_valid_product_ids_by_name(keyword).await?;
+                let cids = self.repo().find_coupon_ids_by_name(keyword).await?;
+                if pids.is_empty() && cids.is_empty() {
                     return Ok(PageResult::empty(&page));
                 }
-                Some(ids)
+                (Some(pids), Some(cids))
             }
-            None => None,
+            None => (None, None),
         };
         let (total, rows) = self
             .repo()
-            .paginate(q, product_ids.as_deref(), limit, offset)
+            .paginate(q, product_ids.as_deref(), coupon_ids.as_deref(), limit, offset)
             .await?;
         if rows.is_empty() {
             return Ok(PageResult::empty(&page));
@@ -86,13 +91,21 @@ impl PointsExchangeService {
         list.pop().ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS))
     }
 
-    /// 创建（Java `create`）。
+    /// 创建（Java `create`；券型分支为我方新增）。
     pub async fn create(&self, dto: &PointsExchangeCreateDTO) -> Result<i32> {
         let input = dto.validate().map_err(Error::Validation)?;
-        if self.repo().count_by_product(input.product_id, 0).await? > 0 {
-            return Err(Error::biz(500, MSG_DUPLICATE));
+        if input.exchange_type == EXCHANGE_TYPE_COUPON {
+            let coupon_id = input.coupon_id.unwrap_or(0);
+            self.check_coupon(coupon_id, input.exchange_integral).await?;
+            if self.repo().count_by_coupon(coupon_id, 0).await? > 0 {
+                return Err(Error::biz(500, MSG_COUPON_DUPLICATE));
+            }
+        } else {
+            if self.repo().count_by_product(input.product_id, 0).await? > 0 {
+                return Err(Error::biz(500, MSG_DUPLICATE));
+            }
+            self.check_sku(input.product_id, input.sku_id).await?;
         }
-        self.check_sku(input.product_id, input.sku_id).await?;
         let entity = PointsExchange {
             id: 0,
             product_id: input.product_id,
@@ -101,25 +114,35 @@ impl PointsExchangeService {
             is_hot: input.is_hot,
             is_enabled: input.is_enabled,
             sku_id: input.sku_id,
+            exchange_type: input.exchange_type,
+            coupon_id: input.coupon_id,
         };
         let id = self.repo().insert(&entity).await?;
         tracing::info!("创建积分商品: id={id}");
         Ok(id)
     }
 
-    /// 更新（Java `update`）。
+    /// 更新（Java `update`；券型分支为我方新增）。
     pub async fn update(&self, dto: &PointsExchangeUpdateDTO) -> Result<()> {
         let input = dto.validate().map_err(Error::Validation)?;
         let existing = self.repo().find_by_id(input.id).await?;
-        if self
-            .repo()
-            .count_by_product(input.product_id, input.id)
-            .await?
-            > 0
-        {
-            return Err(Error::biz(500, MSG_DUPLICATE));
+        if input.exchange_type == EXCHANGE_TYPE_COUPON {
+            let coupon_id = input.coupon_id.unwrap_or(0);
+            self.check_coupon(coupon_id, input.exchange_integral).await?;
+            if self.repo().count_by_coupon(coupon_id, input.id).await? > 0 {
+                return Err(Error::biz(500, MSG_COUPON_DUPLICATE));
+            }
+        } else {
+            if self
+                .repo()
+                .count_by_product(input.product_id, input.id)
+                .await?
+                > 0
+            {
+                return Err(Error::biz(500, MSG_DUPLICATE));
+            }
+            self.check_sku(input.product_id, input.sku_id).await?;
         }
-        self.check_sku(input.product_id, input.sku_id).await?;
         let mut entity = existing.unwrap_or_default();
         entity.id = input.id;
         entity.product_id = input.product_id;
@@ -134,8 +157,27 @@ impl PointsExchangeService {
             entity.is_enabled = v;
         }
         entity.sku_id = input.sku_id;
+        entity.exchange_type = input.exchange_type;
+        entity.coupon_id = input.coupon_id;
         self.repo().update(&entity).await?;
         tracing::info!("更新积分商品: id={}", input.id);
+        Ok(())
+    }
+
+    /// 券型校验：模板须存在且未删除；未自设积分价（跟随平台比）时模板
+    /// 必须有固定面额可供折算（纯折扣券 coupon_money=0 无法折算）。
+    async fn check_coupon(&self, coupon_id: i32, exchange_integral: i32) -> Result<()> {
+        let coupon = self
+            .repos
+            .marketing
+            .coupon
+            .find_by_id(coupon_id)
+            .await?
+            .filter(|c| !c.is_deleted())
+            .ok_or_else(|| Error::biz(500, MSG_COUPON_NOT_EXISTS))?;
+        if exchange_integral <= 0 && coupon.coupon_money <= rust_decimal::Decimal::ZERO {
+            return Err(Error::biz(500, MSG_COUPON_FACE_REQUIRED));
+        }
         Ok(())
     }
 
@@ -177,13 +219,88 @@ impl PointsExchangeService {
     }
 
     async fn enrich(&self, rows: &[PointsExchange]) -> Result<Vec<PointsExchangeVO>> {
-        let product_ids = distinct(rows.iter().map(|r| r.product_id));
+        let product_ids = distinct(rows.iter().map(|r| r.product_id).filter(|id| *id > 0));
         let sku_ids = distinct(rows.iter().filter_map(|r| r.sku_id).filter(|id| *id > 0));
         let products = PointsExchangeRepository::index_products(self.repo().find_products(&product_ids).await?);
         let skus = PointsExchangeRepository::index_skus(self.repo().find_skus(&sku_ids).await?);
+        // 券型行（我方新增）：回填券模板 + 按平台统一比解析生效积分价。
+        let coupon_rows: Vec<&PointsExchange> = rows
+            .iter()
+            .filter(|r| r.exchange_type == EXCHANGE_TYPE_COUPON)
+            .collect();
+        let coupons = if coupon_rows.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            let coupon_ids = distinct(coupon_rows.iter().filter_map(|r| r.coupon_id));
+            self.repos
+                .marketing
+                .coupon
+                .find_by_ids(&coupon_ids)
+                .await?
+                .into_iter()
+                .map(|c| (c.coupon_id, c))
+                .collect::<std::collections::HashMap<_, _>>()
+        };
+        let coupon_scale = if coupon_rows.is_empty() {
+            rust_decimal::Decimal::ONE
+        } else {
+            let values = self
+                .repos
+                .system
+                .config_client
+                .find_config_values(&[
+                    KEY_INTEGRAL_COUPON_SCALE.to_string(),
+                    KEY_INTEGRAL_SCALE.to_string(),
+                ])
+                .await?;
+            let map: HashMap<String, String> = values
+                .into_iter()
+                .map(|c| (c.biz_code, c.biz_val.unwrap_or_default()))
+                .collect();
+            resolve_effective_coupon_scale(&map)
+        };
         Ok(rows
             .iter()
             .map(|entity| {
+                if entity.exchange_type == EXCHANGE_TYPE_COUPON {
+                    let coupon = entity.coupon_id.and_then(|id| coupons.get(&id));
+                    let (effective, source) = match coupon {
+                        Some(c) => {
+                            let (points, source) =
+                                resolve_coupon_points(entity.exchange_integral, c.coupon_money, coupon_scale);
+                            (points, Some(source.to_string()))
+                        }
+                        None => (entity.exchange_integral, None),
+                    };
+                    return PointsExchangeVO {
+                        id: entity.id,
+                        product_id: entity.product_id,
+                        exchange_integral: entity.exchange_integral,
+                        points_deducted_amount: entity.points_deducted_amount,
+                        is_hot: entity.is_hot,
+                        is_enabled: entity.is_enabled,
+                        sku_id: entity.sku_id,
+                        product_name: None,
+                        pic_thumb: None,
+                        pic_url: None,
+                        market_price: None,
+                        cost_price: None,
+                        product_price: None,
+                        discounts_price: None,
+                        product_stock: None,
+                        virtual_sales: None,
+                        product_sn: None,
+                        exchange_type: entity.exchange_type,
+                        coupon_id: entity.coupon_id,
+                        coupon_name: coupon.map(|c| c.coupon_name.clone()),
+                        coupon_money: coupon.map(|c| c.coupon_money),
+                        coupon_discount: coupon.map(|c| c.coupon_discount),
+                        min_order_amount: coupon.map(|c| c.min_order_amount),
+                        coupon_shop_id: coupon.and_then(|c| c.shop_id),
+                        effective_exchange_integral: effective,
+                        integral_source: source,
+                    };
+                }
                 let product = products.get(&entity.product_id);
                 let sku = entity
                     .sku_id
@@ -212,6 +329,15 @@ impl PointsExchangeService {
                     product_stock: product.map(|p| p.product_stock),
                     virtual_sales: product.map(|p| p.virtual_sales),
                     product_sn: product.map(|p| p.product_sn.clone()),
+                    exchange_type: entity.exchange_type,
+                    coupon_id: entity.coupon_id,
+                    coupon_name: None,
+                    coupon_money: None,
+                    coupon_discount: None,
+                    min_order_amount: None,
+                    coupon_shop_id: None,
+                    effective_exchange_integral: entity.exchange_integral,
+                    integral_source: None,
                 }
             })
             .collect())

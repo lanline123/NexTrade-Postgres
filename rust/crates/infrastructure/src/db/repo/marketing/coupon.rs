@@ -388,6 +388,81 @@ impl CouponRepository {
         Ok(r)
     }
 
+    // ——— 事务变体（积分兑换优惠券：扣积分与发券同事务，见 catalog::exchange）———
+
+    /// 事务内锁定券模板行（`FOR UPDATE` 串行化同券并发兑换，防超发）。
+    pub async fn find_by_id_for_update(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        coupon_id: i32,
+    ) -> Result<Option<Coupon>> {
+        sqlx::query_as::<_, Coupon>(&format!(
+            "SELECT {COUPON_COLUMNS} FROM coupon WHERE coupon_id = $1 LIMIT 1 FOR UPDATE"
+        ))
+        .bind(coupon_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 事务内统计已发放数量（总量校验，口径同 [`Self::count_issued`]）。
+    pub async fn count_issued_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        coupon_id: i32,
+    ) -> Result<i64> {
+        let (n,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM user_coupon WHERE coupon_id = $1")
+                .bind(coupon_id)
+                .fetch_one(&mut **tx)
+                .await
+                .map_err(map_err)?;
+        Ok(n)
+    }
+
+    /// 事务内统计某用户对某券的持有数量（限兑校验，口径同 [`Self::count_user_claimed`]）。
+    pub async fn count_user_claimed_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: i32,
+        coupon_id: i32,
+    ) -> Result<i64> {
+        let (n,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM user_coupon WHERE user_id = $1 AND coupon_id = $2",
+        )
+        .bind(user_id)
+        .bind(coupon_id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(n)
+    }
+
+    /// 事务内发放一张优惠券（列与 [`Self::insert_user_coupon`] 一致）。
+    pub async fn insert_user_coupon_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        uc: &UserCoupon,
+    ) -> Result<i32> {
+        let r: i32 = sqlx::query_scalar(
+            "INSERT INTO user_coupon
+               (coupon_id, coupon_sn, user_id, used_time, order_id, start_date, end_date, source_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+        )
+        .bind(uc.coupon_id)
+        .bind(&uc.coupon_sn)
+        .bind(uc.user_id)
+        .bind(uc.used_time)
+        .bind(uc.order_id)
+        .bind(uc.start_date)
+        .bind(uc.end_date)
+        .bind(uc.source_type.unwrap_or(0))
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(r)
+    }
+
     /// 删除用户的某张优惠券（仅限本人、且未使用）。
     ///
     /// 对应 Java `UserCouponServiceImpl#deleteByUser`。

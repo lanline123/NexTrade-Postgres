@@ -42,3 +42,16 @@ export const addExchangeToCart = (params: AnyObject) => {
         data: params
     });
 };
+
+/**
+ * @description 积分兑换优惠券（我方新增：即时扣积分发券，不走购物车）
+ * @param data 兑换品ID
+ * @returns 兑换结果（已发券ID、本次扣除积分、剩余积分、积分价来源）
+ */
+export const exchangeCoupon = (data: { id: number }) => {
+    return request({
+        url: "product/exchange/exchangeCoupon",
+        method: "post",
+        data
+    });
+};

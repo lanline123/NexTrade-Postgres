@@ -96,6 +96,7 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
       "fields": [
         "integralName",
         "integralScale",
+        "integralCouponScale",
         "orderSendPointNode",
         "orderSendPoint",
         "orderCompleteSendPointDays",

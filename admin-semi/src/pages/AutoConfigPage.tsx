@@ -498,6 +498,7 @@ const labelMap: Record<string, string> = {
   orderSendPointNode: '赠送积分节点',
   orderSendPoint: '赠送积分',
   integralScale: '积分换算比例',
+  integralCouponScale: '积分兑券比例',
   commentSendPoint: '评论商品赠送积分',
   showSendPoint: '晒单赠送积分',
   useQiandaoPoint: '签到赠送积分',

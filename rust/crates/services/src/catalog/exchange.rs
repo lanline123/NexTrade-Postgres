@@ -18,6 +18,7 @@
 //! | `GET  /product/exchange/detail` | `ExchangeController.detail` | [`ExchangeService::detail`] |
 //! | `GET  /product/exchange/list` | `ExchangeController.list` | [`ExchangeService::list`] |
 //! | `POST /product/exchange/addToCart` | `ExchangeController.addExchangeProductToCart` | [`ExchangeService::add_to_cart`] |
+//! | `POST /product/exchange/exchangeCoupon` | **我方新增**（积分兑换优惠券） | [`ExchangeService::exchange_coupon`] |
 //!
 //! # 依赖复用（不重复实现既有域逻辑）
 //!
@@ -54,16 +55,26 @@
 //!
 //! `points_deducted_amount` / 商品价 / SKU 价均为 `rust_decimal::Decimal`。
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rust_decimal::Decimal;
-use nextrade_core::entities::{Cart, PointsExchange, Product, ProductSku};
+use nextrade_core::entities::business::{NEW_USER_MEMBER, NEW_USER_ONLY};
+use nextrade_core::entities::{Cart, PointsExchange, Product, ProductSku, UserCoupon};
 use nextrade_core::models::catalog::exchange::{
     discounts_price, effective_product_price, filter_spe, normalize_sku_id, retain_exchange_sku,
-    validate_add_to_cart, AddToCartDTO, ExchangeProductToCartVO, PointsExchangeListQuery,
-    PointsExchangeVO, CART_TYPE_EXCHANGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE,
-    MSG_ACTIVITY_NOT_EXIST, MSG_ACTIVITY_OFF_SHELF, MSG_EXCHANGE_PRODUCT_NOT_FOUND,
+    validate_add_to_cart, AddToCartDTO, ExchangeCouponDTO, ExchangeCouponVO,
+    ExchangeProductToCartVO, PointsExchangeListQuery, PointsExchangeVO, CART_TYPE_EXCHANGE,
+    DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MSG_ACTIVITY_NOT_EXIST, MSG_ACTIVITY_OFF_SHELF,
+    MSG_COUPON_LIMIT_REACHED, MSG_COUPON_NEW_USER_ONLY, MSG_COUPON_NOT_EXIST,
+    MSG_COUPON_NOT_IN_TIME, MSG_COUPON_PRICE_NOT_SET, MSG_COUPON_RANK_LIMITED,
+    MSG_COUPON_SOLD_OUT, MSG_COUPON_USE_EXCHANGE_API, MSG_EXCHANGE_PRODUCT_NOT_FOUND, MSG_ID_REQUIRED,
     MSG_POINTS_NOT_ENOUGH, MSG_PRODUCT_NOT_EXIST, MSG_SKU_DISABLED, MSG_STOCK_NOT_ENOUGH,
+    POINTS_LOG_DESC_COUPON_EXCHANGE, SOURCE_POINTS_EXCHANGE,
+};
+use nextrade_core::models::marketing::points_exchange::{
+    resolve_coupon_points, resolve_effective_coupon_scale, EXCHANGE_TYPE_COUPON,
+    KEY_INTEGRAL_COUPON_SCALE, KEY_INTEGRAL_SCALE,
 };
 use nextrade_core::models::catalog::product_manage::ClientProductDetailVO;
 use nextrade_core::types::{PageQuery, PageResult};
@@ -133,8 +144,32 @@ impl ExchangeService {
                 &page,
             )
             .await?;
-        let list: Vec<PointsExchangeVO> = rows.iter().map(row_to_vo).collect();
+        // 券型行（我方新增）的展示积分价 = 生效价（自设或平台统一比折算）。
+        let coupon_scale = if rows.iter().any(|r| r.exchange_type == EXCHANGE_TYPE_COUPON) {
+            self.coupon_scale().await?
+        } else {
+            Decimal::ONE
+        };
+        let list: Vec<PointsExchangeVO> = rows.iter().map(|row| row_to_vo(row, coupon_scale)).collect();
         Ok(PageResult::new(total, list, &page))
+    }
+
+    /// 生效的积分兑券统一比（integralCouponScale → integralScale → 1）。
+    async fn coupon_scale(&self) -> Result<Decimal> {
+        let values = self
+            .repos
+            .system
+            .config_client
+            .find_config_values(&[
+                KEY_INTEGRAL_COUPON_SCALE.to_string(),
+                KEY_INTEGRAL_SCALE.to_string(),
+            ])
+            .await?;
+        let map: HashMap<String, String> = values
+            .into_iter()
+            .map(|c| (c.biz_code, c.biz_val.unwrap_or_default()))
+            .collect();
+        Ok(resolve_effective_coupon_scale(&map))
     }
 
     // ————————————————————— 详情 —————————————————————
@@ -165,6 +200,10 @@ impl ExchangeService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_ACTIVITY_NOT_EXIST))?;
+        // 券型兑换品（我方新增）不走商品详情链路。
+        if points.exchange_type == EXCHANGE_TYPE_COUPON {
+            return Err(Error::biz(500, MSG_COUPON_USE_EXCHANGE_API));
+        }
         // Java `productSkuService.getById(pointsExchange.getSkuId())`（skuId > 0 才查）
         let sku = self.load_sku(points.sku_id).await?;
         let product = self
@@ -230,6 +269,10 @@ impl ExchangeService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_ACTIVITY_NOT_EXIST))?;
+        // 券型兑换品（我方新增）不进购物车链路，走即时兑换端点。
+        if points.exchange_type == EXCHANGE_TYPE_COUPON {
+            return Err(Error::biz(500, MSG_COUPON_USE_EXCHANGE_API));
+        }
         // Java：pointsExchange.getIsEnabled() == 0 → 活动已下架
         if points.is_enabled == 0 {
             return Err(Error::biz(500, MSG_ACTIVITY_OFF_SHELF));
@@ -319,6 +362,156 @@ impl ExchangeService {
         })
     }
 
+    // ————————————————— 积分兑换优惠券（我方新增） —————————————————
+
+    /// 积分兑换优惠券（论坛帖 517907；原版无此端点）。
+    ///
+    /// 与商品型兑换不同，券型是**即时兑换**：不走购物车/订单链，在单个
+    /// 数据库事务内完成「守卫扣积分 + 写积分流水 + 发券」，任一步失败
+    /// 整体回滚（积分不足不发券、券已兑完不扣分）。
+    ///
+    /// 校验口径与会员领券（`marketing::coupon::CouponService::claim`）一致，
+    /// 仅两点不同：① 兑换品自身的 `is_enabled` 是上架门（不看模板的
+    /// `is_show` / `enabled_click_get` 领券开关——积分商城是独立陈列面）；
+    /// ② 每人限兑/发放总量在事务内锁定券模板行后计数，防并发超兑。
+    /// 积分价 = 单品自设优先，未自设按平台统一比折算（见 core 纯函数）。
+    ///
+    /// # Errors
+    /// - 未登录 → `Error::Unauthorized`
+    /// - 兑换品不存在/已下架/非券型、券模板异常、资格不符、积分不足 →
+    ///   `Error::biz(500, <文案>)`
+    pub async fn exchange_coupon(
+        &self,
+        dto: &ExchangeCouponDTO,
+        user_id: i32,
+    ) -> Result<ExchangeCouponVO> {
+        if user_id <= 0 {
+            return Err(Error::Unauthorized("用户未登录".into()));
+        }
+        let id = dto.id.ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.to_string()))?;
+        let item = self
+            .repo()
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_ACTIVITY_NOT_EXIST))?;
+        if item.exchange_type != EXCHANGE_TYPE_COUPON {
+            return Err(Error::biz(500, MSG_COUPON_USE_EXCHANGE_API));
+        }
+        if item.is_enabled == 0 {
+            return Err(Error::biz(500, MSG_ACTIVITY_OFF_SHELF));
+        }
+        let coupon_id = item
+            .coupon_id
+            .filter(|v| *v > 0)
+            .ok_or_else(|| Error::biz(500, MSG_COUPON_NOT_EXIST))?;
+
+        // 生效积分价（自设优先 / 平台统一比折算）在事务内按锁定行计算。
+        let scale = self.coupon_scale().await?;
+        let now = nextrade_common::utils::now_seconds();
+        let coupon_repo = &self.repos.marketing.coupon;
+        let mut tx = self.repo().begin().await?;
+        // 锁定券模板行：同券并发兑换串行化，总量/限兑计数在锁内进行。
+        let coupon = coupon_repo
+            .find_by_id_for_update(&mut tx, coupon_id)
+            .await?
+            .filter(|c| !c.is_deleted())
+            .ok_or_else(|| Error::biz(500, MSG_COUPON_NOT_EXIST))?;
+        let (points_price, source) =
+            resolve_coupon_points(item.exchange_integral, coupon.coupon_money, scale);
+        if points_price <= 0 {
+            return Err(Error::biz(500, MSG_COUPON_PRICE_NOT_SET));
+        }
+
+        // 1) 每人限兑（limit_num，含历史领取/兑换计数，与领券同口径）
+        let user_count = coupon_repo
+            .count_user_claimed_in_tx(&mut tx, user_id, coupon_id)
+            .await?;
+        let limit_per_user = i64::from(coupon.claim_limit_per_user());
+        if limit_per_user > 0 && user_count >= limit_per_user {
+            return Err(Error::biz(500, MSG_COUPON_LIMIT_REACHED));
+        }
+        // 2) 发放总量（send_num，与领券共享同一库存池）
+        let issued = coupon_repo.count_issued_in_tx(&mut tx, coupon_id).await?;
+        let total_supply = i64::from(coupon.total_supply());
+        if total_supply > 0 && issued >= total_supply {
+            return Err(Error::biz(500, MSG_COUPON_SOLD_OUT));
+        }
+        // 3) 新人专享（口径同 claim：已持有过该券或已有已付订单均非新人）
+        if coupon.is_new_user == NEW_USER_ONLY {
+            if user_count > 0 {
+                return Err(Error::biz(500, MSG_COUPON_LIMIT_REACHED));
+            }
+            let paid_orders = self.repos.trade.order.count_paid_by_user(user_id).await?;
+            if paid_orders > 0 {
+                return Err(Error::biz(500, MSG_COUPON_NEW_USER_ONLY));
+            }
+        }
+        // 4) 会员等级专享
+        if coupon.is_new_user == NEW_USER_MEMBER {
+            let rank_ids = coupon.limited_rank_ids();
+            if !rank_ids.is_empty() {
+                let user_rank = self
+                    .repos
+                    .member
+                    .user
+                    .find_by_id(user_id)
+                    .await?
+                    .map(|u| u.rank_id);
+                let ok = user_rank.is_some_and(|r| rank_ids.contains(&r));
+                if !ok {
+                    return Err(Error::biz(500, MSG_COUPON_RANK_LIMITED));
+                }
+            }
+        }
+        // 5) 用券时间窗（口径同 claim 的 time_range_at）
+        let (start_date, end_date) = coupon.time_range_at(now);
+        if end_date <= now {
+            return Err(Error::biz(500, MSG_COUPON_NOT_IN_TIME));
+        }
+
+        // 6) 守卫扣积分（余额不足 → 0 行 → 回滚报错，券不发）
+        let deducted = self
+            .repo()
+            .deduct_points_in_tx(
+                &mut tx,
+                user_id,
+                points_price,
+                POINTS_LOG_DESC_COUPON_EXCHANGE,
+                item.id,
+                i32::try_from(now).unwrap_or(i32::MAX),
+            )
+            .await?;
+        if !deducted {
+            return Err(Error::biz(500, MSG_POINTS_NOT_ENOUGH));
+        }
+
+        // 7) 发券（source_type = 积分兑换，与领券/手动发放区分）
+        let uc = UserCoupon {
+            id: 0,
+            coupon_id,
+            coupon_sn: nextrade_common::utils::gen_sn("UC"),
+            user_id,
+            used_time: 0,
+            order_id: 0,
+            start_date: i32::try_from(start_date).unwrap_or(i32::MAX),
+            end_date: i32::try_from(end_date).unwrap_or(i32::MAX),
+            source_type: Some(SOURCE_POINTS_EXCHANGE),
+        };
+        let user_coupon_id = coupon_repo.insert_user_coupon_in_tx(&mut tx, &uc).await?;
+        let remaining = self.repo().user_points_in_tx(&mut tx, user_id).await?;
+        tx.commit().await.map_err(|e| Error::Database(e.to_string()))?;
+        tracing::info!(
+            "积分兑换优惠券: user_id={user_id}, exchange_id={id}, coupon_id={coupon_id}, points={points_price}, source={source}, user_coupon_id={user_coupon_id}"
+        );
+        Ok(ExchangeCouponVO {
+            user_coupon_id,
+            coupon_id,
+            points_spent: points_price,
+            remaining_points: remaining,
+            integral_source: source.to_string(),
+        })
+    }
+
     // ————————————————————— 内部 —————————————————————
 
     /// 活动指定 SKU 的实体（Java `productSkuService.getById(skuId)`）。
@@ -370,11 +563,49 @@ impl ExchangeService {
 }
 
 /// 连表行 → `PointsExchangeVO`（Java `PointsExchangeServiceImpl#list` 的回填逻辑）。
+///
+/// 券型行（我方新增）：无商品字段，回填券模板字段，`exchangeIntegral`
+/// 输出**生效价**（自设或按 `coupon_scale` 平台统一比折算），
+/// `integralSource` 标明按哪一级比定价。
 #[must_use]
-fn row_to_vo(row: &PointsExchangeRow) -> PointsExchangeVO {
+fn row_to_vo(row: &PointsExchangeRow, coupon_scale: Decimal) -> PointsExchangeVO {
+    if row.exchange_type == EXCHANGE_TYPE_COUPON {
+        let (points, source) = resolve_coupon_points(
+            row.exchange_integral,
+            row.coupon_money.unwrap_or(Decimal::ZERO),
+            coupon_scale,
+        );
+        return PointsExchangeVO {
+            id: row.id,
+            product_id: row.product_id,
+            exchange_integral: points,
+            points_deducted_amount: row.points_deducted_amount,
+            is_hot: row.is_hot,
+            is_enabled: row.is_enabled,
+            sku_id: row.sku_id,
+            product_name: None,
+            pic_thumb: None,
+            pic_url: None,
+            market_price: None,
+            cost_price: None,
+            product_price: None,
+            discounts_price: None,
+            product_stock: None,
+            virtual_sales: None,
+            product_sn: None,
+            exchange_type: row.exchange_type,
+            coupon_id: row.coupon_id,
+            coupon_name: row.coupon_name.clone(),
+            coupon_money: row.coupon_money,
+            coupon_discount: row.coupon_discount,
+            min_order_amount: row.min_order_amount,
+            coupon_shop_id: row.coupon_shop_id,
+            integral_source: Some(source.to_string()),
+        };
+    }
     // Java：productSkuMap 命中且 skuId > 0 才用 SKU 价覆盖
     let sku_found = row.sku_id.is_some_and(|id| id > 0) && row.sku_row_id.is_some();
-    let price = effective_product_price(Some(row.product_price), sku_found, row.sku_price);
+    let price = effective_product_price(row.product_price, sku_found, row.sku_price);
     PointsExchangeVO {
         id: row.id,
         product_id: row.product_id,
@@ -383,16 +614,24 @@ fn row_to_vo(row: &PointsExchangeRow) -> PointsExchangeVO {
         is_hot: row.is_hot,
         is_enabled: row.is_enabled,
         sku_id: row.sku_id,
-        product_name: Some(row.product_name.clone()),
-        pic_thumb: Some(row.pic_thumb.clone()),
-        pic_url: Some(row.pic_url.clone()),
-        market_price: Some(row.market_price),
+        product_name: row.product_name.clone(),
+        pic_thumb: row.pic_thumb.clone(),
+        pic_url: row.pic_url.clone(),
+        market_price: row.market_price,
         cost_price: None,
         product_price: price,
         discounts_price: Some(discounts_price(price, row.points_deducted_amount)),
-        product_stock: Some(row.product_stock),
-        virtual_sales: Some(row.virtual_sales),
-        product_sn: Some(row.product_sn.clone()),
+        product_stock: row.product_stock,
+        virtual_sales: row.virtual_sales,
+        product_sn: row.product_sn.clone(),
+        exchange_type: row.exchange_type,
+        coupon_id: row.coupon_id,
+        coupon_name: None,
+        coupon_money: None,
+        coupon_discount: None,
+        min_order_amount: None,
+        coupon_shop_id: None,
+        integral_source: None,
     }
 }
 
@@ -428,6 +667,14 @@ fn build_vo(
         product_stock: Some(product.product_stock),
         virtual_sales: Some(product.virtual_sales),
         product_sn: Some(product.product_sn.clone()),
+        exchange_type: points.exchange_type,
+        coupon_id: points.coupon_id,
+        coupon_name: None,
+        coupon_money: None,
+        coupon_discount: None,
+        min_order_amount: None,
+        coupon_shop_id: None,
+        integral_source: None,
     }
 }
 
@@ -468,6 +715,8 @@ mod tests {
             is_hot: 1,
             is_enabled: 1,
             sku_id,
+            exchange_type: 1,
+            coupon_id: None,
         }
     }
 
@@ -480,16 +729,23 @@ mod tests {
             is_hot: 1,
             is_enabled: 1,
             sku_id,
-            product_name: "蓝牙耳机".into(),
-            pic_thumb: "https://oss.example/t.png".into(),
-            pic_url: "https://oss.example/p.png".into(),
-            market_price: "199.00".parse().unwrap(),
-            product_price: "99.00".parse().unwrap(),
-            product_stock: 10,
-            virtual_sales: 5,
-            product_sn: "SN-1".into(),
+            exchange_type: 1,
+            coupon_id: None,
+            product_name: Some("蓝牙耳机".into()),
+            pic_thumb: Some("https://oss.example/t.png".into()),
+            pic_url: Some("https://oss.example/p.png".into()),
+            market_price: Some("199.00".parse().unwrap()),
+            product_price: Some("99.00".parse().unwrap()),
+            product_stock: Some(10),
+            virtual_sales: Some(5),
+            product_sn: Some("SN-1".into()),
             sku_row_id,
             sku_price,
+            coupon_name: None,
+            coupon_money: None,
+            coupon_discount: None,
+            min_order_amount: None,
+            coupon_shop_id: None,
         }
     }
 
@@ -505,7 +761,7 @@ mod tests {
     /// 列表行映射：SKU 价命中时覆盖商品价，折后价 = 有效价 - 抵扣金额。
     #[test]
     fn row_to_vo_applies_sku_price_and_discount() {
-        let vo = row_to_vo(&row(Some(11), Some(11), Some("88.00".parse().unwrap())));
+        let vo = row_to_vo(&row(Some(11), Some(11), Some("88.00".parse().unwrap())), Decimal::ONE);
         assert_eq!(vo.product_price, Some("88.00".parse().unwrap()));
         assert_eq!(vo.discounts_price, Some("68.00".parse().unwrap()));
         assert_eq!(vo.product_name.as_deref(), Some("蓝牙耳机"));
@@ -513,13 +769,38 @@ mod tests {
         assert!(vo.cost_price.is_none());
 
         // SKU 行不存在 → 保留商品价
-        let vo2 = row_to_vo(&row(Some(11), None, None));
+        let vo2 = row_to_vo(&row(Some(11), None, None), Decimal::ONE);
         assert_eq!(vo2.product_price, Some("99.00".parse().unwrap()));
         assert_eq!(vo2.discounts_price, Some("79.00".parse().unwrap()));
 
         // sku_id = 0（SPU 维度）→ 商品价
-        let vo3 = row_to_vo(&row(Some(0), None, None));
+        let vo3 = row_to_vo(&row(Some(0), None, None), Decimal::ONE);
         assert_eq!(vo3.product_price, Some("99.00".parse().unwrap()));
+    }
+
+    /// 券型行映射（我方新增）：生效价与来源标记；自设优先于平台比。
+    #[test]
+    fn row_to_vo_coupon_branch() {
+        let mut r = row(None, None, None);
+        r.exchange_type = 2;
+        r.product_id = 0;
+        r.coupon_id = Some(9);
+        r.coupon_name = Some("满100减10".into());
+        r.coupon_money = Some("10.00".parse().unwrap());
+        r.min_order_amount = Some("100.00".parse().unwrap());
+        r.exchange_integral = 0;
+        // 未自设：面额 10 元、平台比 2 → 500 积分，来源 platform
+        let vo = row_to_vo(&r, "2".parse().unwrap());
+        assert_eq!(vo.exchange_type, 2);
+        assert_eq!(vo.exchange_integral, 500);
+        assert_eq!(vo.integral_source.as_deref(), Some("platform"));
+        assert_eq!(vo.coupon_name.as_deref(), Some("满100减10"));
+        assert!(vo.product_name.is_none());
+        // 自设 300 → 原值，来源 self
+        r.exchange_integral = 300;
+        let vo2 = row_to_vo(&r, "2".parse().unwrap());
+        assert_eq!(vo2.exchange_integral, 300);
+        assert_eq!(vo2.integral_source.as_deref(), Some("self"));
     }
 
     /// 活动 VO 映射：商品平铺字段 + 折扣价；SKU 价优先。

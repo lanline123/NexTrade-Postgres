@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import PcHeader from '@/components/PcHeaderWithData';
 import PcFooter from '@/components/PcFooter';
+import ExchangeCouponButton from '@/components/ExchangeCouponButton';
 import { getExchangeList, getIntegralName, getPcHeader } from '@/lib/api';
 
 import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
@@ -96,6 +97,53 @@ export default async function ExchangePage({ searchParams }: PageProps) {
           <div className="goods-list-c">
             <ul className="flex-wrap">
               {data.records.map((item) => (
+                Number(item.exchangeType) === 2 ? (
+                  <li className="tab-box g_list" key={item.id}>
+                    <div className="nuxt" title={item.couponName || ''}>
+                      <div className="g-item-warp">
+                        <div
+                          className="exchange-list__pic"
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: 250,
+                            background: 'var(--general, #65c4aa)',
+                            color: '#fff',
+                          }}
+                        >
+                          <span style={{ fontSize: 15 }}>{t('优惠券')}</span>
+                          <span style={{ fontSize: 40, fontWeight: 700, lineHeight: 1.2 }}>
+                            {Number(item.couponMoney || 0) > 0 ? `¥${Number(item.couponMoney)}` : t('折扣券')}
+                          </span>
+                          <span style={{ fontSize: 13 }}>
+                            {Number(item.minOrderAmount || 0) > 0
+                              ? `${t('满')} ¥${Number(item.minOrderAmount)} ${t('可用')}`
+                              : t('无门槛')}
+                          </span>
+                        </div>
+                        <div className="info">
+                          <p className="name ellipsis">{item.couponName}</p>
+                          <p className="exchange_price">
+                            {t('所需')}
+                            {integralName}：<span>{Number(item.exchangeIntegral || 0)}</span> {integralName}
+                            {item.integralSource === 'platform' ? (
+                              <span style={{ color: '#999', fontSize: 12 }}>（{t('平台统一比')}）</span>
+                            ) : null}
+                          </p>
+                          <ExchangeCouponButton
+                            exchangeId={item.id}
+                            couponName={item.couponName || ''}
+                            points={Number(item.exchangeIntegral || 0)}
+                            integralName={integralName}
+                            integralSource={item.integralSource}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ) : (
                 <li className="tab-box g_list" key={item.id}>
                   <div className="nuxt" title={item.productName || ''}>
                     <div className="g-item-warp">
@@ -126,6 +174,7 @@ export default async function ExchangePage({ searchParams }: PageProps) {
                     </div>
                   </div>
                 </li>
+                )
               ))}
             </ul>
           </div>

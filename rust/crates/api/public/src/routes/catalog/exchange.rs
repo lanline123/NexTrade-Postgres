@@ -1,7 +1,8 @@
 //! 积分兑换 —— 商城前台路由（catalog::exchange）。
 //!
 //! 对应原 Java `com.nextrade.api.controller.product.ExchangeController`
-//! （`@RequestMapping("/api/product/exchange")`，3 个端点，契约 `auth=optional`）。
+//! （`@RequestMapping("/api/product/exchange")`，3 个端点，契约 `auth=optional`）；
+//! 第 4 条 `exchangeCoupon` 为我方新增（积分兑换优惠券，必须登录）。
 //!
 //! ## 原 Java 路径对照表（本模块挂载于 `/api` 之下）
 //!
@@ -48,8 +49,8 @@ use axum::{
     Json, Router,
 };
 use nextrade_core::models::catalog::exchange::{
-    AddToCartDTO, ExchangeDetailQuery, ExchangeProductToCartVO, PointsExchangeListQuery,
-    PointsExchangeVO, MSG_ID_REQUIRED, YES,
+    AddToCartDTO, ExchangeCouponDTO, ExchangeCouponVO, ExchangeDetailQuery,
+    ExchangeProductToCartVO, PointsExchangeListQuery, PointsExchangeVO, MSG_ID_REQUIRED, YES,
 };
 use nextrade_core::models::catalog::product_manage::ClientProductDetailVO;
 use nextrade_core::types::PageResult;
@@ -60,18 +61,24 @@ use nextrade_security::JwtService;
 
 use crate::PublicState;
 
-/// 本域全部 3 条路由（`/api` 前缀之后的路径 + 原 Java handler）。
+/// 本域全部 4 条路由（`/api` 前缀之后的路径 + 原 Java handler）。
 ///
 /// **这是 [`implemented_routes`] 的唯一来源**，与 [`routes`] 的注册清单
-/// 由底部单测交叉校验。顺序与原 Java `ExchangeController` 一致
-/// （detail → list → addToCart）。
-const ROUTE_TABLE: [(&str, &str, &str); 3] = [
+/// 由底部单测交叉校验。前 3 条顺序与原 Java `ExchangeController` 一致
+/// （detail → list → addToCart）；第 4 条 `exchangeCoupon` 为**我方新增**
+/// （积分兑换优惠券，论坛帖 517907），原版无此端点。
+const ROUTE_TABLE: [(&str, &str, &str); 4] = [
     ("GET", "/product/exchange/detail", "ExchangeController.detail"),
     ("GET", "/product/exchange/list", "ExchangeController.list"),
     (
         "POST",
         "/product/exchange/addToCart",
         "ExchangeController.addExchangeProductToCart",
+    ),
+    (
+        "POST",
+        "/product/exchange/exchangeCoupon",
+        "我方新增（积分兑换优惠券，无 Java 对照）",
     ),
 ];
 
@@ -81,6 +88,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/product/exchange/detail", get(detail))
         .route("/product/exchange/list", get(list))
         .route("/product/exchange/addToCart", post(add_to_cart))
+        .route("/product/exchange/exchangeCoupon", post(exchange_coupon))
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
@@ -177,14 +185,28 @@ async fn add_to_cart(
     ok(state.catalog.exchange.add_to_cart(&dto, user_id).await?)
 }
 
+/// `POST /api/product/exchange/exchangeCoupon`：积分兑换优惠券（**我方新增**）。
+///
+/// 请求体只取 `id`（积分兑换品 ID）。与前 3 条不同，本端点**必须登录**：
+/// 游客 `userId = 0` 由服务层返回未登录错误（扣积分/发券无游客语义）。
+async fn exchange_coupon(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(dto): Json<ExchangeCouponDTO>,
+) -> ApiResult<ExchangeCouponVO> {
+    let user_id = current_user_id(&auth);
+    ok(state.catalog.exchange.exchange_coupon(&dto, user_id).await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// 路由表必须与 `docs/api-contract.json` 的 3 条逐字符一致。
+    /// 路由表前 3 条必须与 `docs/api-contract.json` 逐字符一致；
+    /// 第 4 条为我方新增（积分兑换优惠券），不在原契约内。
     #[test]
     fn route_table_matches_java_contract() {
-        assert_eq!(ROUTE_TABLE.len(), 3, "契约中积分兑换域共 3 条接口");
+        assert_eq!(ROUTE_TABLE.len(), 4, "原契约 3 条 + 我方新增 1 条");
 
         let paths: Vec<&str> = ROUTE_TABLE.iter().map(|(_, p, _)| *p).collect();
         assert_eq!(
@@ -193,6 +215,7 @@ mod tests {
                 "/product/exchange/detail",
                 "/product/exchange/list",
                 "/product/exchange/addToCart",
+                "/product/exchange/exchangeCoupon",
             ]
         );
 
@@ -211,7 +234,7 @@ mod tests {
     #[test]
     fn implemented_routes_are_full_contract_paths() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 3);
+        assert_eq!(docs.len(), 4);
 
         let actual: Vec<(String, String)> = docs
             .iter()
@@ -221,6 +244,7 @@ mod tests {
             ("GET", "/api/product/exchange/detail"),
             ("GET", "/api/product/exchange/list"),
             ("POST", "/api/product/exchange/addToCart"),
+            ("POST", "/api/product/exchange/exchangeCoupon"),
         ]
         .into_iter()
         .map(|(m, p)| (m.to_string(), p.to_string()))
@@ -255,13 +279,14 @@ mod tests {
         }
     }
 
-    /// `routes()` 注册的路径必须与 [`ROUTE_TABLE`] 完全一致（3/3）。
+    /// `routes()` 注册的路径必须与 [`ROUTE_TABLE`] 完全一致（4/4）。
     #[test]
     fn routes_registers_all_table_paths() {
         let registered = [
             "/product/exchange/detail",
             "/product/exchange/list",
             "/product/exchange/addToCart",
+            "/product/exchange/exchangeCoupon",
         ];
         assert_eq!(registered.len(), ROUTE_TABLE.len());
         for path in registered {
@@ -275,15 +300,17 @@ mod tests {
         }
     }
 
-    /// 每条路由都标注了对应的原 Java handler。
+    /// 每条原版路由都标注了对应的原 Java handler；我方新增的第 4 条
+    /// 显式标注无 Java 对照（不得伪造原版出处）。
     #[test]
     fn every_route_documents_java_handler() {
-        for (_, path, java) in ROUTE_TABLE {
+        for (_, path, java) in ROUTE_TABLE.iter().take(3) {
             assert!(
                 java.starts_with("ExchangeController."),
                 "{path} 缺少 Java 对照"
             );
         }
+        assert!(ROUTE_TABLE[3].2.contains("我方新增"));
         // `addToCart` 的 Java 方法名与路径末段不同（契约要求逐字符）
         assert_eq!(
             ROUTE_TABLE[2].2,

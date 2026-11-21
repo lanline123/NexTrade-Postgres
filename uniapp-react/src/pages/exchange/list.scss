@@ -55,3 +55,92 @@
     padding: 20rpx;
     margin-top: -130rpx;
 }
+
+/* 积分兑券区（我方新增）：券型兑换品卡片，方形直角与全站现代扁平口径一致 */
+.exchange-coupons {
+    margin-bottom: 20rpx;
+
+    .exchange-coupons-title {
+        font-size: 30rpx;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 16rpx;
+    }
+}
+
+.exchange-coupon-card {
+    display: flex;
+    align-items: stretch;
+    background: #fff;
+    margin-bottom: 16rpx;
+    overflow: hidden;
+
+    .coupon-face {
+        width: 200rpx;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24rpx 8rpx;
+        background: var(--general, #65c4aa);
+        color: #fff;
+
+        .coupon-face-money {
+            font-size: 40rpx;
+            font-weight: bold;
+            line-height: 1.2;
+        }
+
+        .coupon-face-threshold {
+            font-size: 22rpx;
+            opacity: 0.85;
+            margin-top: 6rpx;
+        }
+    }
+
+    .coupon-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 20rpx 24rpx;
+        min-width: 0;
+
+        .coupon-name {
+            font-size: 28rpx;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .coupon-points {
+            display: flex;
+            align-items: center;
+            margin-top: 10rpx;
+            font-size: 26rpx;
+            color: var(--general, #65c4aa);
+            font-weight: bold;
+
+            .coupon-source {
+                margin-left: 12rpx;
+                font-size: 20rpx;
+                font-weight: normal;
+                color: #999;
+                border: 1rpx solid #ddd;
+                padding: 2rpx 8rpx;
+            }
+        }
+    }
+
+    .coupon-btn {
+        flex-shrink: 0;
+        align-self: center;
+        margin-right: 24rpx;
+        padding: 12rpx 28rpx;
+        background: var(--general, #65c4aa);
+        color: #fff;
+        font-size: 26rpx;
+    }
+}

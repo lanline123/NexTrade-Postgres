@@ -11,14 +11,18 @@
 //!
 //! # 表 / 列（权威来源）
 //!
-//! - `points_exchange`（7 列，主键 `id`）：
+//! - `points_exchange`（9 列，主键 `id`；迁移 012 起含券型）：
 //!   `id` / `product_id` / `exchange_integral` / `points_deducted_amount` /
-//!   `is_hot` / `is_enabled` / `sku_id`
+//!   `is_hot` / `is_enabled` / `sku_id` / `exchange_type` / `coupon_id`
 //! - 列表/详情回填商品与 SKU 价时只读：
 //!   `product`（`product_id` / `product_name` / `pic_thumb` / `pic_url` /
 //!   `market_price` / `product_price` / `product_stock` / `virtual_sales` /
 //!   `product_sn` / `product_status` / `is_delete`）与
-//!   `product_sku`（`sku_id` / `sku_price` / `is_enabled`）
+//!   `product_sku`（`sku_id` / `sku_price` / `is_enabled`）；券型行只读
+//!   `coupon`（`coupon_id` / `coupon_name` / `coupon_money` /
+//!   `coupon_discount` / `min_order_amount` / `shop_id` / `is_delete`）
+//! - 积分兑换优惠券（我方新增）在事务内写 `user`（积分扣减）与
+//!   `user_points_log`（change_type=2 流水），口径同抽奖域扣分先例
 //! - 清空兑换购物车时写 `cart`（`user_id` / `type`）与
 //!   `cart_global_change_price`（`user_id`）
 //!
@@ -39,23 +43,25 @@ use nextrade_core::models::catalog::services::to_snake;
 use nextrade_core::types::PageQuery;
 use nextrade_core::{Error, Result};
 
-/// `points_exchange` 的固定 SELECT 列清单（7 列，顺序与
+/// `points_exchange` 的固定 SELECT 列清单（9 列，顺序与
 /// `entities::PointsExchange` 字段一致）。
-const POINTS_EXCHANGE_SELECT: &str = "SELECT id, product_id, exchange_integral, points_deducted_amount, is_hot, is_enabled, sku_id FROM points_exchange";
+const POINTS_EXCHANGE_SELECT: &str = "SELECT id, product_id, exchange_integral, points_deducted_amount, is_hot, is_enabled, sku_id, exchange_type, coupon_id FROM points_exchange";
 
-/// 列表 JOIN 片段（商品必须存在、上架且未删；SKU 左连用于价/启用过滤）。
-const POINTS_EXCHANGE_FROM: &str = "FROM points_exchange pe INNER JOIN product p ON p.product_id = pe.product_id AND p.product_status = 1 AND p.is_delete = 0 LEFT JOIN product_sku s ON s.sku_id = pe.sku_id";
+/// 列表 JOIN 片段（全部 LEFT JOIN：有效性按兑换类型在 WHERE 里分别判定——
+/// 商品型须商品上架未删，券型须券模板未删除；券型行没有商品行）。
+const POINTS_EXCHANGE_FROM: &str = "FROM points_exchange pe LEFT JOIN product p ON p.product_id = pe.product_id LEFT JOIN product_sku s ON s.sku_id = pe.sku_id LEFT JOIN coupon c ON c.coupon_id = pe.coupon_id";
 
-/// 列表行 SELECT（活动 7 列 + 商品平铺字段 + SKU 价与「SKU 行是否存在」标记）。
+/// 列表行 SELECT（活动 9 列 + 商品平铺字段 + SKU 价与「SKU 行是否存在」标记
+/// + 券模板平铺字段）。
 ///
 /// `s.sku_id AS sku_row_id` 用于区分「SKU 行不存在」与「SKU 存在但价格为
 /// NULL」（Java 用 `productSkuMap.get(skuId)` 是否命中区分）。
-const POINTS_EXCHANGE_ROW_SELECT: &str = "SELECT pe.id, pe.product_id, pe.exchange_integral, pe.points_deducted_amount, pe.is_hot, pe.is_enabled, pe.sku_id, p.product_name, p.pic_thumb, p.pic_url, p.market_price, p.product_price, p.product_stock, p.virtual_sales, p.product_sn, s.sku_id AS sku_row_id, s.sku_price";
+const POINTS_EXCHANGE_ROW_SELECT: &str = "SELECT pe.id, pe.product_id, pe.exchange_integral, pe.points_deducted_amount, pe.is_hot, pe.is_enabled, pe.sku_id, pe.exchange_type, pe.coupon_id, p.product_name, p.pic_thumb, p.pic_url, p.market_price, p.product_price, p.product_stock, p.virtual_sales, p.product_sn, s.sku_id AS sku_row_id, s.sku_price, c.coupon_name, c.coupon_money, c.coupon_discount, c.min_order_amount, c.shop_id AS coupon_shop_id";
 
-/// 排序字段白名单（`points_exchange` 的 7 个列名，SQL 中统一加 `pe.` 前缀
+/// 排序字段白名单（`points_exchange` 的 9 个列名，SQL 中统一加 `pe.` 前缀
 /// 避免与 JOIN 表同名列歧义；对应 Java `BaseServiceImpl#getColumnByPropertyName`
 /// 的实体验证口径）。
-const SORTABLE_COLUMNS: [&str; 7] = [
+const SORTABLE_COLUMNS: [&str; 9] = [
     "id",
     "product_id",
     "exchange_integral",
@@ -63,6 +69,8 @@ const SORTABLE_COLUMNS: [&str; 7] = [
     "is_hot",
     "is_enabled",
     "sku_id",
+    "exchange_type",
+    "coupon_id",
 ];
 
 /// 一行「活动 + 商品 + SKU 价」连表结果（对应 Java
@@ -83,27 +91,41 @@ pub struct PointsExchangeRow {
     pub is_enabled: i32,
     /// 规格 ID（可空）
     pub sku_id: Option<i32>,
-    /// 商品名称
-    pub product_name: String,
+    /// 兑换类型（1=商品 2=优惠券）
+    pub exchange_type: i32,
+    /// 券模板 ID（券型行）
+    pub coupon_id: Option<i32>,
+    /// 商品名称（商品型行；券型行为 NULL）
+    pub product_name: Option<String>,
     /// 商品缩略图
-    pub pic_thumb: String,
+    pub pic_thumb: Option<String>,
     /// 商品图
-    pub pic_url: String,
+    pub pic_url: Option<String>,
     /// 商品市场价
-    pub market_price: Decimal,
+    pub market_price: Option<Decimal>,
     /// 商品价格
-    pub product_price: Decimal,
+    pub product_price: Option<Decimal>,
     /// 商品库存
-    pub product_stock: i32,
+    pub product_stock: Option<i32>,
     /// 虚拟销量
-    pub virtual_sales: i32,
+    pub virtual_sales: Option<i32>,
     /// 商品货号
-    pub product_sn: String,
+    pub product_sn: Option<String>,
     /// JOIN 到的 SKU ID（`None` = 无该 SKU 行；用于区分「无 SKU」与
     /// 「SKU 价为 NULL」）
     pub sku_row_id: Option<i32>,
     /// SKU 价（`None` 可能是无 SKU 行，也可能是 SKU 价为 `NULL`）
     pub sku_price: Option<Decimal>,
+    /// 券模板名称（券型行）
+    pub coupon_name: Option<String>,
+    /// 券面额（券型行）
+    pub coupon_money: Option<Decimal>,
+    /// 折扣（券型行）
+    pub coupon_discount: Option<Decimal>,
+    /// 使用门槛（券型行）
+    pub min_order_amount: Option<Decimal>,
+    /// 券归属店铺（券型行）
+    pub coupon_shop_id: Option<i32>,
 }
 
 /// 列表过滤条件（`None` 表示不过滤）。
@@ -173,6 +195,9 @@ impl ExchangeRepository {
         let like = like_pattern(filters.keyword);
 
         let mut where_parts: Vec<String> = vec!["1 = 1".into()];
+        // 按类型判定有效性（原 Java 商品型 innerJoin 的净效果 + 券型模板未删，
+        // 券型为我方新增）：商品型须上架未删；券型须券模板存在且未删除。
+        where_parts.push("((pe.exchange_type <> 2 AND p.product_status = 1 AND p.is_delete = 0) OR (pe.exchange_type = 2 AND c.coupon_id IS NOT NULL AND COALESCE(c.is_delete, 0) = 0))".into());
         if filters.is_enabled.is_some() {
             where_parts.push("pe.is_enabled = ?".into());
         }
@@ -180,7 +205,7 @@ impl ExchangeRepository {
             where_parts.push("pe.is_hot = ?".into());
         }
         if like.is_some() {
-            where_parts.push("p.product_name ILIKE ?".into());
+            where_parts.push("(p.product_name ILIKE ? OR c.coupon_name ILIKE ?)".into());
         }
         if filters.is_enabled == Some(1) {
             // Java：leftJoin(ProductSku) + and(pe.skuId is null or <=0 or isEnabled=YES)
@@ -245,6 +270,76 @@ impl ExchangeRepository {
             .map_err(map_err)?;
         Ok(res.rows_affected())
     }
+
+    // ————————————————— 积分兑换优惠券事务（我方新增） —————————————————
+
+    /// 开启事务（积分兑换券：扣积分 + 发券同事务，编排在服务层）。
+    ///
+    /// # Errors
+    /// 连接池开启事务失败时返回 `Error::Database`。
+    pub async fn begin(&self) -> Result<sqlx::Transaction<'static, sqlx::Postgres>> {
+        self.pool.begin().await.map_err(map_err)
+    }
+
+    /// 事务内守卫式扣积分 + 写流水（逐字同抽奖域 `deduct_points_in_tx` 先例）：
+    /// `UPDATE ... WHERE points >= 本次` 保证余额不足时 0 行受影响（返回
+    /// `false`，服务层据此回滚并报「您的积分不足」），成功后插入
+    /// `user_points_log`（change_type=2 减少、relation_type NULL、
+    /// relation_id=兑换品 ID）。
+    ///
+    /// # Errors
+    /// 数据库执行失败时返回 `Error::Database`。
+    pub async fn deduct_points_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: i32,
+        points: i32,
+        desc: &str,
+        relation_id: i32,
+        now: i32,
+    ) -> Result<bool> {
+        let res = sqlx::query(
+            "UPDATE \"user\" SET points = points - $1 WHERE user_id = $2 AND points >= $3",
+        )
+        .bind(points)
+        .bind(user_id)
+        .bind(points)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        if res.rows_affected() == 0 {
+            return Ok(false);
+        }
+        sqlx::query(
+            "INSERT INTO user_points_log (user_id, points, change_time, change_desc, change_type, relation_type, relation_id) VALUES ($1, $2, $3, $4, 2, NULL, $5)",
+        )
+        .bind(user_id)
+        .bind(points)
+        .bind(now)
+        .bind(desc)
+        .bind(relation_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(true)
+    }
+
+    /// 事务内查当前积分余额（扣减后回读兑换结果）。
+    ///
+    /// # Errors
+    /// 数据库执行失败时返回 `Error::Database`。
+    pub async fn user_points_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: i32,
+    ) -> Result<i32> {
+        let row: Option<(i32,)> = sqlx::query_as("SELECT points FROM \"user\" WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(map_err)?;
+        Ok(row.map_or(0, |(points,)| points))
+    }
 }
 
 /// ILIKE 通配模式（Java `StrUtil.isNotEmpty(keyword)` + `like`）。
@@ -274,6 +369,8 @@ pub fn resolve_sort_column(field: Option<&str>) -> &'static str {
         Some("is_hot") => "pe.is_hot",
         Some("is_enabled") => "pe.is_enabled",
         Some("sku_id") => "pe.sku_id",
+        Some("exchange_type") => "pe.exchange_type",
+        Some("coupon_id") => "pe.coupon_id",
         _ => "pe.id",
     }
 }
@@ -292,7 +389,7 @@ pub fn order_clause(sort_field: Option<&str>, sort_order: Option<&str>) -> Strin
 }
 
 /// 把 WHERE 片段按 [`ExchangeRepository::paginate`] 的拼接顺序绑定：
-/// `pe.is_enabled` → `pe.is_hot` → `p.product_name`（ILIKE）。
+/// `pe.is_enabled` → `pe.is_hot` → 关键字（商品名 / 券名各绑一次）。
 fn bind_filters<'q, O>(
     q: sqlx::query::QueryAs<'q, sqlx::Postgres, O, sqlx::postgres::PgArguments>,
     is_enabled: Option<i32>,
@@ -307,7 +404,7 @@ fn bind_filters<'q, O>(
         q = q.bind(v);
     }
     if let Some(v) = like {
-        q = q.bind(v);
+        q = q.bind(v).bind(v);
     }
     q
 }

@@ -1041,6 +1041,10 @@ pub struct PointsExchange {
     pub is_enabled: i32,
     /// 属性ID
     pub sku_id: Option<i32>,
+    /// 兑换类型 [NOT NULL]（1=商品 2=优惠券；券型为我方新增，迁移 012）
+    pub exchange_type: i32,
+    /// 券模板ID（券型行的 coupon.coupon_id；商品型为 NULL）
+    pub coupon_id: Option<i32>,
 }
 
 impl PointsExchange {

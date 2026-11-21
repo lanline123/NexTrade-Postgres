@@ -15,19 +15,22 @@
 //!   `#getProductStock`
 //! - `com.nextrade.common.utils.SecurityUtils#getCurrentUserId`（游客返回 0）
 //!
-//! # 端点（3 条，全部是 `/api` 公开接口，auth=optional）
+//! # 端点（4 条，前 3 条是 `/api` 公开接口，auth=optional；第 4 条为我方新增）
 //!
 //! | method | path | 原 Java | 落点（services 层） |
 //! |--------|------|---------|---------------------|
 //! | `GET`  | `/api/product/exchange/detail` | `ExchangeController.detail` | `ExchangeService::detail` |
 //! | `GET`  | `/api/product/exchange/list` | `ExchangeController.list` | `ExchangeService::list` |
 //! | `POST` | `/api/product/exchange/addToCart` | `ExchangeController.addExchangeProductToCart` | `ExchangeService::add_to_cart` |
+//! | `POST` | `/api/product/exchange/exchangeCoupon` | **我方新增**（积分兑换优惠券，论坛帖 517907） | `ExchangeService::exchange_coupon` |
 //!
-//! # 表 / 列（权威来源 `java/database/pure.sql`）
+//! # 表 / 列（权威来源 `java/database/pure.sql` + 迁移 012）
 //!
 //! 用 `cd rust && python tools/schema_parser.py --table points_exchange` 核对：
 //! `id` / `product_id` / `exchange_integral` / `points_deducted_amount` /
-//! `is_hot` / `is_enabled` / `sku_id`（7 列，`sku_id` 可空、默认 0）。
+//! `is_hot` / `is_enabled` / `sku_id`（7 列，`sku_id` 可空、默认 0）；
+//! 迁移 012（我方新增）追加 `exchange_type`（1=商品 2=优惠券）与
+//! `coupon_id`（券型行的券模板 ID），共 9 列。券型行 `product_id` 存 0。
 //!
 //! # 语义要点（逐条对照 Java 源）
 //!
@@ -117,6 +120,40 @@ pub const MSG_ID_REQUIRED: &str = "id不能为空";
 
 /// Java `AddToCartDTO.number` 的 `@NotNull(message = "数量不能为空")`。
 pub const MSG_NUMBER_REQUIRED: &str = "数量不能为空";
+
+// ——————————————————————————————————————————————
+// 积分兑换优惠券（我方新增，论坛帖 517907）
+// ——————————————————————————————————————————————
+
+/// 券型兑换品不能走商品详情/加购链路。
+pub const MSG_COUPON_USE_EXCHANGE_API: &str = "优惠券兑换品请使用积分兑换";
+
+/// 券模板不存在或已删除。
+pub const MSG_COUPON_NOT_EXIST: &str = "优惠券不存在";
+
+/// 券型兑换品未配置可折算的积分价（无面额且未自设）。
+pub const MSG_COUPON_PRICE_NOT_SET: &str = "该兑换品暂未开放兑换";
+
+/// 优惠券已领完（模板发放总量 send_num 耗尽，口径同会员领取）。
+pub const MSG_COUPON_SOLD_OUT: &str = "优惠券已兑完";
+
+/// 超过每人限兑（模板 limit_num，口径同会员领取；含历史领取计数）。
+pub const MSG_COUPON_LIMIT_REACHED: &str = "已达到该优惠券的兑换上限";
+
+/// 券模板限新人领取且当前用户非新人。
+pub const MSG_COUPON_NEW_USER_ONLY: &str = "该优惠券仅限新人兑换";
+
+/// 券模板限会员等级且当前用户等级不符。
+pub const MSG_COUPON_RANK_LIMITED: &str = "您的会员等级暂不能兑换该优惠券";
+
+/// 券不在可使用期（模板时间窗，口径同会员领取）。
+pub const MSG_COUPON_NOT_IN_TIME: &str = "该优惠券暂不在可兑换时间内";
+
+/// 积分流水说明（user_points_log.change_desc，change_type=2 扣减）。
+pub const POINTS_LOG_DESC_COUPON_EXCHANGE: &str = "积分兑换优惠券";
+
+/// `user_coupon.source_type`：积分兑换（0=领取 2=手动发放，本值我方新增）。
+pub const SOURCE_POINTS_EXCHANGE: i32 = 3;
 
 // ——————————————————————————————————————————————
 // 查询参数
@@ -209,6 +246,47 @@ pub struct PointsExchangeVO {
     pub virtual_sales: Option<i32>,
     /// 商品编号
     pub product_sn: Option<String>,
+    /// 兑换类型（1=商品 2=优惠券；迁移 012，我方新增）
+    pub exchange_type: i32,
+    /// 券模板 ID（券型行）
+    pub coupon_id: Option<i32>,
+    /// 券模板名称（券型行回填）
+    pub coupon_name: Option<String>,
+    /// 券面额（券型行回填）
+    pub coupon_money: Option<Decimal>,
+    /// 折扣（券型行回填；折扣券）
+    pub coupon_discount: Option<Decimal>,
+    /// 使用门槛（券型行回填）
+    pub min_order_amount: Option<Decimal>,
+    /// 券归属店铺（券型行回填；0/None=平台券，作用域跟随券模板本身）
+    pub coupon_shop_id: Option<i32>,
+    /// 积分价来源（券型行：self=单品自设 / platform=平台统一比折算；
+    /// 券型行的 `exchangeIntegral` 已是生效价）
+    pub integral_source: Option<String>,
+}
+
+/// 积分兑换优惠券请求（我方新增；`id` = 积分兑换品 ID）。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ExchangeCouponDTO {
+    /// 积分兑换品 ID（points_exchange.id，必填）
+    pub id: Option<i32>,
+}
+
+/// 积分兑换优惠券响应（我方新增）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExchangeCouponVO {
+    /// 新发放的用户券 ID（user_coupon.id）
+    pub user_coupon_id: i32,
+    /// 券模板 ID
+    pub coupon_id: i32,
+    /// 本次扣除积分（生效价）
+    pub points_spent: i32,
+    /// 兑换后剩余积分
+    pub remaining_points: i32,
+    /// 积分价来源（self / platform）
+    pub integral_source: String,
 }
 
 /// 加入兑换购物车请求（Java `AddToCartDTO` 的兑换子集）。
@@ -547,6 +625,14 @@ mod tests {
             product_stock: Some(10),
             virtual_sales: Some(5),
             product_sn: Some("SN-1".into()),
+            exchange_type: 1,
+            coupon_id: None,
+            coupon_name: None,
+            coupon_money: None,
+            coupon_discount: None,
+            min_order_amount: None,
+            coupon_shop_id: None,
+            integral_source: None,
         };
         let json = serde_json::to_value(&vo).unwrap();
         assert_eq!(json["id"], 3);

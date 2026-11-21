@@ -4,7 +4,7 @@
   "component": "rust/web/admin-semi/src/pages/PointsExchanges.tsx",
   "drawer": null,
   "filters": [],
-  "columns": ["积分商品名称", "使用积分值", "减免金额", "是否可兑换", "是否热销"],
+  "columns": ["积分商品名称", "类型", "使用积分值", "减免金额", "是否可兑换", "是否热销"],
   "actions": ["edit"],
   "batch": ["delete"],
   "widgets": {
@@ -13,11 +13,19 @@
       "component": "rust/web/admin-semi/src/pages/PointsExchanges.tsx",
       "requires": ["ProductPicker"],
       "mcpChecks": ["Select", "InputNumber"]
+    },
+    "couponSelect": {
+      "type": "coupon-template-select",
+      "component": "rust/web/admin-semi/src/pages/PointsExchanges.tsx",
+      "requires": [],
+      "mcpChecks": ["Select"],
+      "notes": ["券型兑换品（我方新增）选券模板：选项来自 /promotion/coupon/list，标签含面额与门槛；兑换积分留空/0 时按平台统一比预览折算积分。"]
     }
   },
   "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
   "notes": [
     "积分商品：接口 /promotion/pointsExchange/*（list/create/update/del/batch/updateField/detail）。",
-    "选择商品用 SkuPicker（SKU 级选择，对齐旧版 SelectProduct isSku）：搜索商品→选择规格（GET /product/product/skuList）→返回 productId+skuId；无规格商品可选整件（skuId=0）。"
+    "选择商品用 SkuPicker（SKU 级选择，对齐旧版 SelectProduct isSku）：搜索商品→选择规格（GET /product/product/skuList）→返回 productId+skuId；无规格商品可选整件（skuId=0）。",
+    "券型兑换品（我方新增，论坛帖 517907）：exchangeType=2 + couponId；积分价自设优先，未自设跟随平台统一比 integralCouponScale（商城设置→积分设置→积分兑券比例）。"
   ]
 }

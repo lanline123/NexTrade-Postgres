@@ -654,6 +654,7 @@ const configPages: Record<string, ConfigPageDef> = {
       childAreaNeedRegion: '运费模板地区设置机制',
       integralName: '积分自定义名称',
       integralScale: '积分换算比例',
+      integralCouponScale: '积分兑券比例',
       orderSendPointNode: '赠送积分节点',
       orderSendPoint: '赠送积分',
       orderCompleteSendPointDays: '订单完成赠送积分天数',
