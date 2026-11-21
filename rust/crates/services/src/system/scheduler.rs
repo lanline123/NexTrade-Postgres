@@ -84,6 +84,7 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(gift_expire_loop(repos.clone())),
         tokio::spawn(purchase_auto_finish_loop(repos.clone())),
         tokio::spawn(proxy_hall_timeout_loop(repos.clone())),
+        tokio::spawn(shop_label_auto_award_loop(repos.clone())),
         tokio::spawn(exchange_rate_sync_loop(repos)),
     ]
 }
@@ -111,6 +112,29 @@ async fn proxy_hall_timeout_loop(repos: Arc<Repositories>) {
             Ok(0) => {}
             Ok(n) => tracing::info!("定时任务：接单大厅超时/取消兜底处置 {n} 笔"),
             Err(e) => tracing::warn!("定时任务：接单大厅兜底扫描失败: {e}"),
+/// 店铺标签自动授标循环（`NEXTTRADE_SCHEDULER__SHOP_LABEL_SECS`，默认 3600s）。
+///
+/// 每轮把全部启用中的自动授标规则（`shop_label_rule`）各重算一次：按
+/// 销量/评分/收藏榜单授标、掉榜摘标（我方新增二期，论坛帖 207878955346177229）。
+/// 重算是差集式幂等（只动规则自己的 source=1 关系行），与管理端手动
+/// 「立即重算」并发同跑也收敛一致。规则表未迁移时本轮报错记日志跳过，
+/// 不影响其他任务。
+async fn shop_label_auto_award_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 55,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "NEXTTRADE_SCHEDULER__SHOP_LABEL_SECS",
+        3600,
+    )));
+    loop {
+        ticker.tick().await;
+        let service = crate::merchant::shop_label_rule::ShopLabelRuleService::new(repos.clone());
+        match service.recompute_all_enabled("schedule").await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：店铺标签自动授标重算 {n} 条规则"),
+            Err(e) => tracing::warn!("定时任务：店铺标签自动授标扫描失败: {e}"),
         }
     }
 }

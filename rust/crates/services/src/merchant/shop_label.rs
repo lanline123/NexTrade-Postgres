@@ -7,10 +7,12 @@
 //! - 买家侧在店铺名旁展示（店铺街 / 店铺首页 / 商品详情店铺卡，PC + H5）。
 //!
 //! 与既有 `store_tip`（门店服务提示，如「支持自提」，前台字段 `tipNames`）
-//! 是两套概念，互不影响。自动榜单类标签（如按销量自动授标）不在本期范围，
-//! 见实施报告的二期说明。
+//! 是两套概念，互不影响。自动榜单授标为二期（见 `shop_label_rule` 模块）：
+//! 分配关系以 source 区分来源（0 手动 / 1 自动规则），本模块的整店替换
+//! 只维护手动行，自动行由规则重算维护、手动保存永不摘除。
 //!
-//! 迁移：`rust/deploy/pg/2026-11-21_shop_label.sql`（部署前必须先执行）。
+//! 迁移：`rust/deploy/pg/2026-11-21_shop_label.sql`（部署前必须先执行）；
+//! 二期列与规则表见 `rust/migrations/028_shop_label_auto_rule.sql`。
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -50,6 +52,7 @@ pub struct ShopLabelWrite {
 }
 
 /// 一条分配关系（管理端全量分配视图）。
+/// 二期起带来源：source 0 = 平台手动打标，1 = 自动规则授标（rule_id 为规则）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ShopLabelAssignment {
@@ -57,6 +60,8 @@ pub struct ShopLabelAssignment {
     pub label_id: i32,
     pub label_name: String,
     pub color: String,
+    pub source: i32,
+    pub rule_id: i32,
 }
 
 #[derive(Debug, FromRow)]
@@ -65,6 +70,17 @@ struct LabelJoinRow {
     label_id: i32,
     label_name: String,
     color: String,
+}
+
+/// 带来源的分配行（仅 all_assignments 使用；前台回填不需要来源）。
+#[derive(Debug, FromRow)]
+struct AssignmentJoinRow {
+    shop_id: i32,
+    label_id: i32,
+    label_name: String,
+    color: String,
+    source: i32,
+    rule_id: i32,
 }
 
 fn now_i32() -> i32 {
@@ -205,10 +221,12 @@ impl ShopLabelService {
     }
 
     /// 全量分配关系（管理端店铺列表一次性拉取渲染徽章，避免逐店请求）。
+    /// 含自动授标行（source=1），前端据此区分渲染与弹窗回显。
     pub async fn all_assignments(&self) -> Result<Vec<ShopLabelAssignment>> {
-        let rows: Vec<LabelJoinRow> = sqlx::query_as(
+        let rows: Vec<AssignmentJoinRow> = sqlx::query_as(
             "SELECT r.shop_id AS shop_id, l.label_id AS label_id, \
-                    l.label_name AS label_name, l.color AS color \
+                    l.label_name AS label_name, l.color AS color, \
+                    r.source AS source, r.rule_id AS rule_id \
              FROM shop_label_rel r \
              JOIN shop_label l ON l.label_id = r.label_id \
              ORDER BY l.sort_order ASC, l.label_id ASC",
@@ -222,21 +240,25 @@ impl ShopLabelService {
                 label_id: r.label_id,
                 label_name: r.label_name,
                 color: r.color,
+                source: r.source,
+                rule_id: r.rule_id,
             })
             .collect())
     }
 
-    /// 单店已分配的标签 id（管理端回显，含已停用标签）。
+    /// 单店**手动**分配的标签 id（管理端打标弹窗回显，含已停用标签）。
+    /// 自动授标行不进回显：它们不归弹窗维护，保存时也不会被摘除。
     pub async fn shop_label_ids(&self, shop_id: i32) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT label_id FROM shop_label_rel WHERE shop_id = $1 ORDER BY label_id ASC")
+            sqlx::query_as("SELECT label_id FROM shop_label_rel WHERE shop_id = $1 AND source = 0 ORDER BY label_id ASC")
                 .bind(shop_id)
                 .fetch_all(self.pool())
                 .await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(rows.into_iter().map(|(id,)| id).collect())
     }
 
-    /// 整店替换式保存分配：校验店铺与标签存在后，事务内先删后插。
+    /// 整店替换式保存**手动**分配：校验店铺与标签存在后，事务内先删后插
+    /// （删除与插入都只作用于 source=0 的手动行，见下方冲突策略注释）。
     pub async fn set_shop_labels(&self, shop_id: i32, label_ids: &[i32]) -> Result<()> {
         if shop_id <= 0 {
             return Err(Error::biz(SERVICE_DATA_ERROR, "店铺ID不能为空"));
@@ -270,18 +292,24 @@ impl ShopLabelService {
                 return Err(Error::biz(SERVICE_DATA_ERROR, "所选标签不存在"));
             }
         }
+        // 二期冲突策略：整店替换只动手动行（source=0）；自动授标行
+        // （source=1）由规则重算维护，手动保存不摘除、也不转正。
+        // 若某标签同时被自动授标，INSERT 命中唯一约束 DO NOTHING——
+        // 该行保持自动来源，展示不受影响。
         let mut tx = self.pool().begin().await.map_err(|e| Error::Database(e.to_string()))?;
-        sqlx::query("DELETE FROM shop_label_rel WHERE shop_id = $1")
+        sqlx::query("DELETE FROM shop_label_rel WHERE shop_id = $1 AND source = 0")
             .bind(shop_id)
             .execute(&mut *tx)
             .await.map_err(|e| Error::Database(e.to_string()))?;
         for id in &unique {
             sqlx::query(
-                "INSERT INTO shop_label_rel (shop_id, label_id) VALUES ($1, $2) \
+                "INSERT INTO shop_label_rel (shop_id, label_id, source, rule_id, add_time) \
+                 VALUES ($1, $2, 0, 0, $3) \
                  ON CONFLICT (shop_id, label_id) DO NOTHING",
             )
             .bind(shop_id)
             .bind(id)
+            .bind(now_i32())
             .execute(&mut *tx)
             .await.map_err(|e| Error::Database(e.to_string()))?;
         }

@@ -70,6 +70,9 @@ interface ShopLabelAssignment {
   labelId: number;
   labelName: string;
   color: string;
+  /** 二期：0 手动打标 / 1 自动规则授标 */
+  source?: number;
+  ruleId?: number;
 }
 
 export default function ShopList() {
@@ -111,7 +114,10 @@ export default function ShopList() {
 
   const openLabelModal = (record: ShopRow) => {
     setLabelShop(record);
-    setLabelChecked((labelMap.get(record.shopId) || []).map((a) => a.labelId));
+    // 回显只含手动打标：自动授标由规则维护，弹窗保存不会摘除它们
+    setLabelChecked(
+      (labelMap.get(record.shopId) || []).filter((a) => a.source !== 1).map((a) => a.labelId),
+    );
   };
 
   const saveLabels = async () => {
@@ -147,6 +153,7 @@ export default function ShopList() {
                 {chips.map((chip) => (
                   <span
                     key={chip.labelId}
+                    title={chip.source === 1 ? t('自动授标（榜单规则）') : undefined}
                     style={{
                       display: 'inline-block',
                       padding: '0 6px',
@@ -159,6 +166,7 @@ export default function ShopList() {
                     }}
                   >
                     {chip.labelName}
+                    {chip.source === 1 ? ' ·自动' : ''}
                   </span>
                 ))}
               </div>
@@ -515,6 +523,36 @@ export default function ShopList() {
               ))}
           </Checkbox.Group>
         )}
+        {labelShop &&
+          (labelMap.get(labelShop.shopId) || []).filter((a) => a.source === 1).length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <Text type="tertiary" size="small">
+                {t('以下标签由榜单规则自动授予，在此不可移除（请到「店铺标签」页调整规则）：')}
+              </Text>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                {(labelMap.get(labelShop.shopId) || [])
+                  .filter((a) => a.source === 1)
+                  .map((chip) => (
+                    <span
+                      key={chip.labelId}
+                      style={{
+                        display: 'inline-block',
+                        padding: '0 6px',
+                        height: 18,
+                        lineHeight: '18px',
+                        fontSize: 11,
+                        color: '#fff',
+                        background: chip.color || '#E93B3D',
+                        whiteSpace: 'nowrap',
+                        opacity: 0.75,
+                      }}
+                    >
+                      {chip.labelName} ·自动
+                    </span>
+                  ))}
+              </div>
+            </div>
+          )}
       </Modal>
 
       {/* 主账号管理弹窗 */}

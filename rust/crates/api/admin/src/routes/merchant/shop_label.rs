@@ -10,12 +10,19 @@
 //! | `GET  /merchant/shopLabel/assignments` | 全量店铺↔标签分配（店铺列表渲染徽章） | GET |
 //! | `GET  /merchant/shopLabel/shopLabels?shopId=` | 单店已分配标签 id（回显） | GET |
 //! | `POST /merchant/shopLabel/setShopLabels` | 整店替换式分配（平台打标） | POST |
+//! | `GET  /merchant/shopLabel/rules` | 自动授标规则全量（二期） | GET |
+//! | `POST /merchant/shopLabel/ruleCreate` | 新建自动授标规则（二期） | POST |
+//! | `POST /merchant/shopLabel/ruleUpdate` | 编辑自动授标规则（二期） | POST |
+//! | `POST /merchant/shopLabel/ruleDel` | 删除规则并摘除其自动标签（二期） | POST |
+//! | `POST /merchant/shopLabel/ruleRun` | 立即重算一条规则（二期） | POST |
+//! | `GET  /merchant/shopLabel/ruleLogs?ruleId=` | 规则重算流水（二期） | GET |
 //!
 //! > **权限口径**：标签库与打标均为平台职能，全部端点要求平台账号
 //! > （`TenantContext::is_platform`），商家/供应商账号调用返回 403。
 //! > 与既有 `store_tip`（门店服务提示）是两套概念，互不影响。
 //! >
-//! > 迁移：`rust/deploy/pg/2026-11-21_shop_label.sql` 须先于本代码部署执行。
+//! > 迁移：`rust/deploy/pg/2026-11-21_shop_label.sql` 须先于本代码部署执行；
+//! > 二期规则表与来源列见 `rust/migrations/028_shop_label_auto_rule.sql`。
 
 use axum::{
     extract::{Query, State},
@@ -29,11 +36,14 @@ use nextrade_security::web::{ok, ApiResult, TenantContext};
 use nextrade_services::merchant::shop_label::{
     ShopLabelAssignment, ShopLabelItem, ShopLabelWrite,
 };
+use nextrade_services::merchant::shop_label_rule::{
+    RuleRunSummary, ShopLabelRuleItem, ShopLabelRuleLogItem, ShopLabelRuleWrite,
+};
 
 use crate::AdminState;
 
-/// 本域全部 7 条路由（去掉 `/adminapi` 前缀后的路径）。
-const ROUTE_TABLE: [(&str, &str, &str); 7] = [
+/// 本域全部 13 条路由（去掉 `/adminapi` 前缀后的路径）。
+const ROUTE_TABLE: [(&str, &str, &str); 13] = [
     ("GET", "/merchant/shopLabel/list", "ShopLabelController.list (本平台新增)"),
     ("POST", "/merchant/shopLabel/create", "ShopLabelController.create (本平台新增)"),
     ("POST", "/merchant/shopLabel/update", "ShopLabelController.update (本平台新增)"),
@@ -53,6 +63,36 @@ const ROUTE_TABLE: [(&str, &str, &str); 7] = [
         "/merchant/shopLabel/setShopLabels",
         "ShopLabelController.setShopLabels (本平台新增)",
     ),
+    (
+        "GET",
+        "/merchant/shopLabel/rules",
+        "ShopLabelController.rules (本平台新增·二期)",
+    ),
+    (
+        "POST",
+        "/merchant/shopLabel/ruleCreate",
+        "ShopLabelController.ruleCreate (本平台新增·二期)",
+    ),
+    (
+        "POST",
+        "/merchant/shopLabel/ruleUpdate",
+        "ShopLabelController.ruleUpdate (本平台新增·二期)",
+    ),
+    (
+        "POST",
+        "/merchant/shopLabel/ruleDel",
+        "ShopLabelController.ruleDel (本平台新增·二期)",
+    ),
+    (
+        "POST",
+        "/merchant/shopLabel/ruleRun",
+        "ShopLabelController.ruleRun (本平台新增·二期)",
+    ),
+    (
+        "GET",
+        "/merchant/shopLabel/ruleLogs",
+        "ShopLabelController.ruleLogs (本平台新增·二期)",
+    ),
 ];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -65,6 +105,12 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/merchant/shopLabel/assignments", get(assignments))
         .route("/merchant/shopLabel/shopLabels", get(shop_labels))
         .route("/merchant/shopLabel/setShopLabels", post(set_shop_labels))
+        .route("/merchant/shopLabel/rules", get(rules))
+        .route("/merchant/shopLabel/ruleCreate", post(rule_create))
+        .route("/merchant/shopLabel/ruleUpdate", post(rule_update))
+        .route("/merchant/shopLabel/ruleDel", post(rule_del))
+        .route("/merchant/shopLabel/ruleRun", post(rule_run))
+        .route("/merchant/shopLabel/ruleLogs", get(rule_logs))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -177,4 +223,85 @@ async fn set_shop_labels(
         .set_shop_labels(shop_id, &label_ids)
         .await?;
     ok(true)
+}
+
+// ---- 二期：自动榜单授标规则 ----
+
+async fn rules(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+) -> ApiResult<Vec<ShopLabelRuleItem>> {
+    require_platform(&tenant)?;
+    ok(state.merchant.shop_label_rule.list_rules().await?)
+}
+
+async fn rule_create(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<ShopLabelRuleWrite>,
+) -> ApiResult<i32> {
+    require_platform(&tenant)?;
+    ok(state.merchant.shop_label_rule.create_rule(&body).await?)
+}
+
+async fn rule_update(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<ShopLabelRuleWrite>,
+) -> ApiResult<bool> {
+    require_platform(&tenant)?;
+    state.merchant.shop_label_rule.update_rule(&body).await?;
+    ok(true)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RuleIdBody {
+    rule_id: Option<i32>,
+}
+
+async fn rule_del(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<RuleIdBody>,
+) -> ApiResult<bool> {
+    require_platform(&tenant)?;
+    let rule_id = body.rule_id.unwrap_or(0);
+    state.merchant.shop_label_rule.delete_rule(rule_id).await?;
+    ok(true)
+}
+
+async fn rule_run(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<RuleIdBody>,
+) -> ApiResult<RuleRunSummary> {
+    require_platform(&tenant)?;
+    let rule_id = body.rule_id.unwrap_or(0);
+    ok(state
+        .merchant
+        .shop_label_rule
+        .recompute_rule(rule_id, "manual")
+        .await?)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RuleLogsQuery {
+    rule_id: Option<i32>,
+    limit: Option<i64>,
+}
+
+async fn rule_logs(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<RuleLogsQuery>,
+) -> ApiResult<Vec<ShopLabelRuleLogItem>> {
+    require_platform(&tenant)?;
+    let rule_id = q.rule_id.unwrap_or(0);
+    ok(state
+        .merchant
+        .shop_label_rule
+        .list_rule_logs(rule_id, q.limit.unwrap_or(20))
+        .await?)
 }
