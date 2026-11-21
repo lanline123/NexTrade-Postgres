@@ -51,7 +51,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         // supplier product
         .route("/supplyChain/supplierProduct/list", get(product_list))
         .route("/supplyChain/supplierProduct/summary", get(product_list))
-        .route("/supplyChain/supplierProduct/selection", get(product_list))
+        .route("/supplyChain/supplierProduct/selection", get(product_selection))
         .route("/supplyChain/supplierProduct/detail", get(product_detail))
         .route("/supplyChain/supplierProduct/status", post(product_status))
         .route("/supplyChain/supplierProduct/delete", post(product_delete))
@@ -348,11 +348,265 @@ pub(crate) fn row_to_json(row: &PgRow) -> Value {
 }
 
 // ————————————————— supplier —————————————————
+
+/// 供应商表单（admin SupplierFormDrawer 既有契约）扩展字段的落库口径：
+/// 分类落 `purchase_category_id` 列（表单字段名 `categoryId`，兼容旧名
+/// `purchaseCategoryId`）；联系人/电话组/资质/地址/备注/结算账户进
+/// `vendor_data` JSON——与商家域 vendor_data 的 `contactName` 键同义共存，
+/// 合并写入不覆盖既有键；主电话（primary，缺省取首个）同步落
+/// `contact_mobile` 列（采购单快照等存量消费方仍读该列）。
+/// `person_data` 为个人主体信息，供应链表单无对应入参，不写入。
+struct SupplierFormExtract {
+    /// 主电话（contact_mobile 落值）；表单未传电话时为 None（更新时不覆盖）。
+    primary_mobile: Option<String>,
+    /// 待合并进 vendor_data 的键（仅含表单实际传来的键）。
+    data_patch: Map<String, Value>,
+}
+
+fn extract_supplier_form(body: &Value) -> SupplierFormExtract {
+    let mut patch = Map::new();
+    let mut primary_mobile: Option<String> = None;
+    if let Some(phones) = body.get("contactPhones").and_then(Value::as_array) {
+        let normalized: Vec<Value> = phones
+            .iter()
+            .filter_map(|p| {
+                let number = p
+                    .get("number")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .trim();
+                if number.is_empty() {
+                    return None;
+                }
+                let mut row = Map::new();
+                row.insert(
+                    "type".into(),
+                    Value::String(
+                        p.get("type")
+                            .and_then(Value::as_str)
+                            .unwrap_or("mobile")
+                            .to_string(),
+                    ),
+                );
+                row.insert("number".into(), Value::String(number.to_string()));
+                if let Some(area) = p
+                    .get("areaCode")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                {
+                    row.insert("areaCode".into(), Value::String(area.to_string()));
+                }
+                if p.get("primary").and_then(Value::as_bool).unwrap_or(false) {
+                    row.insert("primary".into(), Value::Bool(true));
+                }
+                Some(Value::Object(row))
+            })
+            .collect();
+        let primary = normalized
+            .iter()
+            .find(|p| {
+                p.get("primary")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+            })
+            .or_else(|| normalized.first());
+        primary_mobile = primary
+            .and_then(|p| p.get("number"))
+            .and_then(Value::as_str)
+            .map(ToString::to_string);
+        patch.insert("contactPhones".into(), Value::Array(normalized));
+    } else if let Some(mobile) = body
+        .get("contactMobile")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        primary_mobile = Some(mobile.to_string());
+    }
+    for key in [
+        "contactName",
+        "detailedAddress",
+        "remark",
+        "address",
+        "qualificationImages",
+        "account",
+    ] {
+        if let Some(v) = body.get(key) {
+            patch.insert(key.to_string(), v.clone());
+        }
+    }
+    SupplierFormExtract {
+        primary_mobile,
+        data_patch: patch,
+    }
+}
+
+/// 把 patch 合并进既有 vendor_data JSON 文本（非对象/非法 JSON 按空对象处理）。
+fn merge_vendor_data(existing: Option<&str>, patch: &Map<String, Value>) -> String {
+    let mut base = parse_vendor_data(&existing.map(|s| Value::String(s.to_string())));
+    for (k, v) in patch {
+        base.insert(k.clone(), v.clone());
+    }
+    Value::Object(base).to_string()
+}
+
+/// 解析 vendor_data（行内为 JSON 文本字符串，兼容已解析对象）为对象。
+fn parse_vendor_data(raw: Option<&Value>) -> Map<String, Value> {
+    match raw {
+        Some(Value::Object(m)) => m.clone(),
+        Some(Value::String(s)) => serde_json::from_str::<Value>(s)
+            .ok()
+            .and_then(|v| match v {
+                Value::Object(m) => Some(m),
+                _ => None,
+            })
+            .unwrap_or_default(),
+        _ => Map::new(),
+    }
+}
+
+/// Unix 秒 → `yyyy-MM-dd HH:mm:ss`（UTC；列表 createTime 展示口径）。
+fn format_unix_seconds(secs: i64) -> String {
+    if secs <= 0 {
+        return String::new();
+    }
+    sqlx::types::chrono::DateTime::<sqlx::types::chrono::Utc>::from_timestamp(secs, 0)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+        .unwrap_or_default()
+}
+
 async fn supplier_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
-    ok(list_table(&state, "vendor", &q, true).await?)
+    let mut result = list_table(&state, "vendor", &q, true).await?;
+    // 列表行补驼峰别名与展示字段（前端列契约 vendorName / categoryName /
+    // contactName / createTime）：分类名按行内分类 ID 一次批量查，
+    // 联系人自 vendor_data 解析；原始蛇形键保留不动。
+    if let Some(records) = result
+        .get_mut("records")
+        .and_then(Value::as_array_mut)
+    {
+        let cat_ids: Vec<i64> = records
+            .iter()
+            .filter_map(|r| r.get("purchase_category_id").and_then(Value::as_i64))
+            .filter(|v| *v > 0)
+            .collect();
+        let mut cat_names: std::collections::HashMap<i64, String> =
+            std::collections::HashMap::new();
+        if !cat_ids.is_empty() {
+            if let Ok(rows) =
+                sqlx::query("SELECT id, category_name FROM purchase_supplier_category WHERE id = ANY($1)")
+                    .bind(cat_ids.as_slice())
+                    .fetch_all(&state.repos.pool)
+                    .await
+            {
+                for row in &rows {
+                    cat_names.insert(
+                        row.try_get::<i64, _>("id").unwrap_or(0),
+                        row.try_get::<String, _>("category_name")
+                            .unwrap_or_default(),
+                    );
+                }
+            }
+        }
+        for record in records.iter_mut() {
+            let Some(obj) = record.as_object_mut() else {
+                continue;
+            };
+            let vendor_id = obj.get("vendor_id").cloned().unwrap_or(Value::Null);
+            let vendor_name = obj.get("vendor_name").cloned().unwrap_or(Value::Null);
+            let vendor_code = obj.get("vendor_code").cloned().unwrap_or(Value::Null);
+            let cat_id = obj
+                .get("purchase_category_id")
+                .and_then(Value::as_i64)
+                .unwrap_or(0);
+            let data = parse_vendor_data(obj.get("vendor_data"));
+            let contact_name = data
+                .get("contactName")
+                .cloned()
+                .unwrap_or_else(|| json!(""));
+            let add_time = obj.get("add_time").and_then(Value::as_i64).unwrap_or(0);
+            obj.insert("vendorId".into(), vendor_id);
+            obj.insert("vendorName".into(), vendor_name);
+            obj.insert("vendorCode".into(), vendor_code);
+            obj.insert(
+                "categoryName".into(),
+                json!(cat_names.get(&cat_id).cloned().unwrap_or_default()),
+            );
+            obj.insert("contactName".into(), contact_name);
+            obj.insert("createTime".into(), json!(format_unix_seconds(add_time)));
+        }
+    }
+    ok(result)
 }
 async fn supplier_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
-    ok(detail_table(&state, "vendor", q.id.unwrap_or(0)).await?)
+    let mut detail = detail_table(&state, "vendor", q.id.unwrap_or(0)).await?;
+    // 编辑回显组装：原始蛇形键保留，叠加表单契约的驼峰键——分类自
+    // purchase_category_id 列，其余扩展字段自 vendor_data JSON 回读。
+    if let Some(obj) = detail.as_object_mut() {
+        let data = parse_vendor_data(obj.get("vendor_data"));
+        let vendor_id = obj.get("vendor_id").cloned().unwrap_or(Value::Null);
+        let shop_id = obj.get("shop_id").cloned().unwrap_or(Value::Null);
+        let vendor_name = obj.get("vendor_name").cloned().unwrap_or(Value::Null);
+        let vendor_code = obj.get("vendor_code").cloned().unwrap_or(Value::Null);
+        let category_id = obj
+            .get("purchase_category_id")
+            .cloned()
+            .unwrap_or(Value::Null);
+        let contact_mobile = obj.get("contact_mobile").cloned().unwrap_or(Value::Null);
+        let vendor_logo = obj.get("vendor_logo").cloned().unwrap_or(Value::Null);
+        obj.insert("vendorId".into(), vendor_id);
+        obj.insert("shopId".into(), shop_id);
+        obj.insert("vendorName".into(), vendor_name);
+        obj.insert("vendorCode".into(), vendor_code);
+        obj.insert("categoryId".into(), category_id);
+        obj.insert("contactMobile".into(), contact_mobile);
+        obj.insert("vendorLogo".into(), vendor_logo);
+        for key in [
+            "contactName",
+            "contactPhones",
+            "qualificationImages",
+            "address",
+            "detailedAddress",
+            "remark",
+            "account",
+        ] {
+            if let Some(v) = data.get(key) {
+                obj.insert(key.to_string(), v.clone());
+            }
+        }
+        // 存量行（旧实现只落 contact_mobile）合成单条主电话供表单回显。
+        let phones_empty = obj
+            .get("contactPhones")
+            .and_then(Value::as_array)
+            .map_or(true, |a| a.is_empty());
+        if phones_empty {
+            if let Some(mobile) = obj
+                .get("contact_mobile")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+            {
+                obj.insert(
+                    "contactPhones".into(),
+                    json!([{"type": "mobile", "number": mobile, "primary": true}]),
+                );
+            }
+        }
+        // 表单必读键缺省兜底，免前端逐个判空。
+        obj.entry("contactName".to_string())
+            .or_insert_with(|| json!(""));
+        obj.entry("contactPhones".to_string())
+            .or_insert_with(|| json!([]));
+        obj.entry("qualificationImages".to_string())
+            .or_insert_with(|| json!([]));
+        obj.entry("address".to_string())
+            .or_insert_with(|| json!([]));
+        obj.entry("detailedAddress".to_string())
+            .or_insert_with(|| json!(""));
+        obj.entry("remark".to_string()).or_insert_with(|| json!(""));
+        obj.entry("account".to_string())
+            .or_insert_with(|| json!({}));
+    }
+    ok(detail)
 }
 async fn supplier_create(
     State(state): State<AdminState>,
@@ -366,19 +620,22 @@ async fn supplier_create(
     if name.is_empty() {
         return Err(AppError(Error::biz(400, "供应商名称不能为空")));
     }
+    let extract = extract_supplier_form(&body);
+    let vendor_data = merge_vendor_data(None, &extract.data_patch);
     let now = nextrade_common::utils::now_seconds() as i64;
     let r: i32 = sqlx::query_scalar(
-        "INSERT INTO vendor(source_type, shop_id, vendor_code, vendor_name, contact_mobile, purchase_category_id, vendor_logo, description, status, add_time) VALUES(2,$1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING vendor_id",
+        "INSERT INTO vendor(source_type, shop_id, vendor_code, vendor_name, contact_mobile, purchase_category_id, vendor_logo, description, status, add_time, vendor_data) VALUES(2,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING vendor_id",
     )
     .bind(body.get("shopId").and_then(Value::as_i64).unwrap_or(0) as i32)
     .bind(body.get("vendorCode").and_then(Value::as_str).unwrap_or(""))
     .bind(name)
-    .bind(body.get("contactMobile").and_then(Value::as_str).unwrap_or(""))
-    .bind(body.get("purchaseCategoryId").and_then(Value::as_i64).unwrap_or(0))
+    .bind(extract.primary_mobile.as_deref().unwrap_or(""))
+    .bind(body.get("categoryId").or_else(|| body.get("purchaseCategoryId")).and_then(Value::as_i64).unwrap_or(0))
     .bind(body.get("vendorLogo").and_then(Value::as_str).unwrap_or(""))
     .bind(body.get("description").and_then(Value::as_str).unwrap_or(""))
     .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1) as i32)
     .bind(now)
+    .bind(vendor_data)
     .fetch_one(&state.repos.pool).await.map_err(db)?;
     ok(i64::from(r))
 }
@@ -386,16 +643,48 @@ async fn supplier_update(
     State(state): State<AdminState>,
     Json(body): Json<Value>,
 ) -> ApiResult<()> {
+    // 表单契约传 id（兼容 vendorId）；未传的字段一律不覆盖（COALESCE 保旧值），
+    // 扩展字段合并进既有 vendor_data，不冲掉商家域写入的键。
     let id = body
-        .get("vendorId")
-        .or_else(|| body.get("id"))
+        .get("id")
+        .or_else(|| body.get("vendorId"))
         .and_then(Value::as_i64)
         .unwrap_or(0);
-    sqlx::query("UPDATE vendor SET vendor_name=COALESCE(NULLIF($1,''),vendor_name), contact_mobile=COALESCE(NULLIF($2,''),contact_mobile) WHERE vendor_id=$3 AND source_type=2")
-        .bind(body.get("vendorName").and_then(Value::as_str).unwrap_or(""))
-        .bind(body.get("contactMobile").and_then(Value::as_str).unwrap_or(""))
+    let existing_row = sqlx::query(
+        "SELECT vendor_data FROM vendor WHERE vendor_id=$1 AND source_type=2",
+    )
+    .bind(id)
+    .fetch_optional(&state.repos.pool)
+    .await
+    .map_err(db)?;
+    let existing: Option<String> = existing_row
+        .and_then(|row| row.try_get::<Option<String>, _>("vendor_data").ok())
+        .flatten();
+    let extract = extract_supplier_form(&body);
+    let vendor_data = if extract.data_patch.is_empty() {
+        None
+    } else {
+        Some(merge_vendor_data(existing.as_deref(), &extract.data_patch))
+    };
+    let text_field = |key: &str| {
+        body.get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    };
+    let result = sqlx::query("UPDATE vendor SET vendor_name=COALESCE($1,vendor_name), vendor_code=COALESCE($2,vendor_code), purchase_category_id=COALESCE($3,purchase_category_id), contact_mobile=COALESCE($4,contact_mobile), status=COALESCE($5,status), vendor_logo=COALESCE($6,vendor_logo), vendor_data=COALESCE($7,vendor_data) WHERE vendor_id=$8 AND source_type=2")
+        .bind(text_field("vendorName"))
+        .bind(text_field("vendorCode"))
+        .bind(body.get("categoryId").or_else(|| body.get("purchaseCategoryId")).and_then(Value::as_i64))
+        .bind(extract.primary_mobile.as_deref())
+        .bind(body.get("status").and_then(Value::as_i64).map(|v| v as i32))
+        .bind(text_field("vendorLogo"))
+        .bind(vendor_data.as_deref())
         .bind(id)
         .execute(&state.repos.pool).await.map_err(db)?;
+    if result.rows_affected() == 0 {
+        return Err(AppError(Error::biz(400, "供应商不存在")));
+    }
     ok(())
 }
 async fn supplier_status(
@@ -547,6 +836,76 @@ async fn category_delete(
 async fn product_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
     ok(list_table(&state, "vendor_product", &q, false).await?)
 }
+/// 建单选品专用查询（采购单「添加商品」弹窗契约）：按 vendor 过滤、
+/// SKU 级行、驼峰字段。历史实现复用通用列表（vendor_product 关系行
+/// 原始蛇形列、无 vendor 过滤、无 SKU 展开），前端勾选后建单必被拒。
+/// status 按 vendor_product.product_state 过滤；shopId 给定时再按
+/// 供应商所属组织收口；keyword 按商品名模糊。
+async fn product_selection(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+    let (page, size, offset) = page_of(&q);
+    let vendor_id = q.vendor_id.unwrap_or(0);
+    if vendor_id <= 0 {
+        return ok(json!({"records": [], "total": 0, "page": page, "size": size}));
+    }
+    let mut cq: QueryBuilder<'_, Postgres> = QueryBuilder::new(
+        "SELECT COUNT(*) FROM vendor_product_sku s JOIN vendor_product vp ON vp.id = s.vendor_product_id WHERE s.is_del = 0 AND vp.is_del = 0 AND vp.vendor_id = ",
+    );
+    cq.push_bind(vendor_id);
+    let mut rq: QueryBuilder<'_, Postgres> = QueryBuilder::new(
+        "SELECT s.id AS sku_row_id, s.source_sku_id, vp.source_product_id, vp.product_name, vp.pic_thumb, s.sku_attr_val, s.sku_stock, s.min_purchase_qty, s.supply_price, c.category_name FROM vendor_product_sku s JOIN vendor_product vp ON vp.id = s.vendor_product_id LEFT JOIN category c ON c.category_id = vp.product_category_id WHERE s.is_del = 0 AND vp.is_del = 0 AND vp.vendor_id = ",
+    );
+    rq.push_bind(vendor_id);
+    if let Some(status) = q.status {
+        cq.push(" AND vp.product_state = ").push_bind(status);
+        rq.push(" AND vp.product_state = ").push_bind(status);
+    }
+    if let Some(shop_id) = q.shop_id.filter(|v| *v > 0) {
+        cq.push(" AND vp.vendor_id IN (SELECT vendor_id FROM vendor WHERE shop_id = ")
+            .push_bind(shop_id)
+            .push(" AND source_type = 2)");
+        rq.push(" AND vp.vendor_id IN (SELECT vendor_id FROM vendor WHERE shop_id = ")
+            .push_bind(shop_id)
+            .push(" AND source_type = 2)");
+    }
+    if let Some(kw) = q
+        .keyword
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        let like = format!("%{kw}%");
+        cq.push(" AND vp.product_name ILIKE ").push_bind(like.clone());
+        rq.push(" AND vp.product_name ILIKE ").push_bind(like);
+    }
+    rq.push(" ORDER BY s.id DESC LIMIT ")
+        .push_bind(size as i64)
+        .push(" OFFSET ")
+        .push_bind(offset);
+    let (total,): (i64,) = cq
+        .build_query_as()
+        .fetch_one(&state.repos.pool)
+        .await
+        .map_err(db)?;
+    let rows = rq.build().fetch_all(&state.repos.pool).await.map_err(db)?;
+    let records: Vec<Value> = rows
+        .iter()
+        .map(|row| {
+            json!({
+                "vendorProductSkuId": row.try_get::<i64, _>("sku_row_id").unwrap_or(0),
+                "skuId": row.try_get::<Option<i32>, _>("source_sku_id").ok().flatten().unwrap_or(0),
+                "productId": row.try_get::<i32, _>("source_product_id").unwrap_or(0),
+                "productName": row.try_get::<String, _>("product_name").unwrap_or_default(),
+                "skuName": row.try_get::<String, _>("sku_attr_val").unwrap_or_default(),
+                "categoryName": row.try_get::<Option<String>, _>("category_name").ok().flatten().unwrap_or_default(),
+                "picThumb": row.try_get::<Option<String>, _>("pic_thumb").ok().flatten().unwrap_or_default(),
+                "supplierStock": row.try_get::<Option<i32>, _>("sku_stock").ok().flatten().unwrap_or(0),
+                "minPurchaseQty": row.try_get::<i64, _>("min_purchase_qty").unwrap_or(1),
+                "supplyPrice": row.try_get::<rust_decimal::Decimal, _>("supply_price").map(|d| d.to_string()).unwrap_or_else(|_| "0".to_string()),
+            })
+        })
+        .collect();
+    ok(json!({"records": records, "total": total, "page": page, "size": size}))
+}
 async fn product_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
     ok(detail_table(&state, "vendor_product", q.id.unwrap_or(0)).await?)
 }
@@ -689,12 +1048,9 @@ async fn save_supplier_product(state: &AdminState, body: &Value) -> ApiResult<i6
     };
     for sku in skus {
         let source_sku_id = sku.get("skuId").and_then(Value::as_i64).filter(|v| *v > 0);
-        let price = rust_decimal::Decimal::from_str(
-            &sku.get("supplyPrice")
-                .and_then(Value::as_str)
-                .unwrap_or("0"),
-        )
-        .unwrap_or(rust_decimal::Decimal::ZERO);
+        // 供应价走双口径解析：前端传 JSON 数字，历史实现只认字符串、
+        // 取不到便恒落 0——与采购价（parse_decimal_flex）同类根因的漏网点。
+        let price = parse_decimal_flex(sku.get("supplyPrice"));
         let min_qty = sku
             .get("minPurchaseQty")
             .and_then(Value::as_i64)
@@ -2333,5 +2689,81 @@ mod purchase_draft_tests {
         )));
         // 5) 超收设置消费点在位
         assert!(src.contains(concat!("load_allow_over", "_receive")));
+    }
+
+    // ——— 供应商主数据与选品契约修复（D1/D2/D3）口径测试 ———
+
+    #[test]
+    fn supplier_form_extract_primary_phone_and_patch() {
+        let body = json!({
+            "contactName": "张三",
+            "contactPhones": [
+                {"type": "landline", "number": "021-555", "areaCode": "021"},
+                {"type": "mobile", "number": "13800000000", "primary": true},
+                {"type": "mobile", "number": "  "}
+            ],
+            "remark": "备注"
+        });
+        let ex = extract_supplier_form(&body);
+        // 主号取显式 primary；空白号码行被剔除
+        assert_eq!(ex.primary_mobile.as_deref(), Some("13800000000"));
+        let phones = ex
+            .data_patch
+            .get("contactPhones")
+            .and_then(Value::as_array)
+            .unwrap();
+        assert_eq!(phones.len(), 2);
+        assert_eq!(ex.data_patch.get("contactName"), Some(&json!("张三")));
+        assert_eq!(ex.data_patch.get("remark"), Some(&json!("备注")));
+        // 无 primary 时取首个有效号码
+        let body2 = json!({"contactPhones": [{"type": "mobile", "number": "111"}]});
+        assert_eq!(
+            extract_supplier_form(&body2).primary_mobile.as_deref(),
+            Some("111")
+        );
+        // 存量 contactMobile 单值兼容
+        let body3 = json!({"contactMobile": " 139 "});
+        assert_eq!(
+            extract_supplier_form(&body3).primary_mobile.as_deref(),
+            Some("139")
+        );
+        // 未传任何扩展字段时 patch 为空（更新不覆盖）
+        assert!(extract_supplier_form(&json!({})).data_patch.is_empty());
+    }
+
+    #[test]
+    fn vendor_data_merge_keeps_existing_keys() {
+        let mut patch = Map::new();
+        patch.insert("contactName".to_string(), json!("李四"));
+        let merged = merge_vendor_data(
+            Some("{\"contactPhone\":\"021-1\",\"contactName\":\"旧\"}"),
+            &patch,
+        );
+        let v: Value = serde_json::from_str(&merged).unwrap();
+        // 商家域既有键不被冲掉，同义键按新值更新
+        assert_eq!(v.get("contactPhone"), Some(&json!("021-1")));
+        assert_eq!(v.get("contactName"), Some(&json!("李四")));
+        // 非法存量 JSON 按空对象合并，不 panic
+        let merged2 = merge_vendor_data(Some("not-json"), &patch);
+        assert!(serde_json::from_str::<Value>(&merged2).is_ok());
+    }
+
+    #[test]
+    fn vendor_master_fix_invariants_hold_in_source() {
+        // 源码级不变量（同 draft_isolation 手法，concat! 拼针防自证）。
+        let src = include_str!("supply_chain.rs");
+        // D1) 供应价走双口径解析，不再只认字符串
+        assert!(src.contains(concat!(
+            "parse_decimal_flex(sku.get(",
+            "\"supplyPrice\"))"
+        )));
+        // D2) 建档 INSERT 落 vendor_data；更新带未命中校验
+        assert!(src.contains(concat!("add_time, vendor", "_data) VALUES(2,")));
+        assert!(src.contains(concat!("rows_affected() ", "== 0")));
+        // D3) selection 路由指向专用查询而非通用列表
+        assert!(src.contains(concat!(
+            "supplierProduct/selection\", get(product",
+            "_selection))"
+        )));
     }
 }
