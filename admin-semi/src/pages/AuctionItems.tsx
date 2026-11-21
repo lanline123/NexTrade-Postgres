@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Input, Modal, Space, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, Empty, Input, Modal, Space, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
 import FormDrawer from '../framework/FormDrawer';
 import ProductPicker from '../components/ProductPicker';
 import type { ColumnConfig, FormDrawerConfig } from '../framework/types';
+import './auction-bids-modal.css';
 
 const { Text } = Typography;
 
@@ -344,6 +345,17 @@ export default function AuctionItems() {
     ],
   };
 
+  // 当前领先 = 有效出价（status=1）中的最高价者，与后端结拍口径
+  // （find_top_valid_bid）一致；同价取 bidId 最大者。仅供出价记录弹窗的
+  // 领先行标识与摘要条当前价呈现，纯呈现计算，不改数据、排序与接口。
+  const leadingBid = bids.reduce<BidRow | null>((top, b) => {
+    if (b.status !== 1) return top;
+    if (!top) return b;
+    const price = Number(b.bidPrice ?? 0);
+    const topPrice = Number(top.bidPrice ?? 0);
+    return price > topPrice || (price === topPrice && b.bidId > top.bidId) ? b : top;
+  }, null);
+
   return (
     <div style={{ padding: 16 }}>
       {stats ? (
@@ -448,40 +460,104 @@ export default function AuctionItems() {
       />
 
       <Modal
-        title={bidsItem ? `${t('出价记录')} · ${bidsItem.title}` : t('出价记录')}
+        className="auction-bids-modal__dialog"
+        centered
+        title={
+          <>
+            {t('出价记录')}
+            {bidsItem ? <span className="auction-bids-modal__title-sub">· {bidsItem.title}</span> : null}
+          </>
+        }
         visible={!!bidsItem}
         onCancel={() => setBidsItem(null)}
         footer={null}
         width={760}
       >
-        <Table
-          loading={bidsLoading}
-          rowKey="bidId"
-          pagination={false}
-          dataSource={bids}
-          columns={[
-            { title: t('出价人'), dataIndex: 'username', render: (_: any, r: BidRow) => r.nickname || r.username || '-' },
-            { title: t('出价'), dataIndex: 'bidPrice', render: (v: any) => `¥${v ?? '-'}` },
-            {
-              title: t('类型'),
-              dataIndex: 'isBuyout',
-              render: (v: number) => (v === 1 ? t('一口价') : t('竞价')),
-            },
-            { title: t('状态'), dataIndex: 'statusName' },
-            { title: 'IP', dataIndex: 'ip' },
-            { title: t('时间'), dataIndex: 'addTimeText' },
-            {
-              title: t('操作'),
-              dataIndex: 'actions',
-              render: (_: unknown, r: BidRow) =>
-                r.status === 1 ? (
-                  <Button theme="borderless" type="danger" size="small" onClick={() => voidBid(r)}>
-                    {t('作废')}
-                  </Button>
-                ) : null,
-            },
-          ]}
-        />
+        <div className="auction-bids-modal">
+          {bidsItem ? (
+            <div className="auction-bids-modal__summary">
+              <div className="auction-bids-modal__stat">
+                <span className="auction-bids-modal__stat-label">{t('起拍价')}</span>
+                <span className="auction-bids-modal__stat-value">{`¥${bidsItem.startPrice ?? '-'}`}</span>
+              </div>
+              <div className="auction-bids-modal__stat">
+                <span className="auction-bids-modal__stat-label">{t('当前价')}</span>
+                <span className="auction-bids-modal__stat-value">
+                  {`¥${leadingBid ? leadingBid.bidPrice ?? '-' : bidsItem.currentPrice ?? '-'}`}
+                </span>
+              </div>
+            </div>
+          ) : null}
+          <Table
+            loading={bidsLoading}
+            rowKey="bidId"
+            pagination={false}
+            dataSource={bids}
+            onRow={(r: any) =>
+              leadingBid && r?.bidId === leadingBid.bidId
+                ? { className: 'auction-bids-modal__row--leading' }
+                : {}
+            }
+            empty={<Empty description={t('暂无出价记录')} style={{ padding: '28px 0' }} />}
+            columns={[
+              {
+                title: t('出价人'),
+                dataIndex: 'username',
+                render: (_: any, r: BidRow) => (
+                  <span className="auction-bids-modal__bidder">{r.nickname || r.username || '-'}</span>
+                ),
+              },
+              {
+                title: t('出价'),
+                dataIndex: 'bidPrice',
+                render: (v: any, r: BidRow) => (
+                  <span className="auction-bids-modal__price-cell">
+                    <span className="auction-bids-modal__price">{`¥${v ?? '-'}`}</span>
+                    {leadingBid && r.bidId === leadingBid.bidId ? (
+                      <Tag color="green" className="auction-bids-modal__lead-tag">
+                        {t('领先')}
+                      </Tag>
+                    ) : null}
+                  </span>
+                ),
+              },
+              {
+                title: t('类型'),
+                dataIndex: 'isBuyout',
+                render: (v: number) => (
+                  <Tag color={v === 1 ? 'orange' : 'grey'}>{v === 1 ? t('一口价') : t('竞价')}</Tag>
+                ),
+              },
+              {
+                title: t('状态'),
+                dataIndex: 'statusName',
+                render: (v: string, r: BidRow) => (
+                  <Tag color={r.status === 2 ? 'grey' : 'green'}>{v || '-'}</Tag>
+                ),
+              },
+              {
+                title: 'IP',
+                dataIndex: 'ip',
+                render: (v: string) => <span className="auction-bids-modal__muted">{v}</span>,
+              },
+              {
+                title: t('时间'),
+                dataIndex: 'addTimeText',
+                render: (v: string) => <span className="auction-bids-modal__muted">{v}</span>,
+              },
+              {
+                title: t('操作'),
+                dataIndex: 'actions',
+                render: (_: unknown, r: BidRow) =>
+                  r.status === 1 ? (
+                    <Button theme="borderless" type="danger" size="small" onClick={() => voidBid(r)}>
+                      {t('作废')}
+                    </Button>
+                  ) : null,
+              },
+            ]}
+          />
+        </div>
       </Modal>
     </div>
   );

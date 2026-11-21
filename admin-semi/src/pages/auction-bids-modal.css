@@ -1,0 +1,115 @@
+/*
+ * 拍卖「出价记录」弹窗现代化（2026-11-21，用户指令：参考仓内已现代化的弹窗）。
+ * 视觉语言与 PicItemEditModal 现代化轮（pages/decorate-editor.css 的
+ * .dec-pic-modal*）同源、与渠道弹窗（.ai-channel-modal 直角壳）同口径：
+ * 直角扁平弹窗壳（描边 #e4e7ec + 双层克制投影）、头部分隔 #eaecf0、
+ * 标题 #101828 / 15px / 600、浅底 #f9fafb（摘要条 / 表头 / 领先行共用）、
+ * 标签 #344054、提示 #98a2b3、间距 16/20 节奏、弹窗内按钮与标签改直角。
+ * 全部规则收在 .auction-bids-modal 作用域下（弹窗根类名
+ * .auction-bids-modal__dialog 挂在 Semi Modal 上、内容根类名
+ * .auction-bids-modal），无裸类名，不外溢到其他页面。
+ * 本文件只管呈现：出价数据、字段、排序、接口逐字不变。
+ */
+
+/* —— 弹窗壳（与 .dec-pic-modal__dialog 同值） —— */
+.auction-bids-modal__dialog .semi-modal-content {
+  border: 1px solid #e4e7ec;
+  border-radius: 0;
+  box-shadow: 0 20px 45px -12px rgba(16, 24, 40, 0.2), 0 4px 12px -4px rgba(16, 24, 40, 0.08);
+  /* 内容超高时定高、body 内部滚动（出价最多载入 100 条，同现代化弹窗口径） */
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+.auction-bids-modal__dialog .semi-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #eaecf0;
+}
+.auction-bids-modal__dialog .semi-modal-title {
+  color: #101828;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+}
+.auction-bids-modal__dialog .semi-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+/* 弹窗内按钮 / 标签 / 关闭钮改直角，与扁平直角语言一致 */
+.auction-bids-modal__dialog .semi-button,
+.auction-bids-modal__dialog .semi-tag,
+.auction-bids-modal__dialog .semi-modal-close {
+  border-radius: 0;
+}
+
+/* —— 标题区：主标题沿用 .semi-modal-title 口径，拍品名作弱化副题 —— */
+.auction-bids-modal__title-sub {
+  margin-left: 8px;
+  color: #98a2b3;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* —— 摘要条：沿用现代化弹窗的操作条语言（浅底描边条） —— */
+.auction-bids-modal__summary {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 12px;
+  border: 1px solid #e4e7ec;
+  background: #f9fafb;
+  margin-bottom: 16px;
+}
+.auction-bids-modal__stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.auction-bids-modal__stat-label {
+  color: #98a2b3;
+  font-size: 12px;
+}
+.auction-bids-modal__stat-value {
+  color: #101828;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— 表格：表头浅底加重、行分隔收敛为 #eaecf0 —— */
+.auction-bids-modal__dialog .semi-table-thead > tr > th {
+  background: #f9fafb;
+  color: #344054;
+  font-weight: 600;
+  border-bottom: 1px solid #eaecf0;
+}
+.auction-bids-modal__dialog .semi-table-tbody > tr > td {
+  border-bottom: 1px solid #eaecf0;
+}
+/* 当前领先行：浅底整行标识（与摘要条 / 表头同一浅底） */
+.auction-bids-modal__dialog .semi-table-tbody > tr.auction-bids-modal__row--leading > td {
+  background: #f9fafb;
+}
+
+/* —— 单元格呈现 —— */
+.auction-bids-modal__bidder {
+  color: #101828;
+}
+.auction-bids-modal__price-cell {
+  display: inline-flex;
+  align-items: center;
+}
+.auction-bids-modal__price {
+  color: #101828;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.auction-bids-modal__lead-tag {
+  margin-left: 8px;
+}
+.auction-bids-modal__muted {
+  color: #98a2b3;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
