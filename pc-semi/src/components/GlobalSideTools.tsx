@@ -10,11 +10,14 @@ import HeadsetOne from '@icon-park/react/es/icons/HeadsetOne';
 import ArrowUp from '@icon-park/react/es/icons/ArrowUp';
 import AlarmClock from '@icon-park/react/es/icons/AlarmClock';
 import Message from '@icon-park/react/es/icons/Message';
+import Robot from '@icon-park/react/es/icons/Robot';
+import GuideChatPanel from './GuideChatPanel';
 
 /**
  * GlobalSideTools：全站右下角悬浮工具栏（现代化毛玻璃 Dock 改版）。
  *
- * 对齐旧版 view/pc 的四处逻辑（条目与显隐规则不变，只换视觉）：
+ * 条目顺序（自上而下）：AI 导购（我方新增，2026-11-21 用户指令置于第一位，
+ * 点击打开 GuideChatPanel 抽屉）+ 以下对齐旧版 view/pc 的四处逻辑（显隐规则不变）：
  * - 首页 ElevatorList：购物车(flat) + sidebarNav 后台侧边导航项 + 客服(配置开关) + 回到顶部(滚动≥630)
  * - 商品详情页 ElevatorProduct.vue：购物车(card) + 扫一扫(当前 URL 二维码弹层) + 顶部(滚动≥630)
  * - 其他页 GlobalSideTools.vue：购物车(card) + 回到顶部(滚动>400)
@@ -91,6 +94,8 @@ export default function GlobalSideTools() {
   const [service, setService] = useState<CustomerServiceConfig | null>(null);
   const [cartCount, setCartCount] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
+  // AI 导购抽屉（第一位条目）：打开态由本组件持有，面板本体见 GuideChatPanel
+  const [guideOpen, setGuideOpen] = useState(false);
   // 商品详情页「扫一扫」：点击展开二维码弹层（对齐旧版 ElevatorProduct）
   const [qrOpen, setQrOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
@@ -213,7 +218,19 @@ export default function GlobalSideTools() {
   };
 
   return (
+    <>
     <div className={`gst${isHome ? ' gst--home' : ''}`}>
+      {/* AI 导购（我方新增）：悬浮框第一位，点击打开导购抽屉（GuideChatPanel） */}
+      <button
+        type="button"
+        className={`gst__item${guideOpen ? ' is-active' : ''}`}
+        onClick={() => setGuideOpen(true)}
+        aria-label={t('AI 导购')}
+      >
+        <Robot size={22} />
+        <span className="gst__tip">{t('AI 导购')}</span>
+      </button>
+
       {showCart ? (
         <Link className="gst__item" href="/cart" aria-label={t('购物车')}>
           <ShoppingCart size={22} />
@@ -267,5 +284,7 @@ export default function GlobalSideTools() {
         </button>
       ) : null}
     </div>
+    <GuideChatPanel open={guideOpen} onClose={() => setGuideOpen(false)} />
+    </>
   );
 }

@@ -257,7 +257,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <MobileRedirect />
           {/* 访问统计埋点（对齐旧版 StatisticLog：/api/common/log，isNew/click 跨天判断） */}
           <VisitLogger />
-          {/* 全站右下角悬浮工具栏：购物车 + 后台侧边导航 + 客服 + 回到顶部。
+          {/* 全站右下角悬浮工具栏：AI 导购（第一位）+ 购物车 + 后台侧边导航 + 客服 + 回到顶部。
               对齐旧版 view/pc 首页 ElevatorList（贴边形态）与 GlobalSideTools（浮动形态）。
               原 CustomerServiceWidget 的内嵌 IM 面板被客服项的 /chat 窗口分流替代。 */}
           <GlobalSideTools />

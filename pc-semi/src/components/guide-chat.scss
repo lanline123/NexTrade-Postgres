@@ -1,0 +1,212 @@
+/* AI 导购聊天抽屉（GuideChatPanel）—— Semi SideSheet 壳 + 站内口径气泡/商品卡。
+   价格色与 PC 商品卡一致（var(--primary-dark-2)）；用户气泡/强调走主题色 var(--general)。 */
+
+.guide-sheet {
+  .semi-sidesheet-inner {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .semi-sidesheet-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+}
+
+.guide-chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.guide-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px 6px 20px;
+  border-bottom: 1px solid #f0f0f2;
+
+  &__hint {
+    font-size: 12px;
+    color: #86909c;
+  }
+}
+
+.guide-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guide-row {
+  display: flex;
+
+  &--user {
+    justify-content: flex-end;
+  }
+
+  &--assistant {
+    justify-content: flex-start;
+  }
+}
+
+.guide-bubble {
+  max-width: 85%;
+  padding: 9px 13px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  .guide-row--user & {
+    background: var(--general);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+
+  .guide-row--assistant & {
+    background: #f4f5f7;
+    color: #1d2129;
+    border-bottom-left-radius: 4px;
+  }
+}
+
+.guide-thinking {
+  color: #86909c;
+}
+
+/* 工具商品卡组：横向流式排布（抽屉宽 420，一行 3 张） */
+.guide-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.guide-card {
+  width: 118px;
+  box-sizing: border-box;
+  border: 1px solid #eef0f3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+
+  &__main {
+    display: block;
+    text-decoration: none;
+  }
+
+  &__img {
+    width: 118px;
+    height: 88px;
+    object-fit: cover;
+    display: block;
+    background: #f2f4f8;
+  }
+
+  &__name {
+    padding: 6px 8px 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #1d2129;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 34px;
+    box-sizing: border-box;
+  }
+
+  &__price {
+    padding: 2px 8px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary-dark-2, #519d88);
+  }
+
+  &__gate {
+    display: block;
+    padding: 2px 8px 8px;
+    font-size: 12px;
+    color: var(--general);
+    text-decoration: none;
+  }
+}
+
+.guide-empty {
+  padding: 28px 4px 8px;
+
+  &__title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #1d2129;
+  }
+
+  &__desc {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #86909c;
+  }
+}
+
+.guide-samples {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.guide-sample {
+  padding: 7px 14px;
+  border: 1px solid #e5e6eb;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 13px;
+  color: #4e5969;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+
+  &:hover {
+    border-color: var(--general);
+    color: var(--general);
+  }
+}
+
+.guide-inputbar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #f0f0f2;
+}
+
+.guide-login {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+
+  &__title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #1d2129;
+  }
+
+  &__desc {
+    font-size: 13px;
+    color: #86909c;
+    margin-bottom: 8px;
+  }
+}
