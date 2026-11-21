@@ -280,6 +280,10 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           style: 0, headerStyle: 1,
           ...source.pageModule,
         };
+        // 新建页面（从未保存：无 data 且无 draftData）在此播种页面背景默认值 #f7f8fa
+        // （用户 2026-11-21 指令，与 H5 编辑器 createNewPageModule 同口径，首次保存即落盘）：
+        // 已有存量页（哪怕未设置背景色）一律不播种，避免打开即改变存量页呈现
+        if (!res?.data && !res?.draftData && !pm.backgroundColor) pm.backgroundColor = '#f7f8fa';
         // 原版 commonPage dealDefault 语义：未设置时落到默认值
         if (pm.backgroundRepeat === undefined || pm.backgroundRepeat === '') pm.backgroundRepeat = 1;
         if (pm.backgroundSize === undefined || pm.backgroundSize === '') pm.backgroundSize = 1;
