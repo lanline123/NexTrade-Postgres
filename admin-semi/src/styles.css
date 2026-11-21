@@ -4407,67 +4407,6 @@ body {
   color: #4e5969 !important;
   font-size: 13px !important;
 }
-.admin-msg-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 20px;
-  border-bottom: 1px solid #eef0f3;
-}
-.admin-msg-list {
-  max-height: 62vh;
-  overflow-y: auto;
-}
-.admin-msg-state {
-  padding: 60px;
-  text-align: center;
-}
-.admin-msg-item {
-  display: block;
-  width: 100%;
-  padding: 12px 20px;
-  border: 0;
-  border-bottom: 1px solid #f2f3f5;
-  background: #fff;
-  text-align: left;
-  cursor: pointer;
-}
-.admin-msg-item:hover {
-  background: #f7f9ff;
-}
-.admin-msg-item.is-readed {
-  opacity: 0.68;
-}
-.admin-msg-item__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.admin-msg-item__title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-  color: #1f2329;
-}
-.admin-msg-item__time {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: #98a2b3;
-}
-.admin-msg-item__content {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 20px;
-  color: #646a73;
-}
-.admin-msg-more {
-  padding: 12px;
-  text-align: center;
-}
 .licensed-info {
   display: flex;
   flex-direction: column;
@@ -4570,17 +4509,6 @@ body {
   font-size: 11px;
   color: #ff7d00;
   white-space: nowrap;
-}
-
-.admin-msg-types {
-  padding: 0 20px;
-  border-bottom: 1px solid #eef0f3;
-}
-.admin-msg-subtypes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 4px 0 10px;
 }
 
 @media (max-width: 1280px) {
@@ -4765,48 +4693,7 @@ body {
   display: block;
 }
 
-/* ---- 消息中心 ---- */
-.admin-msg-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 20px;
-  border-bottom: 1px solid #eef0f3;
-}
-
-.admin-msg-item.is-readed .admin-msg-item__title {
-  color: #8f959e;
-  font-weight: 400;
-}
-
-.admin-msg-item.is-readed .admin-msg-item__content {
-  color: #a8adb5;
-}
-
-.admin-msg-item__dot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: transparent;
-}
-
-.admin-msg-item.is-unread .admin-msg-item__dot {
-  background: #fa4350;
-  box-shadow: 0 0 0 2px #fa43501f;
-}
-
-.admin-msg-item.is-unread .admin-msg-item__title {
-  color: #1f2329;
-  font-weight: 700;
-}
-
-.admin-msg-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
+/* ---- 消息中心未读角标（消息面板与菜单 pill 共用；面板本体样式见 components/admin-message-center.css） ---- */
 .admin-msg-num {
   display: inline-flex;
   align-items: center;
@@ -4822,19 +4709,6 @@ body {
   line-height: 1;
   font-weight: 500;
   box-sizing: border-box;
-}
-
-.semi-tabs-tab .admin-msg-num {
-  background: #fa4350;
-}
-
-.semi-tabs-tab-active .admin-msg-num {
-  background: #fa4350;
-  box-shadow: 0 0 0 1px #fff9 inset;
-}
-
-.admin-msg-subtypes .semi-tag .admin-msg-num {
-  background: #fa4350;
 }
 
 /* ---- 授权信息 ---- */

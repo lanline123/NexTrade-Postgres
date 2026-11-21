@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Avatar, Badge, Button, Dropdown, Input, Tooltip } from '@douyinfe/semi-ui';
+import { Avatar, Badge, Button, Dropdown, Input, Popover, Tooltip } from '@douyinfe/semi-ui';
 import {
   IconBell,
   IconExit,
@@ -30,7 +30,7 @@ import {
   type FederationSettings,
 } from '../federation';
 import MenuSearch from '../components/MenuSearch';
-import AdminMessageCenter from '../components/AdminMessageCenter';
+import AdminMessageCenter, { type MsgAccountKind } from '../components/AdminMessageCenter';
 import LicensedBadge from '../components/LicensedBadge';
 import SelectShopModal from '../components/SelectShopModal';
 import VoiceBroadcast from '../components/VoiceBroadcast';
@@ -279,6 +279,26 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
     return [...ordered, ...extra];
   }, [orderedKeys, visibleNavGroups]);
 
+  /** 当前账号菜单内真实存在的页面 key 集合（消息中心点击跳转的守卫：目标不在集合内就不跳，避免落到占位页） */
+  const navigablePageKeys = useMemo(() => {
+    const keys = new Set<string>();
+    visibleNavGroups.forEach((group) =>
+      group.items.forEach((item) => {
+        keys.add(item.key);
+        item.children?.forEach((child) => keys.add(child.key));
+      }),
+    );
+    return keys;
+  }, [visibleNavGroups]);
+
+  /** 账号维度（消息中心个别跳转目标按维度分流，如保证金预警各自的保证金页） */
+  const msgAccountKind: MsgAccountKind =
+    localStorage.getItem('adminType') === 'shop'
+      ? 'shop'
+      : localStorage.getItem('adminType') === 'vendor'
+        ? 'vendor'
+        : 'platform';
+
   const activeGroup =
     groups.find((group) =>
       group.items.some(
@@ -359,6 +379,19 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
     setMessageVisible(false);
     writeLastOpenTime();
     restartMsgStream();
+  };
+
+  /** 铃铛点击开关消息面板（打开走 openMessageCenter 的清零/重连口径，关闭走 closeMessageCenter） */
+  const toggleMessageCenter = () => {
+    if (messageVisible) closeMessageCenter();
+    else openMessageCenter();
+  };
+
+  /** 消息条目点击跳转：目标页对当前账号真实存在才跳（关面板后切页），否则只标已读不跳 */
+  const navigateFromMessage = (key: string) => {
+    if (!navigablePageKeys.has(key)) return;
+    closeMessageCenter();
+    openPage(key as PageKey);
   };
 
   return (
@@ -607,27 +640,63 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
 
           <div className="topbar-right">
             <LicensedBadge />
-            <Badge
-              // 对齐原版 `v-if="messageCount > 0"`：Semi 的 Badge 在 count=0 时仍会渲染出「0」，
-              // 传 undefined 才是真正不显示
-              count={msgCount > 0 ? msgCount : undefined}
-              overflowCount={99}
+            <Popover
+              trigger="custom"
+              visible={messageVisible}
+              onClickOutSide={closeMessageCenter}
+              position="bottomRight"
+              showArrow={false}
+              spacing={8}
+              className="admin-msg-popover"
+              content={
+                <AdminMessageCenter
+                  visible={messageVisible}
+                  onClose={closeMessageCenter}
+                  approvalCount={approvalCount}
+                  onOpenApprovals={() => {
+                    closeMessageCenter();
+                    openPage('aiMcpApprovals');
+                  }}
+                  accountKind={msgAccountKind}
+                  onNavigate={navigateFromMessage}
+                  onRead={(unread) => {
+                    // 传了未读数：只做乐观更新，不去请求（此时服务端可能还没改完，请求会拿回旧值把角标顶回去）
+                    // 用 min 取小值：打开消息中心时角标已按原版清零，之后读消息算出的数不应把它顶回去
+                    if (typeof unread === 'number') {
+                      setMsgCount((current) => Math.min(current, unread));
+                      return;
+                    }
+                    // 不传参：已读接口成功后再按服务端真实值对齐
+                    void fetchUnreadSummary().then((count) => {
+                      if (count !== null && !messageVisible) setMsgCount(count);
+                    });
+                  }}
+                />
+              }
             >
-              <Button
-                icon={<IconBell />}
-                theme="borderless"
-                className="icon-btn"
-                title={t('消息')}
-                onClick={openMessageCenter}
+              <Badge
+                // 对齐原版 `v-if="messageCount > 0"`：Semi 的 Badge 在 count=0 时仍会渲染出「0」，
+                // 传 undefined 才是真正不显示
+                count={msgCount > 0 ? msgCount : undefined}
+                overflowCount={99}
               >
-                <span className="topbar-text-btn">{t('消息')}</span>
-                {newOrderCount > 0 && layout !== 'top' && (
-                  <span className="admin-msg-order-count">
-                    {t('新订单{newOrderMsgCount}', { newOrderMsgCount: newOrderCount })}
-                  </span>
-                )}
-              </Button>
-            </Badge>
+                <Button
+                  icon={<IconBell />}
+                  theme="borderless"
+                  className="icon-btn"
+                  title={t('消息中心')}
+                  aria-label={t('消息中心')}
+                  onClick={toggleMessageCenter}
+                >
+                  <span className="topbar-text-btn">{t('消息')}</span>
+                  {newOrderCount > 0 && layout !== 'top' && (
+                    <span className="admin-msg-order-count">
+                      {t('新订单{newOrderMsgCount}', { newOrderMsgCount: newOrderCount })}
+                    </span>
+                  )}
+                </Button>
+              </Badge>
+            </Popover>
             <VoiceBroadcast />
             <Button
               icon={<IconShoppingBag />}
@@ -720,22 +789,6 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
             {children}
           </div>
         </main>
-        <AdminMessageCenter
-          visible={messageVisible}
-          onClose={closeMessageCenter}
-          onRead={(unread) => {
-            // 传了未读数：只做乐观更新，不去请求（此时服务端可能还没改完，请求会拿回旧值把角标顶回去）
-            // 用 min 取小值：打开消息中心时角标已按原版清零，之后读消息算出的数不应把它顶回去
-            if (typeof unread === 'number') {
-              setMsgCount((current) => Math.min(current, unread));
-              return;
-            }
-            // 不传参：已读接口成功后再按服务端真实值对齐
-            void fetchUnreadSummary().then((count) => {
-              if (count !== null && !messageVisible) setMsgCount(count);
-            });
-          }}
-        />
         <SelectShopModal visible={orgModalVisible} onClose={() => setOrgModalVisible(false)} />
       </div>
     </div>
