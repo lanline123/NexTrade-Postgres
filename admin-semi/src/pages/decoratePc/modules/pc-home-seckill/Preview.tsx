@@ -171,9 +171,9 @@ export default function PcSeckillPreview({ data }: { data: Record<string, any> }
   // 四期与 PC 拼团兜底同口径补齐；个数 6 = 本模块骨架屏既有槽位数；倒计时
   // 结束时刻用展示用动态值 demoEndTimeString 承接）
   const demoFallback = usePreviewDemoProducts(rows.length === 0, 6);
-  const displayRows = rows.length
+  const displayRows: PreviewProduct[] = rows.length
     ? rows
-    : demoFallback.map((p) => ({ ...p, seckkillData: { seckillEndTime: demoEndTimeString() } }));
+    : demoFallback.map((p): PreviewProduct => ({ ...p, seckkillData: { seckillEndTime: demoEndTimeString() } }));
   const now = useNowTick();
   const listRef = useRef<HTMLDivElement | null>(null);
   const scrollByStep = (dir: 1 | -1) => {
