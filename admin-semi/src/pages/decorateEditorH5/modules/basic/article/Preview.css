@@ -1,5 +1,10 @@
 /* 文章列表预览样式：与 uniapp-react 前端渲染器 modules/article/index.scss 同形态
-   （编辑器桌面窄画布沿用其 px 尺寸：style1 行式 110×74 缩略图；style2/3 两列卡片） */
+   （编辑器桌面窄画布沿用其 px 尺寸，即前端渲染器 rpx 值的一半）。
+   三种 style 按原版命名差异化（2026-11-21 articlelist-meta）：基础行式 =
+   style3 两列展示(横向) 的卡内横向排布（图左文右 110×74、单列流）；
+   style1 大图展示 = 单列大图卡（图置顶全宽 170px 高）；style2 两列
+   展示(纵向) = 两列纵向卡（图置顶 90px 高）。此前 style1 实为小图
+   行式、style2/3 渲染完全相同。 */
 
 .h5-article-empty {
     padding: 24px 0;
@@ -8,6 +13,7 @@
     font-size: 12px;
 }
 
+/* 基础形态：横向行式（style3 与未识别 style 的回退） */
 .h5-article-item {
     display: flex;
     gap: 10px;
@@ -50,23 +56,39 @@
     flex-wrap: wrap;
 }
 
-/* 两列展示（纵向/横向）：前端渲染器中两形态同为两列纵向卡片，此处一致 */
-.h5-article-list--style2,
-.h5-article-list--style3 {
+/* style1 大图展示：单列大图卡，图置顶全宽，标题/元信息在图下 */
+.h5-article-list--style1 .h5-article-item {
+    flex-direction: column;
+    gap: 8px;
+}
+
+.h5-article-list--style1 .h5-article-item__thumb {
+    width: 100%;
+    height: 170px;
+}
+
+.h5-article-list--style1 .h5-article-item__main {
+    gap: 6px;
+}
+
+/* style2 两列展示(纵向)：两列纵向卡，图置顶 */
+.h5-article-list--style2 {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
 }
 
-.h5-article-list--style2 .h5-article-item,
-.h5-article-list--style3 .h5-article-item {
+.h5-article-list--style2 .h5-article-item {
     width: calc(50% - 5px);
     flex-direction: column;
     border-bottom: none;
 }
 
-.h5-article-list--style2 .h5-article-item__thumb,
-.h5-article-list--style3 .h5-article-item__thumb {
+.h5-article-list--style2 .h5-article-item__thumb {
     width: 100%;
     height: 90px;
+}
+
+.h5-article-list--style2 .h5-article-item__main {
+    gap: 6px;
 }

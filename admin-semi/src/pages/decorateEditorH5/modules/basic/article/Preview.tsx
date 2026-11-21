@@ -13,9 +13,17 @@
  * 的分类口径一致）；isShow=1 只取前台可见文章；size=articleNum。
  * 字段映射（ArticleRow）：articleId/articleTitle/articleThumb/addTime
  * （秒级时间戳，格式化方式同 Content.tsx）；阅读数按前端多名兜底
- * pageView ?? viewNum ?? viewCount 再兜底本接口的 clickCount；点赞数
- * likeNum ?? likeCount ?? likes——本接口不下发点赞字段，故不显示，
- * 不编造数字。statisticColor 前端渲染器亦未消费，此处同样不使用。
+ * pageView ?? viewNum ?? viewCount 再兜底本接口的 clickCount（后端列表
+ * VO 实际下发字段即 clickCount，原 Java ArticleVO 同）。
+ * 点赞数口径（2026-11-21 articlelist-meta 变更）：原版与我方均无点赞
+ * 数据源（Article 实体/VO 无点赞字段、无点赞表），此前「接口不下发故
+ * 不显示」使 showLike 开关在任何数据下都永不生效；改为记录带
+ * likeNum ?? likeCount ?? likes 时显示其值，否则开关开启时显示真实
+ * 零值 0（与 uniapp 渲染器同口径）。statisticColor 前端渲染器亦未
+ * 消费，此处同样不使用。
+ * 三种 style 按原版命名差异化（同日）：1 大图展示=单列大图卡、
+ * 2 两列展示(纵向)=两列纵向卡、3 两列展示(横向)=横向行式卡，
+ * 此前 style1 实为小图行式、style2/3 渲染完全相同（见 Preview.css）。
  */
 import { useEffect, useMemo, useState } from "react";
 import { cssText, imageFormat } from "../../../shared/format";
@@ -152,8 +160,8 @@ export default function ArticlePreview({ data }: { data: Record<string, any> }) 
                                             {showPageView && view !== undefined ? (
                                                 <span style={{ color: colors.articleViewColor || "#999" }}>{view}</span>
                                             ) : null}
-                                            {showLike && like !== undefined ? (
-                                                <span style={{ color: colors.articleLikeColor || "#999" }}>{like}</span>
+                                            {showLike ? (
+                                                <span style={{ color: colors.articleLikeColor || "#999" }}>{like ?? 0}</span>
                                             ) : null}
                                         </div>
                                     </div>

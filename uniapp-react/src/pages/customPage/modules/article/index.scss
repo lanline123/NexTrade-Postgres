@@ -3,8 +3,13 @@
    pxtransform 按 /40 转 rem、运行时 1rem = 40×屏宽/750，375 屏下 px 值
    实际渲染为字面值的一半（缩略图 110→55px、标题 14→7px），与编辑器
    兼容预览面（Preview.css 字面 px）整整差一倍。2026-11-21 按预览面
-   尺寸逐项 ×2 改 rpx 收口（审计报告 articlelist-audit/REPORT.md）。 */
+   尺寸逐项 ×2 改 rpx 收口（审计报告 articlelist-audit/REPORT.md）。
+   三种 style 按原版命名差异化（2026-11-21 articlelist-meta）：基础行式 =
+   style3 两列展示(横向) 的卡内横向排布（图左文右、单列流）；style1
+   大图展示 = 单列大图卡（图置顶全宽）；style2 两列展示(纵向) = 两列
+   纵向卡。此前 style1 实为小图行式、style2/3 完全相同。 */
 .module-article {
+    /* 基础形态：横向行式（style3 与未识别 style 的回退） */
     .article-item {
         display: flex;
         gap: 20rpx;
@@ -42,11 +47,29 @@
             display: flex;
             gap: 24rpx;
             font-size: 22rpx;
+            flex-wrap: wrap;
         }
     }
 
-    &.article-style__2,
-    &.article-style__3 {
+    /* style1 大图展示：单列大图卡，图置顶全宽，标题/元信息在图下 */
+    &.article-style__1 {
+        .article-item {
+            flex-direction: column;
+            gap: 16rpx;
+
+            &__thumb {
+                width: 100%;
+                height: 340rpx;
+            }
+
+            &__main {
+                gap: 12rpx;
+            }
+        }
+    }
+
+    /* style2 两列展示(纵向)：两列纵向卡，图置顶 */
+    &.article-style__2 {
         .module-ad-content {
             display: flex;
             flex-wrap: wrap;
@@ -61,6 +84,10 @@
             &__thumb {
                 width: 100%;
                 height: 180rpx;
+            }
+
+            &__main {
+                gap: 12rpx;
             }
         }
     }
