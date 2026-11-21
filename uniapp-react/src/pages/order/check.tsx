@@ -1604,6 +1604,7 @@ export default function Check() {
                                                 : card.faceAmount !== undefined && card.faceAmount !== null && card.faceAmount !== ""
                                                   ? ` · ${t("面额")} ${formatDisplayPriceWithExact(Number(card.faceAmount), "CNY", priceDisplay ?? DEFAULT_PRICE_DISPLAY, "¥") ?? `¥${card.faceAmount}`}`
                                                   : ""}
+                                            {card.scopeDesc ? ` · ${t(card.scopeDesc)}` : ""}
                                         </View>
                                     </View>
                                     {locked ? <Text className="gift-card-locked">{t("本单锁定使用")}</Text> : null}
@@ -1619,6 +1620,19 @@ export default function Check() {
                                 <Text className="gift-card-locked">{t("本单锁定使用")}</Text>
                             </View>
                         ) : null}
+                        {/* 适用范围提示（我方新增）：已选限定范围的卡但本单无适用商品/抵扣为 0 时
+                            明确告知，而非静默不可用 */}
+                        {!locked &&
+                        (() => {
+                            const sel = cards.find((c: any) => Number(c.giftCardsId || 0) === selectedGiftCardIdRef.current);
+                            if (!sel || Number(sel.scopeType || 0) === 0) return null;
+                            if (Number(totalData?.giftCardAmount || 0) > 0) return null;
+                            return (
+                                <View className="gift-card-scope-hint">
+                                    <Text>{t("所选礼品卡仅适用于指定范围，本单暂无适用商品，未抵扣")}</Text>
+                                </View>
+                            );
+                        })()}
                     </View>
                 );
             })()}

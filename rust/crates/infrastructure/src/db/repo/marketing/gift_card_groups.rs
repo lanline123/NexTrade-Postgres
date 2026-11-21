@@ -335,14 +335,127 @@ impl GiftCardGroupsRepository {
         Ok(())
     }
 
-    /// 删除卡组（Java `removeById`；注意 Java 是物理删除）。
-    pub async fn delete(&self, card_groups_id: i32) -> Result<u64> {
-        let res = sqlx::query("DELETE FROM gift_card_groups WHERE card_groups_id = $1")
+    /// 读取卡组适用范围（我方新增，迁移 012）：scope_type 列 + 两张范围明细表。
+    /// 返回 (scope_type, 商品 id 集合, 品类 id 集合-原始未展开)；卡组不存在返回 None。
+    pub async fn find_scope(
+        &self,
+        card_groups_id: i32,
+    ) -> Result<Option<(i32, Vec<i32>, Vec<i32>)>> {
+        let row: Option<(i32,)> = sqlx::query_as(
+            "SELECT scope_type FROM gift_card_groups WHERE card_groups_id = $1 LIMIT 1",
+        )
+        .bind(card_groups_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let Some((scope_type,)) = row else {
+            return Ok(None);
+        };
+        if scope_type == 0 {
+            return Ok(Some((scope_type, Vec::new(), Vec::new())));
+        }
+        let product_ids: Vec<i32> = sqlx::query_scalar(
+            "SELECT product_id FROM gift_card_group_scope_products WHERE card_groups_id = $1 ORDER BY id",
+        )
+        .bind(card_groups_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let category_ids: Vec<i32> = sqlx::query_scalar(
+            "SELECT category_id FROM gift_card_group_scope_categories WHERE card_groups_id = $1 ORDER BY id",
+        )
+        .bind(card_groups_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(Some((scope_type, product_ids, category_ids)))
+    }
+
+    /// 覆盖写入卡组适用范围（事务：更新 scope_type 列 + 全量替换两张明细表）。
+    pub async fn replace_scope(
+        &self,
+        card_groups_id: i32,
+        scope_type: i32,
+        product_ids: &[i32],
+        category_ids: &[i32],
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        sqlx::query("UPDATE gift_card_groups SET scope_type = $1 WHERE card_groups_id = $2")
+            .bind(scope_type)
             .bind(card_groups_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(map_err)?;
-        Ok(res.rows_affected())
+        sqlx::query("DELETE FROM gift_card_group_scope_products WHERE card_groups_id = $1")
+            .bind(card_groups_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        sqlx::query("DELETE FROM gift_card_group_scope_categories WHERE card_groups_id = $1")
+            .bind(card_groups_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        if scope_type == 1 {
+            for product_id in product_ids {
+                sqlx::query(
+                    "INSERT INTO gift_card_group_scope_products (card_groups_id, product_id) VALUES ($1, $2) ON CONFLICT (card_groups_id, product_id) DO NOTHING",
+                )
+                .bind(card_groups_id)
+                .bind(product_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(map_err)?;
+            }
+        }
+        if scope_type == 2 {
+            for category_id in category_ids {
+                sqlx::query(
+                    "INSERT INTO gift_card_group_scope_categories (card_groups_id, category_id) VALUES ($1, $2) ON CONFLICT (card_groups_id, category_id) DO NOTHING",
+                )
+                .bind(card_groups_id)
+                .bind(category_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(map_err)?;
+            }
+        }
+        tx.commit().await.map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 全量品类父子对 (category_id, parent_id)，供范围品类按树展开子类目。
+    pub async fn list_category_pairs(&self) -> Result<Vec<(i32, i32)>> {
+        let rows: Vec<(i32, i32)> =
+            sqlx::query_as("SELECT category_id, parent_id FROM category")
+                .fetch_all(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(rows)
+    }
+
+    /// 删除卡组（Java `removeById`；注意 Java 是物理删除）。
+    /// 我方新增：同事务清理适用范围明细行，避免孤儿范围数据。
+    pub async fn delete(&self, card_groups_id: i32) -> Result<u64> {
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        sqlx::query("DELETE FROM gift_card_group_scope_products WHERE card_groups_id = $1")
+            .bind(card_groups_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        sqlx::query("DELETE FROM gift_card_group_scope_categories WHERE card_groups_id = $1")
+            .bind(card_groups_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        let res = sqlx::query("DELETE FROM gift_card_groups WHERE card_groups_id = $1")
+            .bind(card_groups_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        let affected = res.rows_affected();
+        tx.commit().await.map_err(map_err)?;
+        Ok(affected)
     }
 
     /// 删除卡组下的商品绑定（Java `giftCardProductsMapper.delete(...)`）。

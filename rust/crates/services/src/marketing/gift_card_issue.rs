@@ -26,7 +26,9 @@ use nextrade_core::models::marketing::coupon_manage::{
     MSG_ISSUE_MIXED_UNSUPPORTED, MSG_ISSUE_RANK_REQUIRED, MSG_ISSUE_TAG_REQUIRED,
     MSG_MEMBER_DISABLED, MSG_MEMBER_NOT_EXIST, USER_STATUS_NORMAL, USER_TYPE_MEMBER,
 };
-use nextrade_core::models::marketing::gift_card::{group_type_name, mask_middle_half};
+use nextrade_core::models::marketing::gift_card::{
+    group_type_name, mask_middle_half, scope_type_name,
+};
 use nextrade_core::models::marketing::gift_card_issue::{
     card_source_text, derive_card_state, insufficient_stock_message, issue_type_name,
     need_count, normalize_issue_type, parse_issue_excel_row, usage_type_name,
@@ -663,6 +665,8 @@ fn my_card_to_vo(r: &MyCardRow, now: i32) -> MyGiftCardVO {
         expired_time: r.expired_time,
         used_time: r.used_time,
         add_time: r.add_time,
+        scope_type: r.scope_type,
+        scope_desc: scope_type_name(r.scope_type).to_string(),
     }
 }
 
@@ -692,6 +696,14 @@ mod tests {
         assert_eq!(vo.source_text, "发放");
         assert_eq!(vo.group_type_name, "储值卡");
         assert!(!vo.card_number.unwrap().contains("3456"));
+        // 适用范围透传（我方新增）：默认 0 → 全场通用
+        assert_eq!(vo.scope_type, 0);
+        assert_eq!(vo.scope_desc, "全场通用");
+        let scoped = MyCardRow {
+            scope_type: 2,
+            ..row.clone()
+        };
+        assert_eq!(my_card_to_vo(&scoped, 1_700_000_000).scope_desc, "仅限指定品类");
     }
 
     #[test]

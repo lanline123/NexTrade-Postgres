@@ -131,6 +131,11 @@ export default function MyGiftCards() {
                                     {" · "}
                                     {card.expiredTime ? `${t("有效期至")} ${fmtDate(card.expiredTime)}` : t("永久有效")}
                                 </View>
+                                {card.groupType === 1 && card.scopeDesc ? (
+                                    <View className="card-sub">
+                                        {t("适用范围")}：{t(card.scopeDesc)}
+                                    </View>
+                                ) : null}
                             </View>
                             <Text className={`card-state${card.isValid ? "" : " off"}`}>{card.stateText}</Text>
                         </View>

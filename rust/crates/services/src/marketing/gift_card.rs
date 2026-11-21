@@ -41,7 +41,8 @@ use rust_decimal::Decimal;
 use nextrade_common::utils::{mask_mobile, now_seconds};
 use nextrade_core::entities::{GiftCards, Order};
 use nextrade_core::models::marketing::gift_card::{
-    format_unix_time, is_exchange_text, is_sold_text, mask_middle_half, seconds_text,
+    format_unix_time, is_exchange_text, is_sold_text, mask_middle_half, scope_type_name,
+    seconds_text,
     ExchangeCardParam, GiftCardClaimParam, GiftCardDeliveryInfoVO, GiftCardDetailVO,
     GiftCardExchangeInfoVO, GiftCardIdParam, GiftCardPayInfoVO, GiftCardUpdateStatusDTO,
     GiftCardUserAddressInfoVO, GiftCardsExportVO, GiftCardsImportVO, GiftCardsListQuery,
@@ -145,6 +146,15 @@ impl GiftCardService {
                 mask_middle_half(&card.card_password),
             )
         };
+        // 适用范围（我方新增）：卡组级动态生效，详情接口下发范围类型 + 文案
+        let scope_type = self
+            .repos
+            .marketing
+            .gift_card_groups
+            .find_scope(card.card_groups_id)
+            .await?
+            .map(|(t, _, _)| t)
+            .unwrap_or(0);
         Ok(GiftCardsVO {
             gift_cards_id: Some(card.gift_cards_id),
             card_groups_id: Some(card.card_groups_id),
@@ -166,6 +176,8 @@ impl GiftCardService {
             expired_time: Some(card.expired_time),
             gift_card_products: None,
             exchange_product_to_cart: None,
+            scope_type: Some(scope_type),
+            scope_desc: Some(scope_type_name(scope_type).to_string()),
         })
     }
 

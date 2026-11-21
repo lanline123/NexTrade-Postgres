@@ -29,6 +29,10 @@ interface MyGiftCard {
   expiredTime: number;
   usedTime?: number;
   addTime?: number;
+  /** 适用范围（我方新增，后端下发）：0 全部商品 / 1 指定商品 / 2 指定品类 */
+  scopeType?: number;
+  /** 适用范围文案：全场通用 / 仅限指定商品 / 仅限指定品类 */
+  scopeDesc?: string;
 }
 
 export default function MyGiftCardsClient() {
@@ -145,6 +149,11 @@ export default function MyGiftCardsClient() {
                   {' · '}
                   {card.expiredTime ? `${t('有效期至')} ${fmtDate(card.expiredTime)}` : t('永久有效')}
                 </div>
+                {card.groupType === 1 && card.scopeDesc ? (
+                  <div style={{ fontSize: 13, color: '#667085' }}>
+                    {t('适用范围')}：{t(card.scopeDesc)}
+                  </div>
+                ) : null}
               </div>
               <Tag color={card.isValid ? 'green' : 'grey'}>{card.stateText}</Tag>
             </div>

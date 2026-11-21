@@ -82,7 +82,8 @@ impl GiftCardGroupsService {
                 .bound_product_count(row.card_groups_id, shop_id)
                 .await?;
             let exchange = self.repo().find_exchange_fields(row.card_groups_id).await?;
-            list.push(group_to_vo(row, products, bound == 0, exchange)?);
+            let scope = self.repo().find_scope(row.card_groups_id).await?;
+            list.push(group_to_vo(row, products, bound == 0, exchange, scope)?);
         }
         Ok(PageResult::new(
             u64::try_from(total).unwrap_or(0),
@@ -108,7 +109,8 @@ impl GiftCardGroupsService {
         let shop_id = group.shop_id.unwrap_or(0);
         let bound = self.repo().bound_product_count(card_groups_id, shop_id).await?;
         let exchange = self.repo().find_exchange_fields(card_groups_id).await?;
-        group_to_vo(&group, products, bound == 0, exchange)
+        let scope = self.repo().find_scope(card_groups_id).await?;
+        group_to_vo(&group, products, bound == 0, exchange, scope)
     }
 
     /// 按卡类型取卡组（Java `getGiftCardGroupsByCardType`）。
@@ -128,7 +130,7 @@ impl GiftCardGroupsService {
             .await?;
         groups
             .iter()
-            .map(|g| group_to_vo(g, Vec::new(), true, None))
+            .map(|g| group_to_vo(g, Vec::new(), true, None, None))
             .collect()
     }
 
@@ -203,6 +205,17 @@ impl GiftCardGroupsService {
                 )
                 .await?;
         }
+        if entity.group_type == GROUP_TYPE_TOP_UP {
+            // 我方新增：适用范围落库（校验已在 param.validate 完成；未传 = 全部商品）
+            self.repo()
+                .replace_scope(
+                    group_id,
+                    param.scope_type.unwrap_or(0),
+                    param.scope_product_ids.as_deref().unwrap_or(&[]),
+                    param.scope_category_ids.as_deref().unwrap_or(&[]),
+                )
+                .await?;
+        }
         tracing::info!("创建礼品卡组: id={group_id}");
         Ok(())
     }
@@ -271,6 +284,20 @@ impl GiftCardGroupsService {
                         card_groups_id,
                         param.exchange_mode.unwrap_or(cur_mode),
                         param.select_count.unwrap_or(cur_count),
+                    )
+                    .await?;
+            }
+        }
+        // 我方新增：适用范围透传（仅储值卡且本次入参带了 scope_type 时更新，
+        // 部分更新不带则保持原范围；校验已在 param.validate 完成）
+        if db.group_type == GROUP_TYPE_TOP_UP {
+            if let Some(scope_type) = param.scope_type {
+                self.repo()
+                    .replace_scope(
+                        card_groups_id,
+                        scope_type,
+                        param.scope_product_ids.as_deref().unwrap_or(&[]),
+                        param.scope_category_ids.as_deref().unwrap_or(&[]),
                     )
                     .await?;
             }
@@ -362,6 +389,7 @@ fn group_to_vo(
     products: Vec<nextrade_core::models::marketing::gift_card::GiftCardProductVO>,
     can_delete: bool,
     exchange: Option<(i32, i32)>,
+    scope: Option<(i32, Vec<i32>, Vec<i32>)>,
 ) -> Result<GiftCardGroupsVO> {
     // Java `getExpireTime`：未知有效期类型 ⇒「未知的卡有效期类型」
     validate_validity_type(group.validity_type).map_err(Error::biz_msg)?;
@@ -386,6 +414,15 @@ fn group_to_vo(
         can_delete: Some(can_delete),
         exchange_mode: exchange.map(|(mode, _)| mode),
         select_count: exchange.map(|(_, count)| count),
+        scope_type: scope.as_ref().map(|(t, _, _)| *t),
+        scope_product_ids: scope
+            .as_ref()
+            .map(|(_, p, _)| p.clone())
+            .unwrap_or_default(),
+        scope_category_ids: scope
+            .as_ref()
+            .map(|(_, _, c)| c.clone())
+            .unwrap_or_default(),
     })
 }
 
@@ -451,7 +488,7 @@ mod tests {
             sku_value: Some("红色".into()),
             sku_price: None,
         }];
-        let vo = group_to_vo(&group(), products, true, Some((2, 3))).unwrap();
+        let vo = group_to_vo(&group(), products, true, Some((2, 3)), Some((1, vec![7, 8], vec![]))).unwrap();
         assert_eq!(vo.group_type_name.as_deref(), Some("兑换卡"));
         assert_eq!(vo.card_type_name.as_deref(), Some("电子卡"));
         assert_eq!(vo.validity_type_name.as_deref(), Some("固定时间"));
@@ -461,6 +498,10 @@ mod tests {
         assert_eq!(vo.update_time.as_deref(), Some(""));
         assert_eq!(vo.gift_card_products.len(), 1);
         assert_eq!(vo.can_delete, Some(true));
+        // 适用范围透传（我方新增）
+        assert_eq!(vo.scope_type, Some(1));
+        assert_eq!(vo.scope_product_ids, vec![7, 8]);
+        assert!(vo.scope_category_ids.is_empty());
         assert_eq!(vo.exchange_mode, Some(2));
         assert_eq!(vo.select_count, Some(3));
     }
@@ -471,7 +512,7 @@ mod tests {
         g.group_type = 1;
         g.validity_type = 1;
         g.expire_time = Some(123);
-        let vo = group_to_vo(&g, Vec::new(), false, None).unwrap();
+        let vo = group_to_vo(&g, Vec::new(), false, None, None).unwrap();
         assert_eq!(vo.expire_time, None);
         assert_eq!(vo.can_delete, Some(false));
     }
@@ -481,7 +522,7 @@ mod tests {
         let mut g = group();
         g.validity_type = 9;
         assert_eq!(
-            group_to_vo(&g, Vec::new(), true, None).unwrap_err().to_string(),
+            group_to_vo(&g, Vec::new(), true, None, None).unwrap_err().to_string(),
             "业务错误 [500]: 未知的卡有效期类型"
         );
     }

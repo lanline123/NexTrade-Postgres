@@ -152,6 +152,10 @@ interface AvailableGiftCard {
   cardNumberMasked?: string;
   cardNumber?: string;
   giftCardSn?: string;
+  /** 适用范围（我方新增，后端下发）：0 全部商品 / 1 指定商品 / 2 指定品类 */
+  scopeType?: number;
+  /** 适用范围文案：全场通用 / 仅限指定商品 / 仅限指定品类 */
+  scopeDesc?: string;
   [key: string]: unknown;
 }
 
@@ -977,11 +981,24 @@ export default function CheckoutClient({
                               : card.faceAmount !== undefined && card.faceAmount !== null && card.faceAmount !== ''
                                 ? ` · ${t('面额')} ${formatDisplayPriceWithExact(card.faceAmount)}`
                                 : ''}
+                            {card.scopeDesc ? ` · ${t(card.scopeDesc)}` : ''}
                           </span>
                           {giftCardMode ? <span className="font-color">{t('本单锁定使用')}</span> : null}
                         </div>
                       );
                     })}
+                    {/* 适用范围提示（我方新增）：已选限定范围的卡但本单抵扣为 0 时明确告知 */}
+                    {!giftCardMode &&
+                    (() => {
+                      const sel = cards.find((c) => Number(c.giftCardsId || 0) === useGiftCardId);
+                      if (!sel || Number(sel.scopeType || 0) === 0) return null;
+                      if (Number(data?.total?.giftCardAmount || 0) > 0) return null;
+                      return (
+                        <div style={{ color: '#ed6a0c', fontSize: 12, marginTop: 6 }}>
+                          {t('所选礼品卡仅适用于指定范围，本单暂无适用商品，未抵扣')}
+                        </div>
+                      );
+                    })()}
                     {giftCardMode && !cards.length && giftCardSn ? (
                       <div className="check-box flex align-center">
                         <Checkbox checked disabled />

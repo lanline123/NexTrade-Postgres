@@ -97,6 +97,8 @@ pub struct MyCardRow {
     pub add_time: Option<i32>,
     pub has_issue: bool,
     pub has_order: bool,
+    /// 适用范围（我方新增，卡组 scope_type 列）：0 全部 / 1 指定商品 / 2 指定品类
+    pub scope_type: i32,
 }
 
 /// 消费流水行。
@@ -127,12 +129,15 @@ pub struct SpecifiedCardRow {
 #[derive(Debug, Clone, Default, sqlx::FromRow)]
 pub struct AvailableStoredCardRow {
     pub gift_cards_id: i32,
+    pub card_groups_id: i32,
     pub card_number: String,
     pub gift_card_sn: Option<String>,
     pub card_group_name: Option<String>,
     pub face_amount: Option<Decimal>,
     pub balance: Option<Decimal>,
     pub expired_time: i32,
+    /// 适用范围（我方新增，卡组 scope_type 列）：0 全部 / 1 指定商品 / 2 指定品类
+    pub scope_type: i32,
 }
 
 /// 结算抵扣结果。
@@ -459,7 +464,7 @@ impl GiftCardIssueRepository {
         let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(
             "SELECT c.gift_cards_id, c.card_groups_id, g.card_group_name, g.image_url, \
                     g.group_type, g.card_type, c.card_number, c.gift_card_sn, g.face_amount, \
-                    c.balance, c.status, c.expired_time, c.used_time, c.add_time, \
+                    c.balance, c.status, c.expired_time, c.used_time, c.add_time, g.scope_type, \
                     EXISTS(SELECT 1 FROM gift_card_issue_log l WHERE l.gift_cards_id = c.gift_cards_id) AS has_issue, \
                     EXISTS(SELECT 1 FROM gift_card_order o WHERE o.card_id = c.gift_cards_id) AS has_order \
              FROM gift_cards c \
@@ -482,7 +487,7 @@ impl GiftCardIssueRepository {
         sqlx::query_as::<_, MyCardRow>(
             "SELECT c.gift_cards_id, c.card_groups_id, g.card_group_name, g.image_url, \
                     g.group_type, g.card_type, c.card_number, c.gift_card_sn, g.face_amount, \
-                    c.balance, c.status, c.expired_time, c.used_time, c.add_time, \
+                    c.balance, c.status, c.expired_time, c.used_time, c.add_time, g.scope_type, \
                     EXISTS(SELECT 1 FROM gift_card_issue_log l WHERE l.gift_cards_id = c.gift_cards_id) AS has_issue, \
                     EXISTS(SELECT 1 FROM gift_card_order o WHERE o.card_id = c.gift_cards_id) AS has_order \
              FROM gift_cards c \
@@ -629,8 +634,8 @@ impl GiftCardIssueRepository {
         now: i32,
     ) -> Result<Vec<AvailableStoredCardRow>> {
         sqlx::query_as::<_, AvailableStoredCardRow>(
-            "SELECT c.gift_cards_id, c.card_number, c.gift_card_sn, g.card_group_name, \
-                    g.face_amount, COALESCE(c.balance, g.face_amount) AS balance, c.expired_time \
+            "SELECT c.gift_cards_id, c.card_groups_id, c.card_number, c.gift_card_sn, g.card_group_name, \
+                    g.face_amount, COALESCE(c.balance, g.face_amount) AS balance, c.expired_time, g.scope_type \
              FROM gift_cards c \
              INNER JOIN gift_card_groups g ON g.card_groups_id = c.card_groups_id \
              WHERE (c.claimed_user_id = $1 OR c.user_id = $1) \
@@ -644,6 +649,31 @@ impl GiftCardIssueRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(map_err)
+    }
+
+    /// 查本人储值卡所属卡组（下单抵扣前算适用范围上限用；归属谓词与
+    /// `deduct_stored_card` 一致。不存在/不归属返回 None）。
+    pub async fn find_owned_card_group_id(
+        &self,
+        user_id: i32,
+        gift_cards_id: Option<i32>,
+        gift_card_sn: Option<&str>,
+    ) -> Result<Option<i32>> {
+        let row: Option<(i32,)> = sqlx::query_as(
+            "SELECT c.card_groups_id FROM gift_cards c \
+             INNER JOIN gift_card_groups g ON g.card_groups_id = c.card_groups_id \
+             WHERE (c.claimed_user_id = $1 OR c.user_id = $1) AND g.group_type = 1 \
+               AND (($2::int IS NOT NULL AND c.gift_cards_id = $2) \
+                 OR ($3::text IS NOT NULL AND c.gift_card_sn = $3)) \
+             LIMIT 1",
+        )
+        .bind(user_id)
+        .bind(gift_cards_id)
+        .bind(gift_card_sn)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.map(|(id,)| id))
     }
 
     /// 结算抵扣（事务 + 行锁）：按 id 或 sn 锁定本人储值卡 →
@@ -664,8 +694,8 @@ impl GiftCardIssueRepository {
         }
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         let row: Option<AvailableStoredCardRow> = sqlx::query_as(
-            "SELECT c.gift_cards_id, c.card_number, c.gift_card_sn, g.card_group_name, \
-                    g.face_amount, COALESCE(c.balance, g.face_amount) AS balance, c.expired_time \
+            "SELECT c.gift_cards_id, c.card_groups_id, c.card_number, c.gift_card_sn, g.card_group_name, \
+                    g.face_amount, COALESCE(c.balance, g.face_amount) AS balance, c.expired_time, g.scope_type \
              FROM gift_cards c \
              INNER JOIN gift_card_groups g ON g.card_groups_id = c.card_groups_id \
              WHERE (c.claimed_user_id = $1 OR c.user_id = $1) AND g.group_type = 1 \

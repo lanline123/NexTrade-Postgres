@@ -11,6 +11,7 @@ use nextrade_core::models::trade::offline_claim::{
     OfflinePaymentClaimVO,
 };
 use nextrade_core::models::catalog::product_delivery::delivery_access;
+use nextrade_core::models::marketing::gift_card::{scoped_deduct_base, GiftCardScope};
 use nextrade_core::models::{OrderCreateDTO, OrderCreateVO, OrderVO};
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -145,6 +146,9 @@ impl OrderService {
         let mut order_sn = utils::generate_order_sn();
         // 礼品卡兑换流：购物车行 extra_data 的 giftCardsId 标记（useCard 写入）
         let mut gift_exchange_card_id: Option<i32> = None;
+        // 礼品卡适用范围（我方新增）：主循环逐行收集 (商品id, 品类id, 行小计)，
+        // 储值卡抵扣时按范围内金额限定基数（赠品行金额为 0 不入列）
+        let mut gift_scope_lines: Vec<(i32, i32, Decimal)> = Vec::new();
 
         // 订单号防重
         let mut retries = 0;
@@ -399,6 +403,11 @@ impl OrderService {
             let price = merchandise_price + if pos_mode { Decimal::ZERO } else { super::cart::cart_extra_price(line) };
             let subtotal = price * Decimal::from(qty);
             product_amount += subtotal;
+            gift_scope_lines.push((
+                pid,
+                products.get(&pid).map(|p| p.category_id).unwrap_or(0),
+                subtotal,
+            ));
             // 跨店履约行与基准价的差额不是活动优惠，不计入 seckill_discount。
             if !is_override_line {
                 seckill_discount +=
@@ -1196,6 +1205,45 @@ impl OrderService {
                     );
                 if sel_id.is_some() || sel_sn.is_some() {
                     let now_gc = utils::now_seconds();
+                    // 适用范围（我方新增）：限定卡的抵扣上限 = 范围内商品应付额
+                    // （与结算 check 同口径 `scoped_deduct_base`）；全部商品卡
+                    // cap = total，行为与改造前逐分一致。范围读取失败时回落
+                    // total（不因范围读取失败阻断已成立的抵扣，与本段既有
+                    // 「抵扣失败仅告警」口径一致）。
+                    let mut cap = total;
+                    if let Ok(Some(group_id)) = self
+                        .repos
+                        .marketing
+                        .gift_card_issue
+                        .find_owned_card_group_id(user_id, sel_id, sel_sn.as_deref())
+                        .await
+                    {
+                        if let Ok(Some((scope_type, pids, cids))) = self
+                            .repos
+                            .marketing
+                            .gift_card_groups
+                            .find_scope(group_id)
+                            .await
+                        {
+                            if scope_type != 0 {
+                                let pairs = self
+                                    .repos
+                                    .marketing
+                                    .gift_card_groups
+                                    .list_category_pairs()
+                                    .await
+                                    .unwrap_or_default();
+                                let scope =
+                                    GiftCardScope::from_parts(scope_type, pids, cids, &pairs);
+                                cap = scoped_deduct_base(
+                                    &scope,
+                                    &gift_scope_lines,
+                                    product_amount,
+                                    total,
+                                );
+                            }
+                        }
+                    }
                     match self
                         .repos
                         .marketing
@@ -1205,7 +1253,7 @@ impl OrderService {
                             sel_id,
                             sel_sn.as_deref(),
                             order_id,
-                            total,
+                            cap,
                             now_gc,
                         )
                         .await

@@ -55,6 +55,9 @@ interface GroupRow {
   canDelete?: boolean;
   exchangeMode?: number; // P1：1 固定套餐 2 多件任选（仅兑换卡）
   selectCount?: number;
+  scopeType?: number; // 适用范围（我方新增，仅储值卡）：0 全部商品 1 指定商品 2 指定品类
+  scopeProductIds?: number[];
+  scopeCategoryIds?: number[];
 }
 
 interface GroupForm {
@@ -71,6 +74,9 @@ interface GroupForm {
   canDelete?: boolean;
   exchangeMode: number;
   selectCount: number | undefined;
+  scopeType: number; // 适用范围：0 全部商品 1 指定商品 2 指定品类（仅储值卡）
+  scopeProductIds: string[];
+  scopeCategoryIds: string[];
 }
 
 const CARD_DEFAULT_BG = 'https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202511/1763106657gduKxujm9Fx7WZNjJZ.jpeg';
@@ -110,8 +116,12 @@ function GroupEditModal({
     remark: '',
     exchangeMode: 1,
     selectCount: undefined,
+    scopeType: 0,
+    scopeProductIds: [],
+    scopeCategoryIds: [],
   });
   const [productOptions, setProductOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -131,6 +141,9 @@ function GroupEditModal({
         canDelete: row.canDelete,
         exchangeMode: row.exchangeMode || 1,
         selectCount: row.selectCount || undefined,
+        scopeType: row.scopeType || 0,
+        scopeProductIds: (row.scopeProductIds || []).map(String),
+        scopeCategoryIds: (row.scopeCategoryIds || []).map(String),
       });
     } else {
       setForm({
@@ -146,9 +159,12 @@ function GroupEditModal({
         remark: '',
         exchangeMode: 1,
         selectCount: undefined,
+        scopeType: 0,
+        scopeProductIds: [],
+        scopeCategoryIds: [],
       });
     }
-    // 商品选项（兑换卡绑定用）
+    // 商品选项（兑换卡绑定 / 储值卡指定商品范围共用）
     apiGet<{ records: any[] }>('/product/product/list', { page: 1, size: 100 })
       .then((res) =>
         setProductOptions(
@@ -159,6 +175,41 @@ function GroupEditModal({
         ),
       )
       .catch(() => setProductOptions([]));
+    // 品类选项（储值卡指定品类范围用）：全量拉取后按父子拼路径名
+    (async () => {
+      try {
+        const all: any[] = [];
+        let page = 1;
+        let total = 0;
+        do {
+          const res = await apiGet<{ records: any[]; total: number }>('/product/category/list', { page, pageSize: 100 });
+          const records = res.records || [];
+          all.push(...records);
+          total = res.total || 0;
+          page += 1;
+          if (!records.length) break;
+        } while (all.length < total && page <= 10);
+        const nameOf = new Map(all.map((c) => [Number(c.categoryId), String(c.categoryName || '')]));
+        const pathOf = (c: any): string => {
+          const names: string[] = [];
+          let cur = c;
+          let guard = 0;
+          while (cur && guard < 5) {
+            names.unshift(String(cur.categoryName || ''));
+            const pid = Number(cur.parentId || 0);
+            if (!pid || !nameOf.has(pid)) break;
+            cur = all.find((x) => Number(x.categoryId) === pid);
+            guard += 1;
+          }
+          return names.join(' / ');
+        };
+        setCategoryOptions(
+          all.map((c) => ({ value: String(c.categoryId), label: pathOf(c) || `#${c.categoryId}` })),
+        );
+      } catch {
+        setCategoryOptions([]);
+      }
+    })();
   }, [visible, row]);
 
   const submit = async () => {
@@ -180,6 +231,14 @@ function GroupEditModal({
     }
     if (!isTopUp && form.productIds.length === 0) {
       Toast.warning({ content: t('请选择适用商品') });
+      return;
+    }
+    if (isTopUp && form.scopeType === 1 && form.scopeProductIds.length === 0) {
+      Toast.warning({ content: t('指定商品范围请至少选择一个商品') });
+      return;
+    }
+    if (isTopUp && form.scopeType === 2 && form.scopeCategoryIds.length === 0) {
+      Toast.warning({ content: t('指定品类范围请至少选择一个品类') });
       return;
     }
     if (!isTopUp && form.exchangeMode === 2) {
@@ -208,6 +267,9 @@ function GroupEditModal({
           giftCardProducts: isTopUp ? undefined : products,
           exchangeMode: isTopUp ? undefined : form.exchangeMode,
           selectCount: isTopUp ? undefined : form.exchangeMode === 2 ? form.selectCount : 0,
+          scopeType: isTopUp ? form.scopeType : undefined,
+          scopeProductIds: isTopUp && form.scopeType === 1 ? form.scopeProductIds.map(Number) : [],
+          scopeCategoryIds: isTopUp && form.scopeType === 2 ? form.scopeCategoryIds.map(Number) : [],
         });
       } else {
         await apiPost('/promotion/giftCardGroups/create', {
@@ -224,6 +286,9 @@ function GroupEditModal({
           giftCardProducts: isTopUp ? undefined : products,
           exchangeMode: isTopUp ? undefined : form.exchangeMode,
           selectCount: isTopUp ? undefined : form.exchangeMode === 2 ? form.selectCount : 0,
+          scopeType: isTopUp ? form.scopeType : undefined,
+          scopeProductIds: isTopUp && form.scopeType === 1 ? form.scopeProductIds.map(Number) : [],
+          scopeCategoryIds: isTopUp && form.scopeType === 2 ? form.scopeCategoryIds.map(Number) : [],
         });
       }
       Toast.success({ content: t('保存成功') });
@@ -358,6 +423,43 @@ function GroupEditModal({
               onChange={(v) => setForm({ ...form, productIds: (v as string[]).map(String) })}
             />
           </label>
+        )}
+        {isTopUp && (
+          <div style={{ display: 'grid', gap: 4 }}>
+            <span>{t('适用范围')}</span>
+            <RadioGroup value={form.scopeType} onChange={(e) => setForm({ ...form, scopeType: Number(e.target.value) })}>
+              <Space>
+                <Radio value={0}>{t('全部商品')}</Radio>
+                <Radio value={1}>{t('指定商品')}</Radio>
+                <Radio value={2}>{t('指定品类')}</Radio>
+              </Space>
+            </RadioGroup>
+            <span style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+              {t('限定后结算时仅范围内商品金额可抵扣；范围对已发出的卡同样生效（卡组级）')}
+            </span>
+            {form.scopeType === 1 && (
+              <Select
+                style={{ width: '100%' }}
+                multiple
+                filter
+                placeholder={t('请选择适用商品')}
+                optionList={productOptions}
+                value={form.scopeProductIds}
+                onChange={(v) => setForm({ ...form, scopeProductIds: (v as string[]).map(String) })}
+              />
+            )}
+            {form.scopeType === 2 && (
+              <Select
+                style={{ width: '100%' }}
+                multiple
+                filter
+                placeholder={t('请选择适用品类（含全部子类目）')}
+                optionList={categoryOptions}
+                value={form.scopeCategoryIds}
+                onChange={(v) => setForm({ ...form, scopeCategoryIds: (v as string[]).map(String) })}
+              />
+            )}
+          </div>
         )}
         <label style={{ display: 'grid', gap: 4 }}>
           <span>{t('备注')}</span>
@@ -1060,6 +1162,12 @@ export default function GiftCards() {
       ),
     },
     { title: t('备注'), dataIndex: 'remark', width: 200, render: (v: string) => v || '-' },
+    {
+      title: t('适用范围'),
+      width: 110,
+      render: (_: any, row: GroupRow) =>
+        row.groupType !== 1 ? '-' : row.scopeType === 1 ? t('仅限指定商品') : row.scopeType === 2 ? t('仅限指定品类') : t('全场通用'),
+    },
     { title: t('卡类型'), dataIndex: 'groupTypeName', width: 100, render: (v: string) => <Tag color={'blue' as const}>{v || '-'}</Tag> },
     { title: t('创建时间'), dataIndex: 'addTime', width: 170 },
     {

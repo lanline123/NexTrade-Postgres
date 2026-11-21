@@ -39,7 +39,9 @@ use nextrade_core::models::trade::check::{
     OrderInvoiceVO, PaymentTypeVO, ShippingRule, ShippingTypeVO, StoreShippingTypeQuery,
     CONFIG_USE_OFFLINE, CONFIG_USE_SURPLUS, MSG_CART_EMPTY, PAYMENT_TYPE_ONLINE,
 };
-use nextrade_core::models::marketing::gift_card::mask_middle_half;
+use nextrade_core::models::marketing::gift_card::{
+    mask_middle_half, scope_type_name, scoped_deduct_base, GiftCardScope, SCOPE_TYPE_ALL,
+};
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::trade::check::CheckRepository;
 use nextrade_infrastructure::db::Repositories;
@@ -427,6 +429,9 @@ impl CheckService {
                         face_amount: None,
                         balance: None,
                         expired_time: card.expired_time,
+                        // 兑换卡由绑定商品池天然限定，不走储值卡适用范围
+                        scope_type: SCOPE_TYPE_ALL,
+                        scope_desc: scope_type_name(SCOPE_TYPE_ALL).to_string(),
                     });
                 }
             }
@@ -453,6 +458,8 @@ impl CheckService {
                     face_amount: row.face_amount,
                     balance: row.balance,
                     expired_time: row.expired_time,
+                    scope_type: row.scope_type,
+                    scope_desc: scope_type_name(row.scope_type).to_string(),
                 });
             }
             let (sel_id, sel_sn) = resolve_gift_card_selection(
@@ -469,8 +476,30 @@ impl CheckService {
                         || sel_sn.as_deref() == r.gift_card_sn.as_deref()
                 });
                 if let Some(row) = found {
+                    // 适用范围（我方新增）：限定卡的抵扣基数只计范围内商品金额
+                    // （运费/税/优惠按比例分摊，见 core `scoped_deduct_base`）；
+                    // 范围外订单 gift_card_amount = 0，前端据 scopeType 给出明确提示。
+                    let cap = if row.scope_type == SCOPE_TYPE_ALL {
+                        base
+                    } else {
+                        let scope = self.load_gift_card_scope(row.card_groups_id).await;
+                        let lines: Vec<(i32, i32, Decimal)> = carts
+                            .iter()
+                            .map(|cart| {
+                                let price = pricing.prices[&cart.cart_id]
+                                    + super::cart::cart_extra_price(cart);
+                                let subtotal = price * Decimal::from(cart.quantity.max(1));
+                                let category_id = products
+                                    .get(&cart.product_id)
+                                    .map(|p| p.category_id)
+                                    .unwrap_or(0);
+                                (cart.product_id, category_id, subtotal)
+                            })
+                            .collect();
+                        scoped_deduct_base(&scope, &lines, product_amount, base)
+                    };
                     gift_card_amount =
-                        gift_card_deduct_amount(row.balance.unwrap_or(Decimal::ZERO), base);
+                        gift_card_deduct_amount(row.balance.unwrap_or(Decimal::ZERO), cap);
                     selected_gift_card_id = row.gift_cards_id;
                     selected_gift_card_sn = row.gift_card_sn.clone();
                 }
@@ -925,6 +954,31 @@ impl CheckService {
             pickup_products,
             shop_delivery_products,
         ))
+    }
+
+    /// 载入卡组适用范围（我方新增）：品类范围按 category 全量父子对展开子类目。
+    /// 读取失败/卡组不存在时回落全部商品（不因范围读取失败阻断结算）。
+    async fn load_gift_card_scope(&self, card_groups_id: i32) -> GiftCardScope {
+        let Ok(Some((scope_type, product_ids, category_ids))) = self
+            .repos
+            .marketing
+            .gift_card_groups
+            .find_scope(card_groups_id)
+            .await
+        else {
+            return GiftCardScope::default();
+        };
+        if scope_type == SCOPE_TYPE_ALL {
+            return GiftCardScope::default();
+        }
+        let pairs = self
+            .repos
+            .marketing
+            .gift_card_groups
+            .list_category_pairs()
+            .await
+            .unwrap_or_default();
+        GiftCardScope::from_parts(scope_type, product_ids, category_ids, &pairs)
     }
 
     /// 地址地区 ID（用于运费模板地区匹配；无地址返回空）。

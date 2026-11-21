@@ -61,6 +61,10 @@ export interface MyGiftCardItem {
     expiredTime: number;
     usedTime?: number;
     addTime?: number;
+    /** 适用范围（我方新增，后端下发）：0 全部商品 / 1 指定商品 / 2 指定品类 */
+    scopeType?: number;
+    /** 适用范围文案：全场通用 / 仅限指定商品 / 仅限指定品类 */
+    scopeDesc?: string;
 }
 
 export type MyGiftCardDetail = MyGiftCardItem & {

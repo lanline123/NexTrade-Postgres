@@ -55,6 +55,124 @@ pub const CLAIMED_NONE: i32 = 0;
 pub const CLAIMED_RECEIVABLE: i32 = 1;
 /// 领取状态：2 已领取。
 pub const CLAIMED_RECEIVED: i32 = 2;
+/// 适用范围：0 全部商品（我方新增，论坛 B 类 227890；默认 = 现行全场通用行为）。
+pub const SCOPE_TYPE_ALL: i32 = 0;
+/// 适用范围：1 指定商品（我方新增；范围商品存 `gift_card_group_scope_products`）。
+pub const SCOPE_TYPE_PRODUCTS: i32 = 1;
+/// 适用范围：2 指定品类（我方新增；范围品类存 `gift_card_group_scope_categories`，
+/// 结算时按 category 父子树展开含全部子类目）。
+pub const SCOPE_TYPE_CATEGORIES: i32 = 2;
+
+/// 适用范围文案（卡详情/我的卡/结算选卡三端共用同一口径）。
+pub fn scope_type_name(scope_type: i32) -> &'static str {
+    match scope_type {
+        SCOPE_TYPE_PRODUCTS => "仅限指定商品",
+        SCOPE_TYPE_CATEGORIES => "仅限指定品类",
+        _ => "全场通用",
+    }
+}
+
+/// 按 category 父子树展开品类集合：勾选品类 + 其全部后代品类。
+/// `pairs` = 全量 (category_id, parent_id)；防环（已访问集合兜底）。
+pub fn expand_category_ids(selected: &[i32], pairs: &[(i32, i32)]) -> Vec<i32> {
+    use std::collections::HashSet;
+    let mut result: HashSet<i32> = selected.iter().copied().collect();
+    let mut frontier: Vec<i32> = selected.to_vec();
+    while let Some(current) = frontier.pop() {
+        for (id, parent) in pairs {
+            if *parent == current && result.insert(*id) {
+                frontier.push(*id);
+            }
+        }
+    }
+    result.into_iter().collect()
+}
+
+/// 礼品卡适用范围（卡组级，动态生效）：已发出的卡跟随卡组当前范围，
+/// 与面额/有效期/兑换字段同为卡组级口径，不做发卡时快照。
+#[derive(Debug, Clone, PartialEq)]
+pub struct GiftCardScope {
+    pub scope_type: i32,
+    /// scope_type=1 时的适用商品 id 集合。
+    pub product_ids: Vec<i32>,
+    /// scope_type=2 时的适用品类 id 集合（已展开含子类目）。
+    pub category_ids: Vec<i32>,
+}
+
+impl Default for GiftCardScope {
+    fn default() -> Self {
+        Self {
+            scope_type: SCOPE_TYPE_ALL,
+            product_ids: Vec::new(),
+            category_ids: Vec::new(),
+        }
+    }
+}
+
+impl GiftCardScope {
+    /// 由卡组存储的原始范围组装：品类在此按全量父子对展开。
+    pub fn from_parts(
+        scope_type: i32,
+        product_ids: Vec<i32>,
+        raw_category_ids: Vec<i32>,
+        category_pairs: &[(i32, i32)],
+    ) -> Self {
+        match scope_type {
+            SCOPE_TYPE_PRODUCTS => Self {
+                scope_type,
+                product_ids,
+                category_ids: Vec::new(),
+            },
+            SCOPE_TYPE_CATEGORIES => Self {
+                scope_type,
+                product_ids: Vec::new(),
+                category_ids: expand_category_ids(&raw_category_ids, category_pairs),
+            },
+            _ => Self::default(),
+        }
+    }
+
+    /// 某订单行（商品 id + 其品类 id）是否在适用范围内。
+    pub fn covers(&self, product_id: i32, category_id: i32) -> bool {
+        match self.scope_type {
+            SCOPE_TYPE_PRODUCTS => self.product_ids.contains(&product_id),
+            SCOPE_TYPE_CATEGORIES => self.category_ids.contains(&category_id),
+            _ => true,
+        }
+    }
+}
+
+/// 范围限定后的抵扣基数：`base × 范围内行金额合计 / 商品总金额`，2 位小数
+/// （MidpointAwayFromZero，与拆单 `allocated_amount` 同舍入口径），钳制到 [0, base]。
+/// 运费/税费/优惠按比例随范围内商品分摊计入基数（与拆单按金额比例分摊同口径）；
+/// scope=全部商品时直接返回 base（存量行为逐分不变）。
+/// `lines` = (product_id, category_id, 行小计)；`product_amount` = 全部行小计合计。
+pub fn scoped_deduct_base(
+    scope: &GiftCardScope,
+    lines: &[(i32, i32, Decimal)],
+    product_amount: Decimal,
+    base: Decimal,
+) -> Decimal {
+    use rust_decimal::RoundingStrategy;
+    if scope.scope_type == SCOPE_TYPE_ALL {
+        return base;
+    }
+    if product_amount <= Decimal::ZERO || base <= Decimal::ZERO {
+        return Decimal::ZERO;
+    }
+    let eligible: Decimal = lines
+        .iter()
+        .filter(|(pid, cid, _)| scope.covers(*pid, *cid))
+        .map(|(_, _, amount)| *amount)
+        .sum();
+    if eligible <= Decimal::ZERO {
+        return Decimal::ZERO;
+    }
+    let scaled = (base * eligible / product_amount)
+        .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
+    scaled.clamp(Decimal::ZERO, base)
+}
+
 /// 转赠来源：1 H5。
 pub const TRANSFER_FROM_H5: i32 = 1;
 /// 转赠来源：2 PC。
@@ -408,6 +526,10 @@ pub struct GiftCardsVO {
     pub expired_time: Option<i32>,
     pub gift_card_products: Option<Vec<GiftCardProductVO>>,
     pub exchange_product_to_cart: Option<ExchangeProductToCartVO>,
+    /// 适用范围（我方新增）：0 全部商品 / 1 指定商品 / 2 指定品类（卡组级动态生效）。
+    pub scope_type: Option<i32>,
+    /// 适用范围文案（见 `scope_type_name`）。
+    pub scope_desc: Option<String>,
 }
 
 /// 兑换详情（Java `GiftCardDetailVO`）。
@@ -579,5 +701,76 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(q.order_clause(), " ORDER BY gift_cards_id DESC");
+    }
+
+    #[test]
+    fn scope_names_cover_three_tiers() {
+        assert_eq!(scope_type_name(SCOPE_TYPE_ALL), "全场通用");
+        assert_eq!(scope_type_name(SCOPE_TYPE_PRODUCTS), "仅限指定商品");
+        assert_eq!(scope_type_name(SCOPE_TYPE_CATEGORIES), "仅限指定品类");
+        assert_eq!(scope_type_name(99), "全场通用");
+    }
+
+    #[test]
+    fn expand_category_ids_includes_all_descendants() {
+        // 树：1 → 2 → 3；1 → 4；5 独立
+        let pairs = vec![(2, 1), (3, 2), (4, 1), (5, 0)];
+        let mut expanded = expand_category_ids(&[1], &pairs);
+        expanded.sort_unstable();
+        assert_eq!(expanded, vec![1, 2, 3, 4]);
+        // 叶子自身
+        assert_eq!(expand_category_ids(&[3], &pairs), vec![3]);
+        // 环数据不死循环
+        let cyclic = vec![(1, 2), (2, 1)];
+        let mut out = expand_category_ids(&[1], &cyclic);
+        out.sort_unstable();
+        assert_eq!(out, vec![1, 2]);
+    }
+
+    #[test]
+    fn scope_covers_by_products_and_categories() {
+        let by_product = GiftCardScope::from_parts(SCOPE_TYPE_PRODUCTS, vec![7, 8], vec![], &[]);
+        assert!(by_product.covers(7, 100));
+        assert!(!by_product.covers(9, 100));
+        let pairs = vec![(11, 10), (12, 11)];
+        let by_category = GiftCardScope::from_parts(SCOPE_TYPE_CATEGORIES, vec![], vec![10], &pairs);
+        assert!(by_category.covers(1, 10));
+        assert!(by_category.covers(1, 12));
+        assert!(!by_category.covers(1, 13));
+        assert!(GiftCardScope::default().covers(1, 999));
+    }
+
+    #[test]
+    fn scoped_base_scales_by_eligible_share() {
+        let d = |s: &str| s.parse::<Decimal>().unwrap();
+        let scope = GiftCardScope::from_parts(SCOPE_TYPE_PRODUCTS, vec![1], vec![], &[]);
+        let lines = vec![(1, 10, d("60.00")), (2, 20, d("40.00"))];
+        // 商品 100，运费 10 → base 110；范围内占 60% → 66.00
+        assert_eq!(
+            scoped_deduct_base(&scope, &lines, d("100.00"), d("110.00")),
+            d("66.00")
+        );
+        // 全部在范围内 → base 原样
+        let lines_all = vec![(1, 10, d("100.00"))];
+        assert_eq!(
+            scoped_deduct_base(&scope, &lines_all, d("100.00"), d("110.00")),
+            d("110.00")
+        );
+        // 无适用商品 → 0
+        let lines_none = vec![(2, 20, d("100.00"))];
+        assert_eq!(
+            scoped_deduct_base(&scope, &lines_none, d("100.00"), d("110.00")),
+            d("0.00")
+        );
+        // 全部商品范围 → base 逐分不变（存量口径）
+        assert_eq!(
+            scoped_deduct_base(&GiftCardScope::default(), &lines_none, d("100.00"), d("110.00")),
+            d("110.00")
+        );
+        // 商品金额为 0（全赠品行）→ 0，不除零
+        assert_eq!(
+            scoped_deduct_base(&scope, &lines, d("0.00"), d("10.00")),
+            d("0.00")
+        );
     }
 }

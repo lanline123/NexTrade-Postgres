@@ -257,6 +257,8 @@ export interface Total {
     discountProductPromotionAmount: number;
     discountTimeDiscountAmount: number;
     pointsAmount: number;
+    /** 礼品卡抵扣额（后端 check total 下发；适用范围限定后可能为 0） */
+    giftCardAmount?: number;
     shippingFee: number;
     serviceFee?: number;
     storeShippingFee: number[];

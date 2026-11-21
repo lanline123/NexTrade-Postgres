@@ -407,6 +407,10 @@ pub struct MyGiftCardVO {
     pub expired_time: i32,
     pub used_time: Option<i32>,
     pub add_time: Option<i32>,
+    /// 适用范围（我方新增，仅储值卡）：0 全部商品 / 1 指定商品 / 2 指定品类
+    pub scope_type: i32,
+    /// 适用范围文案（全场通用 / 仅限指定商品 / 仅限指定品类）
+    pub scope_desc: String,
 }
 
 /// 消费流水 VO。

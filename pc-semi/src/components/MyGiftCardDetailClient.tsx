@@ -28,6 +28,10 @@ interface MyGiftCard {
   expiredTime: number;
   usedTime?: number;
   addTime?: number;
+  /** 适用范围（我方新增，后端下发）：0 全部商品 / 1 指定商品 / 2 指定品类 */
+  scopeType?: number;
+  /** 适用范围文案：全场通用 / 仅限指定商品 / 仅限指定品类 */
+  scopeDesc?: string;
 }
 
 type DetailData = MyGiftCard & {
@@ -120,6 +124,11 @@ function DetailInner() {
                 {t('来源')}：{card.sourceText} · {card.expiredTime ? `${t('有效期至')} ${fmtTime(card.expiredTime)}` : t('永久有效')}
                 {card.usedTime ? ` · ${t('使用时间')} ${fmtTime(card.usedTime)}` : ''}
               </div>
+              {card.groupType === 1 && card.scopeDesc ? (
+                <div style={{ color: '#667085', fontSize: 13 }}>
+                  {t('适用范围')}：{t(card.scopeDesc)}
+                </div>
+              ) : null}
             </div>
           </div>
           {card.isValid ? (

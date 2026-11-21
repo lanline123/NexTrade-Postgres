@@ -25,8 +25,9 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::models::marketing::gift_card::{
-    format_unix_time, GiftCardProductVO, GROUP_TYPE_EXCHANGE, GROUP_TYPE_TOP_UP, VALIDITY_FIXED,
-    VALIDITY_NUMBER, VALIDITY_PERMANENT,
+    format_unix_time, GiftCardProductVO, GROUP_TYPE_EXCHANGE, GROUP_TYPE_TOP_UP,
+    SCOPE_TYPE_ALL, SCOPE_TYPE_CATEGORIES, SCOPE_TYPE_PRODUCTS, VALIDITY_FIXED, VALIDITY_NUMBER,
+    VALIDITY_PERMANENT,
 };
 
 /// `GiftCardGroupsPageQuery`/排序用的主键列。
@@ -58,6 +59,47 @@ pub const MSG_EXCHANGE_MODE_INVALID: &str = "兑换模式不正确";
 pub const MSG_SELECT_COUNT_REQUIRED: &str = "任选模式必须填写任选件数";
 /// 任选件数不能超过绑定商品数。
 pub const MSG_SELECT_COUNT_EXCEEDS_PRODUCTS: &str = "任选件数不能超过绑定商品数";
+
+/// 适用范围类型不正确（我方新增，论坛 B 类 227890）。
+pub const MSG_SCOPE_TYPE_INVALID: &str = "适用范围类型不正确";
+/// 指定商品范围请至少选择一个商品（我方新增）。
+pub const MSG_SCOPE_PRODUCTS_REQUIRED: &str = "指定商品范围请至少选择一个商品";
+/// 指定品类范围请至少选择一个品类（我方新增）。
+pub const MSG_SCOPE_CATEGORIES_REQUIRED: &str = "指定品类范围请至少选择一个品类";
+
+/// 适用范围校验（我方新增）：仅储值卡使用（兑换卡由绑定商品池天然限定，忽略范围字段）；
+/// 指定商品/品类时对应选择集合不能为空。
+///
+/// # Errors
+/// 范围类型非法 / 指定商品未选商品 / 指定品类未选品类。
+pub fn validate_scope_fields(
+    group_type: i32,
+    scope_type: Option<i32>,
+    scope_product_count: usize,
+    scope_category_count: usize,
+) -> Result<(), String> {
+    if group_type != GROUP_TYPE_TOP_UP {
+        return Ok(());
+    }
+    match scope_type.unwrap_or(SCOPE_TYPE_ALL) {
+        SCOPE_TYPE_ALL => Ok(()),
+        SCOPE_TYPE_PRODUCTS => {
+            if scope_product_count == 0 {
+                Err(MSG_SCOPE_PRODUCTS_REQUIRED.to_string())
+            } else {
+                Ok(())
+            }
+        }
+        SCOPE_TYPE_CATEGORIES => {
+            if scope_category_count == 0 {
+                Err(MSG_SCOPE_CATEGORIES_REQUIRED.to_string())
+            } else {
+                Ok(())
+            }
+        }
+        _ => Err(MSG_SCOPE_TYPE_INVALID.to_string()),
+    }
+}
 
 /// 兑换模式：1 固定套餐。
 pub const EXCHANGE_MODE_FIXED: i32 = 1;
@@ -239,6 +281,12 @@ pub struct GiftCardGroupsCreateParam {
     pub exchange_mode: Option<i32>,
     /// 任选件数（任选模式必填）
     pub select_count: Option<i32>,
+    /// 适用范围（我方新增，仅储值卡）：0 全部商品 / 1 指定商品 / 2 指定品类
+    pub scope_type: Option<i32>,
+    /// 适用商品 id 集合（scope_type=1 时必填）
+    pub scope_product_ids: Option<Vec<i32>>,
+    /// 适用品类 id 集合（scope_type=2 时必填，含子类目按品类树展开）
+    pub scope_category_ids: Option<Vec<i32>>,
 }
 
 /// 更新参数（Java `GiftCardGroupsUpdateParam`；updateStatus / productsUpdate 复用）。
@@ -260,6 +308,13 @@ pub struct GiftCardGroupsUpdateParam {
     pub exchange_mode: Option<i32>,
     /// 任选件数（任选模式必填）
     pub select_count: Option<i32>,
+    /// 适用范围（我方新增，仅储值卡）：0 全部商品 / 1 指定商品 / 2 指定品类；
+    /// 仅在本次入参带了 scope_type 时才更新范围（部分更新不带时保持原范围）
+    pub scope_type: Option<i32>,
+    /// 适用商品 id 集合（scope_type=1 时必填）
+    pub scope_product_ids: Option<Vec<i32>>,
+    /// 适用品类 id 集合（scope_type=2 时必填）
+    pub scope_category_ids: Option<Vec<i32>>,
 }
 
 /// 卡组 ID 参数（Java `GiftCardGroupIdParam`）。
@@ -298,6 +353,12 @@ pub struct GiftCardGroupsVO {
     pub exchange_mode: Option<i32>,
     /// 任选件数
     pub select_count: Option<i32>,
+    /// 适用范围（我方新增，仅储值卡有意义）：0 全部商品 / 1 指定商品 / 2 指定品类
+    pub scope_type: Option<i32>,
+    /// 适用商品 id 集合（scope_type=1）
+    pub scope_product_ids: Vec<i32>,
+    /// 适用品类 id 集合（scope_type=2，运营勾选的原始品类，未展开）
+    pub scope_category_ids: Vec<i32>,
 }
 
 /// `build` 后的卡组实体字段（服务层用，避免重复反序列化）。
@@ -348,6 +409,12 @@ impl GiftCardGroupsCreateParam {
             self.exchange_mode,
             self.select_count,
             self.gift_card_products.as_ref().map(Vec::len).unwrap_or(0),
+        )?;
+        validate_scope_fields(
+            group_type,
+            self.scope_type,
+            self.scope_product_ids.as_ref().map(Vec::len).unwrap_or(0),
+            self.scope_category_ids.as_ref().map(Vec::len).unwrap_or(0),
         )
     }
 }
@@ -383,6 +450,15 @@ impl GiftCardGroupsUpdateParam {
                 self.exchange_mode,
                 self.select_count,
                 self.gift_card_products.as_ref().map(Vec::len).unwrap_or(0),
+            )?;
+        }
+        // 适用范围同理：仅在本次入参带了 scope_type 时校验并更新
+        if self.scope_type.is_some() {
+            validate_scope_fields(
+                db_group_type,
+                self.scope_type,
+                self.scope_product_ids.as_ref().map(Vec::len).unwrap_or(0),
+                self.scope_category_ids.as_ref().map(Vec::len).unwrap_or(0),
             )?;
         }
         Ok(())
@@ -553,5 +629,37 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(q.order_clause(), " ORDER BY card_groups_id DESC");
+    }
+
+    #[test]
+    fn scope_validation_rules() {
+        // 储值卡：默认全部商品通过；指定商品/品类必须有选择；非法类型报错
+        assert!(validate_scope_fields(GROUP_TYPE_TOP_UP, None, 0, 0).is_ok());
+        assert!(validate_scope_fields(GROUP_TYPE_TOP_UP, Some(0), 0, 0).is_ok());
+        assert_eq!(
+            validate_scope_fields(GROUP_TYPE_TOP_UP, Some(1), 0, 0).unwrap_err(),
+            MSG_SCOPE_PRODUCTS_REQUIRED
+        );
+        assert!(validate_scope_fields(GROUP_TYPE_TOP_UP, Some(1), 2, 0).is_ok());
+        assert_eq!(
+            validate_scope_fields(GROUP_TYPE_TOP_UP, Some(2), 0, 0).unwrap_err(),
+            MSG_SCOPE_CATEGORIES_REQUIRED
+        );
+        assert!(validate_scope_fields(GROUP_TYPE_TOP_UP, Some(2), 0, 3).is_ok());
+        assert_eq!(
+            validate_scope_fields(GROUP_TYPE_TOP_UP, Some(9), 0, 0).unwrap_err(),
+            MSG_SCOPE_TYPE_INVALID
+        );
+        // 兑换卡忽略范围字段
+        assert!(validate_scope_fields(GROUP_TYPE_EXCHANGE, Some(9), 0, 0).is_ok());
+        // 创建参数集成：储值卡指定商品未选商品 → 报错
+        let p = GiftCardGroupsCreateParam {
+            group_type: Some(GROUP_TYPE_TOP_UP),
+            validity_type: Some(VALIDITY_PERMANENT),
+            face_amount: Some(Decimal::from(100)),
+            scope_type: Some(1),
+            ..Default::default()
+        };
+        assert_eq!(p.validate().unwrap_err(), MSG_SCOPE_PRODUCTS_REQUIRED);
     }
 }

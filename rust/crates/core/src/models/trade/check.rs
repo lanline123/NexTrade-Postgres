@@ -334,6 +334,10 @@ pub struct AvailableGiftCardVO {
     /// 卡内余额（储值卡可用额）
     pub balance: Option<Decimal>,
     pub expired_time: i32,
+    /// 适用范围（我方新增）：0 全部商品 / 1 指定商品 / 2 指定品类
+    pub scope_type: i32,
+    /// 适用范围文案（全场通用 / 仅限指定商品 / 仅限指定品类）
+    pub scope_desc: String,
 }
 
 /// 按店铺分组的购物车行（Java `CartByStoreVO` 常用字段）。
