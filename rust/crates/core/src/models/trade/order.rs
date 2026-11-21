@@ -256,4 +256,14 @@ pub struct OrderVO {
     pub offline_payment_claim_reject_reason: Option<String>,
     /// 最新一笔线下认款单全量；无认款为 null
     pub offline_payment_claim: Option<super::offline_claim::OfflinePaymentClaimVO>,
+    /// 买家取消直退进度（我方新增）：该订单最新一笔买家取消退款
+    /// 申请的状态（0 待处理 / 1 处理中 / 2 已处理 / 3 已拒绝 /
+    /// 4 已退回）；无申请时为 None。由服务层在买家列表/详情
+    /// 后置附加（`to_vo` 本体恒 None）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paid_cancel_refund_status: Option<i32>,
+    /// 买家取消直退进度展示名（待审核 / 退款中 / 已退款 /
+    /// 已拒绝 / 已退回）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paid_cancel_refund_status_name: Option<String>,
 }

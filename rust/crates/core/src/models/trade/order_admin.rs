@@ -965,6 +965,13 @@ pub struct OrderVO {
     /// 原版前端发货单页已预留同名字段与「售后中」标记，我方后端此前未下发导致标记永不亮；
     /// 由服务层在 list/detail 组装后按售后表实时回填，`build_vo` 默认 0。
     pub after_sales_ing: i32,
+    /// 买家取消直退状态（我方新增）：该订单最新一笔买家取消退款
+    /// 申请的状态（0 待处理 / 1 处理中 / 2 已处理 / 3 已拒绝 /
+    /// 4 已退回）；无申请为 null。商家/平台订单列表据此展示
+    /// 「买家取消退款中 / 买家取消已退款」标记。服务层在
+    /// list/detail 组装后按退款申请表回填，`build_vo` 默认 null。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paid_cancel_refund_status: Option<i32>,
     /// 拼团状态；1-待成团 2-拼团成功 3-拼团失败 4-已取消（仅拼团订单）
     pub join_status: Option<i32>,
     /// 拼团状态描述

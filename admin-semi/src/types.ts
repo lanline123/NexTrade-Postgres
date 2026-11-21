@@ -82,6 +82,8 @@ export interface OrderRow {
   addTime: string;
   /** 是否有进行中售后（后端 afterSalesIng）：1 时列表/详情亮「售后中」标记防误发。 */
   afterSalesIng?: number;
+  /** 买家取消直退状态（后端 paidCancelRefundStatus，我方新增）：0 待处理 / 1 处理中 / 2 已处理 / 3 已拒绝 / 4 已退回；无申请时缺省。 */
+  paidCancelRefundStatus?: number;
   /** 配送方式：3 为同城配送，列表行操作文案用「完成配送」而非「确认收货」。 */
   shippingTypeId?: number;
   /** 自提订单不展示确认收货入口。 */

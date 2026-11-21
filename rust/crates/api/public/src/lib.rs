@@ -123,6 +123,7 @@ pub fn router(state: PublicState) -> Router {
         .route("/user/order/list", get(order_list))
         .route("/user/order/detail", get(order_detail))
         .route("/user/order/cancelOrder", post(order_cancel))
+        .route("/user/order/cancelPaidRefund", post(order_cancel_paid_refund))
         // —— 会员资料（UserController @ /api/user/user）——
         .route("/user/user/detail", get(profile))
         // —— 各业务域需登录接口（routes/ 子模块，按域并行开发）——
@@ -248,6 +249,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
         ("GET", "/api/user/order/list", "UserOrderController.list"),
         ("GET", "/api/user/order/detail", "UserOrderController.detail"),
         ("POST", "/api/user/order/cancelOrder", "UserOrderController.cancelOrder"),
+        ("POST", "/api/user/order/cancelPaidRefund", "UserOrderController.cancelPaidRefund"),
         ("GET", "/api/user/user/detail", "UserController.detail"),
         ("GET", "/api/product/product/list", "ProductController.list"),
         ("POST", "/api/user/login/signin", "ClientLoginFilter.attemptAuthentication"),
@@ -782,6 +784,30 @@ async fn order_cancel(
         )
         .await?;
     ok("订单已取消")
+}
+
+/// `POST /user/order/cancelPaidRefund`：买家取消已付未发货订单并发起
+/// 直退（我方新增，论坛帖 347748，用户 2026-11-21 拍板口径）。
+/// 全部判定（设置主开关 / 状态门 / 金额 / 矩阵分流）在服务层
+/// `RefundApplyService::create_buyer_cancel`；金额不经请求参数
+/// （服务端按 paylog 实付推导），此处只透传登录态与取消原因。
+async fn order_cancel_paid_refund(
+    State(state): State<PublicState>,
+    Extension(auth): Extension<AuthUser>,
+    dto: Result<Json<nextrade_core::models::payment::refund_apply::PaidCancelRefundCreateDTO>, axum::extract::rejection::JsonRejection>,
+) -> ApiResult<&'static str> {
+    let Json(dto) = dto.map_err(|re| {
+        AppError(nextrade_core::Error::biz_msg(format!(
+            "请求参数解析失败: {}",
+            re.body_text()
+        )))
+    })?;
+    state
+        .payment
+        .refund_apply
+        .create_buyer_cancel(dto.order_id.unwrap_or(0), auth.id, dto.reason.as_deref())
+        .await?;
+    ok("已提交取消退款申请")
 }
 
 /// `/ws`：WebSocket 握手（token 走 query，对齐 Java `WebSocketServerHandler`）。

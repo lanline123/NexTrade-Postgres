@@ -1440,6 +1440,10 @@ export const navGroups: NavGroup[] = [
             "label": "价格显示"
           },
           {
+            "key": "paidCancelRefundSettings",
+            "label": "买家取消退款"
+          },
+          {
             "key": "buyStyleSettings",
             "label": "购买按钮样式"
           },
@@ -1934,6 +1938,7 @@ export const pageTitles: Record<string, string> = {
   "baseReceiptManage": "小票打印",
   "personalizedManage": "个性化设置",
   "priceDisplaySettings": "价格显示",
+  "paidCancelRefundSettings": "买家取消退款",
   "buyStyleSettings": "购买按钮样式",
   "accountSecuritySettings": "账号安全",
   "fontSettings": "网站字体",

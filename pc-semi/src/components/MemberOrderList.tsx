@@ -29,6 +29,7 @@ import { Button, Empty, Input, Modal, Pagination, Skeleton, Tabs, Tag, Toast } f
 import { IconSearch } from '@douyinfe/semi-icons';
 import { apiGet, apiPost } from '@/lib/client-api';
 import MemberCancelOrderDialog from '@/components/MemberCancelOrderDialog';
+import MemberPaidCancelRefundDialog from '@/components/MemberPaidCancelRefundDialog';
 import MemberLogisticsDialog from '@/components/MemberLogisticsDialog';
 import MemberOfflineClaimDialog from '@/components/MemberOfflineClaimDialog';
 
@@ -75,6 +76,9 @@ interface OrderRow {
   cycleCardInfo?: { statusName?: string } | null;
   payTypeId?: number | string | null;
   offlinePaymentClaimStatus?: number | string | null;
+  /** 买家取消直退进度（我方新增，后端 VO 下发） */
+  paidCancelRefundStatus?: number | null;
+  paidCancelRefundStatusName?: string | null;
   /** 快递单号（物流弹窗头部展示） */
   trackingNo?: string;
   /** 快递公司名（物流弹窗头部展示） */
@@ -185,6 +189,9 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
   // 取消订单原因弹窗（MemberCancelOrderDialog 对照）
   const [cancelVisible, setCancelVisible] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState(0);
+  // 取消并退款弹窗（我方新增：已付未发货买家取消直退）
+  const [paidCancelVisible, setPaidCancelVisible] = useState(false);
+  const [paidCancelOrderId, setPaidCancelOrderId] = useState(0);
   // 查看物流弹窗（MemberLogisticsDialog 对照）
   const [trackVisible, setTrackVisible] = useState(false);
   const [trackOrderId, setTrackOrderId] = useState(0);
@@ -307,6 +314,11 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
   const onCancelOrder = (orderId: number) => {
     setCancelOrderId(orderId);
     setCancelVisible(true);
+  };
+
+  const onCancelPaidRefund = (orderId: number) => {
+    setPaidCancelOrderId(orderId);
+    setPaidCancelVisible(true);
   };
 
   // —— 操作：再次购买（跨境：buyAgain → /order/check，对齐原版 onReBuy）——
@@ -443,7 +455,12 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
                       </Link>
                       {order.addTime ? <span className="mol-card__time">{order.addTime}</span> : null}
                     </div>
-                    <Tag color={statusTagColor(order)}>{order.orderStatusName}</Tag>
+                    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                      {order.paidCancelRefundStatusName ? (
+                        <Tag color="orange">{t('买家取消退款')}：{order.paidCancelRefundStatusName}</Tag>
+                      ) : null}
+                      <Tag color={statusTagColor(order)}>{order.orderStatusName}</Tag>
+                    </span>
                   </div>
 
                   {/* 商品行 */}
@@ -525,6 +542,9 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
                       {actions.cancelOrder ? (
                         <Button theme="light" onClick={() => onCancelOrder(order.orderId)}>{t('取消订单')}</Button>
                       ) : null}
+                      {actions.cancelPaidRefund ? (
+                        <Button theme="light" onClick={() => onCancelPaidRefund(order.orderId)}>{t('取消并退款')}</Button>
+                      ) : null}
                       {actions.delOrder ? (
                         <Button theme="light" type="danger" onClick={() => onDelOrder(order.orderId)}>{t('删除订单')}</Button>
                       ) : null}
@@ -571,6 +591,14 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
         visible={cancelVisible}
         orderId={cancelOrderId}
         onClose={() => setCancelVisible(false)}
+        onSuccess={afterAction}
+      />
+
+      {/* 取消并退款弹窗（我方新增） */}
+      <MemberPaidCancelRefundDialog
+        visible={paidCancelVisible}
+        orderId={paidCancelOrderId}
+        onClose={() => setPaidCancelVisible(false)}
         onSuccess={afterAction}
       />
 

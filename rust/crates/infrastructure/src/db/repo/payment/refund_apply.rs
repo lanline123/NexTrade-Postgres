@@ -14,6 +14,8 @@
 //! - `refund_apply_paylog_refund`：`refund_apply_paylog_refund_id` /
 //!   `refund_apply_id` / `paylog_refund_id`
 
+use std::collections::HashMap;
+
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 use nextrade_core::entities::{RefundApply, RefundLog};
@@ -69,6 +71,70 @@ impl RefundApplyRepository {
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)
+    }
+
+    /// 按订单 + 发起方查最新一笔申请（买家取消直退 initiator=3 的
+    /// 进度展示与防重复提交用）。
+    pub async fn find_latest_by_order_initiator(
+        &self,
+        order_id: i32,
+        initiator: i32,
+    ) -> Result<Option<RefundApply>> {
+        sqlx::query_as::<_, RefundApply>(
+            "SELECT * FROM refund_apply WHERE order_id = $1 AND initiator = $2 \
+             ORDER BY refund_id DESC LIMIT 1",
+        )
+        .bind(order_id)
+        .bind(initiator)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 批量查多个订单各自最新一笔指定发起方申请（买家订单列表 /
+    /// 管理端订单列表的买家取消标记批量预取，避免 N+1）。
+    pub async fn latest_map_by_orders_initiator(
+        &self,
+        order_ids: &[i32],
+        initiator: i32,
+    ) -> Result<HashMap<i32, RefundApply>> {
+        if order_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let rows = sqlx::query_as::<_, RefundApply>(
+            "SELECT * FROM refund_apply WHERE initiator = $1 \
+             AND order_id = ANY($2) ORDER BY refund_id DESC",
+        )
+        .bind(initiator)
+        .bind(order_ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let mut map: HashMap<i32, RefundApply> = HashMap::new();
+        // 已按 refund_id 倒序：每单首见即最新一笔
+        for r in rows {
+            map.entry(r.order_id).or_insert(r);
+        }
+        Ok(map)
+    }
+
+    /// 订单是否存在进行中的指定发起方申请（待处理/处理中；
+    /// 发货拦截与防重复提交用）。
+    pub async fn exists_active_by_order_initiator(
+        &self,
+        order_id: i32,
+        initiator: i32,
+    ) -> Result<bool> {
+        let row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM refund_apply WHERE order_id = $1 \
+             AND initiator = $2 AND refund_status IN (0, 1)",
+        )
+        .bind(order_id)
+        .bind(initiator)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0 > 0)
     }
 
     /// 按售后单查询申请。

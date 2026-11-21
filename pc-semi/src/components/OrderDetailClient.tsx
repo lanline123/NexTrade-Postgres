@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { Button, Card, Modal, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 import MemberCancelOrderDialog from '@/components/MemberCancelOrderDialog';
+import MemberPaidCancelRefundDialog from '@/components/MemberPaidCancelRefundDialog';
 import DeliveryLinkRows from '@/components/DeliveryLinkRows';
 import DeliveryFileRows, { type DeliveryFileItem } from '@/components/DeliveryFileRows';
 import MemberLogisticsDialog from '@/components/MemberLogisticsDialog';
@@ -122,6 +123,9 @@ interface OrderDetail {
   cycleCardInfo?: { expireTimeStr?: string; statusName?: string };
   giftCardOrder?: { num?: number; giftCardOrderInfo?: GiftCardInfo[] };
   availableActions?: Record<string, boolean>;
+  /** 买家取消直退进度（我方新增，后端 VO 下发） */
+  paidCancelRefundStatus?: number | null;
+  paidCancelRefundStatusName?: string | null;
 }
 
 function money(value: unknown): string {
@@ -160,6 +164,7 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
   const [loading, setLoading] = useState(true);
   const [needLogin, setNeedLogin] = useState(false);
   const [cancelVisible, setCancelVisible] = useState(false);
+  const [paidCancelVisible, setPaidCancelVisible] = useState(false);
   const [shippingVisible, setShippingVisible] = useState(false);
   const [nowTs, setNowTs] = useState(Date.now());
 
@@ -350,6 +355,9 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
               </span>
             </div>
             {detail.orderStatusTip ? <div>{detail.orderStatusTip}</div> : null}
+            {detail.paidCancelRefundStatusName ? (
+              <p>{t('买家取消退款')}：{detail.paidCancelRefundStatusName}</p>
+            ) : null}
             {detail.cancelRemark ? <p>取消原因：{detail.cancelRemark}</p> : null}
             {isGiftCardProduct ? (
               <p className="member-order-detail__tip">{t('为了您的财产安全，请妥善保管卡密信息，切勿将卡号、卡密、二维码截图等任何信息发送他人，谨防上当受骗!')}</p>
@@ -381,6 +389,9 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
           <div className="order-right">
             {actionEnabled(actions, 'cancelOrder') ? (
               <Button type="danger" onClick={() => setCancelVisible(true)}>{t('取消订单')}</Button>
+            ) : null}
+            {actionEnabled(actions, 'cancelPaidRefund') ? (
+              <Button type="danger" onClick={() => setPaidCancelVisible(true)}>{t('取消并退款')}</Button>
             ) : null}
             {actionEnabled(actions, 'offlinePaymentClaimDetail') && !offlineClaimRejected ? (
               <Link href={`/member/order/claiminfo?orderId=${detail.orderId || orderId}`}><Button>{t('认款详情')}</Button></Link>
@@ -668,6 +679,14 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
         visible={cancelVisible}
         orderId={orderId}
         onClose={() => setCancelVisible(false)}
+        onSuccess={load}
+      />
+
+      {/* 取消并退款弹窗（我方新增） */}
+      <MemberPaidCancelRefundDialog
+        visible={paidCancelVisible}
+        orderId={orderId}
+        onClose={() => setPaidCancelVisible(false)}
         onSuccess={load}
       />
 

@@ -120,6 +120,9 @@ export interface OrderListFilterResult {
     offlinePaymentClaimStatusName?: string;
     offlinePaymentClaimRejectReason?: string | null;
     offlinePaymentClaim?: OfflinePaymentClaim | null;
+    /** 买家取消直退进度（我方新增）：0 待审核 / 1 退款中 / 2 已退款 / 3 已拒绝 / 4 已退回 */
+    paidCancelRefundStatus?: number | null;
+    paidCancelRefundStatusName?: string | null;
     items: OrderListItem[];
     autoDeliveryDays: number | null;
     shop: Shop;
@@ -305,6 +308,9 @@ export interface OrderInfoResponseItem {
     offlinePaymentClaimStatusName?: string;
     offlinePaymentClaimRejectReason?: string | null;
     offlinePaymentClaim?: OfflinePaymentClaim | null;
+    /** 买家取消直退进度（我方新增）：0 待审核 / 1 退款中 / 2 已退款 / 3 已拒绝 / 4 已退回 */
+    paidCancelRefundStatus?: number | null;
+    paidCancelRefundStatusName?: string | null;
     stepStatus: OrderInfoStepStatus;
     items: OrderInfoItemElement[];
     orderType: number;

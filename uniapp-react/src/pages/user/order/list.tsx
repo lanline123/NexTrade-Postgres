@@ -16,7 +16,7 @@ import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import CancelOrderReasonPopup from "@/components/order/CancelOrderReasonPopup";
 import type { CancelOrderReasonPopupRef } from "@/components/order/CancelOrderReasonPopup";
 import MainHeader from "@/components/mainHeader";
-import { delOrder, getOrderList, orderBuyAgain, confirmReceipt } from "@/api/user/order";
+import { delOrder, getOrderList, orderBuyAgain, confirmReceipt, cancelPaidRefund } from "@/api/user/order";
 import { getJoiningActivityDetail } from "@/api/groupon/groupon";
 import type { OrderListFilterParams, OrderListFilterResult } from "@/types/user/order";
 import { useConfigStore } from "@/store/config";
@@ -176,6 +176,25 @@ export default function OrderList() {
     const refreshAfterCancel = () => {
         filterParams.page = 1;
         void getList();
+    };
+
+    // 取消并退款（我方新增）：已付未发货自助取消，二次确认后提交，
+    // 退款按平台设置走免审/财务审核/直达，进度在本页状态区展示。
+    const handleCancelPaidRefund = (item: any) => {
+        Taro.showModal({
+            title: t("取消并退款"),
+            content: t("确认取消该订单吗？订单尚未发货，取消后款项将原路退回。"),
+            success: async (res) => {
+                if (!res.confirm) return;
+                try {
+                    await cancelPaidRefund({ orderId: item.orderId });
+                    Taro.showToast({ title: t("已提交取消退款"), icon: "success" });
+                    refreshAfterCancel();
+                } catch (e: any) {
+                    Taro.showToast({ title: e?.message || t("提交失败"), icon: "none" });
+                }
+            }
+        });
     };
 
     const handleDelOrder = async (id: number) => {
@@ -439,6 +458,11 @@ export default function OrderList() {
                         <View className="order-list-item" key={item.orderId}>
                             <View className="order-list-item-top">
                                 <View className="status-name">{item.orderStatusName}</View>
+                                {item.paidCancelRefundStatus != null && item.paidCancelRefundStatusName ? (
+                                    <View className="cancel-reason">
+                                        {t("买家取消退款")}：{item.paidCancelRefundStatusName}
+                                    </View>
+                                ) : null}
                                 {item.cancelRemark?.trim() ? (
                                     <View className="cancel-reason">
                                         {t("取消原因")}：{item.cancelRemark}
@@ -567,6 +591,15 @@ export default function OrderList() {
                                             onClick={() => handleCancelOrder(item.orderId)}
                                         >
                                             {t("取消订单")}
+                                        </TigButton2>
+                                    ) : null}
+                                    {item.availableActions?.cancelPaidRefund ? (
+                                        <TigButton2
+                                            className="btn-margin"
+                                            style={{ borderColor: "#505259" }}
+                                            onClick={() => handleCancelPaidRefund(item)}
+                                        >
+                                            {t("取消并退款")}
                                         </TigButton2>
                                     ) : null}
                                     {item.availableActions?.delOrder ? (

@@ -6,6 +6,7 @@ use std::sync::Arc;
 use rust_decimal::Decimal;
 use nextrade_common::utils;
 use nextrade_core::entities::{OfflinePaymentClaim, Order, OrderItem};
+use nextrade_core::models::payment::refund_apply::RefundInitiator;
 use nextrade_core::models::trade::offline_claim::{
     status_name, stage_name, OfflinePaymentClaimAuditDTO, OfflinePaymentClaimSubmitDTO,
     OfflinePaymentClaimVO,
@@ -1531,6 +1532,25 @@ impl OrderService {
             .latest_for_order(order_id)
             .await?;
         let mut vo = to_vo(&order, &items, claim.as_ref());
+        // 买家取消直退（我方新增）：附加入口动作与退款进度
+        let paid_cancel_enabled = self.paid_cancel_enabled().await;
+        let latest_cancel = self
+            .repos
+            .payment
+            .refund_apply
+            .find_latest_by_order_initiator(
+                order_id,
+                RefundInitiator::BuyerCancel as i32,
+            )
+            .await
+            .ok()
+            .flatten();
+        attach_paid_cancel_refund(
+            &mut vo,
+            &order,
+            paid_cancel_enabled,
+            latest_cancel.as_ref(),
+        );
         // 卡密订单：补齐每个商品项已分配的电子卡券（原版 ECardItemVO）
         let mut has_card = false;
         for (idx, item) in items.iter().enumerate() {
@@ -1700,12 +1720,45 @@ impl OrderService {
             .offline_payment_claim
             .latest_for_orders(&order_ids)
             .await?;
+        // 买家取消直退（我方新增）：批量预取各单最新一笔买家取消申请
+        let paid_cancel_enabled = self.paid_cancel_enabled().await;
+        let buyer_cancel_map = self
+            .repos
+            .payment
+            .refund_apply
+            .latest_map_by_orders_initiator(
+                &order_ids,
+                RefundInitiator::BuyerCancel as i32,
+            )
+            .await
+            .unwrap_or_default();
         let mut list = Vec::with_capacity(orders.len());
         for o in &orders {
             let items = self.repos.trade.order.find_items(o.order_id).await?;
-            list.push(to_vo(o, &items, claims.get(&o.order_id)));
+            let mut vo = to_vo(o, &items, claims.get(&o.order_id));
+            attach_paid_cancel_refund(
+                &mut vo,
+                o,
+                paid_cancel_enabled,
+                buyer_cancel_map.get(&o.order_id),
+            );
+            list.push(vo);
         }
         Ok(PageResult::new(total, list, page))
+    }
+
+    /// 买家取消直退主开关（生效值；读取失败按关处理，零行为变化）。
+    async fn paid_cancel_enabled(&self) -> bool {
+        let raw = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code(crate::system::paid_cancel_refund::PAID_CANCEL_REFUND_CODE)
+            .await
+            .ok()
+            .flatten();
+        crate::system::paid_cancel_refund::effective_paid_cancel_refund(raw.as_deref())
+            .enabled
     }
 
     /// 取消订单（仅待付款可取消，取消后回滚库存）。
@@ -2652,12 +2705,102 @@ fn to_vo(o: &Order, items: &[OrderItem], claim: Option<&OfflinePaymentClaim>) ->
                 .then(|| c.reject_reason.clone())
         }),
         offline_payment_claim: claim.map(to_offline_claim_vo),
+        // 买家取消直退进度由 list/detail 后置附加（需查退款申请表）
+        paid_cancel_refund_status: None,
+        paid_cancel_refund_status_name: None,
+    }
+}
+
+/// 买家取消直退入口可见性（纯函数，供单测）：设置主开关开 +
+/// 订单处于「已支付未发货」+ 无进行中的买家取消申请。
+/// 与服务端 `create_buyer_cancel` 的状态门同口径（拍卖/拼团除外）。
+#[must_use]
+pub(crate) fn paid_cancel_action_visible(
+    settings_enabled: bool,
+    order_status: i32,
+    pay_status: i32,
+    shipping_status: i32,
+    is_valid: i32,
+    order_type: Option<i32>,
+    has_active_apply: bool,
+) -> bool {
+    settings_enabled
+        && !has_active_apply
+        && is_valid == 1
+        && order_status == status::PAID
+        && pay_status == 2
+        && shipping_status == 0
+        && !matches!(order_type, Some(11) | Some(2))
+}
+
+/// 给买家订单 VO 附加买家取消直退的入口动作与退款进度（我方新增）。
+///
+/// 设置主开关关时不加动作（买家侧无入口）；已存在的申请进度
+/// 无论开关都展示，保证在途退款的进度可见性不随开关丢失。
+fn attach_paid_cancel_refund(
+    vo: &mut OrderVO,
+    order: &Order,
+    settings_enabled: bool,
+    latest: Option<&nextrade_core::entities::RefundApply>,
+) {
+    if let Some(apply) = latest {
+        vo.paid_cancel_refund_status = Some(apply.refund_status);
+        vo.paid_cancel_refund_status_name =
+            Some(paid_cancel_status_name(apply.refund_status).to_string());
+    }
+    let has_active = latest.is_some_and(|a| matches!(a.refund_status, 0 | 1));
+    if paid_cancel_action_visible(
+        settings_enabled,
+        order.order_status,
+        order.pay_status,
+        order.shipping_status,
+        order.is_valid,
+        order.order_type,
+        has_active,
+    ) {
+        if let Some(obj) = vo.available_actions.as_object_mut() {
+            obj.insert(
+                "cancelPaidRefund".to_string(),
+                serde_json::Value::Bool(true),
+            );
+        }
+    }
+}
+
+/// 买家取消直退进度展示名（与退款申请状态机同口径）。
+#[must_use]
+pub(crate) fn paid_cancel_status_name(status: i32) -> &'static str {
+    match status {
+        0 => "待审核",
+        1 => "退款中",
+        2 => "已退款",
+        3 => "已拒绝",
+        4 => "已退回",
+        _ => "退款中",
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 买家取消直退入口可见性：主开关关 = 恒不可见（零行为变化）。
+    #[test]
+    fn paid_cancel_action_visibility_matrix() {
+        // (enabled, order_status, pay_status, shipping, is_valid, type, active)
+        assert!(paid_cancel_action_visible(true, 1, 2, 0, 1, Some(1), false));
+        // 主开关关
+        assert!(!paid_cancel_action_visible(false, 1, 2, 0, 1, Some(1), false));
+        // 已有进行中申请
+        assert!(!paid_cancel_action_visible(true, 1, 2, 0, 1, Some(1), true));
+        // 未支付 / 已发货 / 部分发货 / 父单 / 拍卖 / 拼团
+        assert!(!paid_cancel_action_visible(true, 0, 0, 0, 1, Some(1), false));
+        assert!(!paid_cancel_action_visible(true, 2, 2, 2, 1, Some(1), false));
+        assert!(!paid_cancel_action_visible(true, 1, 2, 1, 1, Some(1), false));
+        assert!(!paid_cancel_action_visible(true, 1, 2, 0, 0, Some(1), false));
+        assert!(!paid_cancel_action_visible(true, 1, 2, 0, 1, Some(11), false));
+        assert!(!paid_cancel_action_visible(true, 1, 2, 0, 1, Some(2), false));
+    }
 
     #[test]
     fn test_order_create_dto_deserialization_with_invoice_and_o2o() {

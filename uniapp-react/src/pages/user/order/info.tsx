@@ -14,7 +14,7 @@ import TigImage from "@/components/tig/tig-image/TigImage";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import PresaleCard from "./src/PresaleCard";
-import { getOrder, confirmReceipt, getShippingInfo } from "@/api/user/order";
+import { getOrder, confirmReceipt, getShippingInfo, cancelPaidRefund } from "@/api/user/order";
 import { buyerDeliveryProgress } from "@/api/rider/rider";
 import type { OrderInfoItemElement, OrderInfoResponseItem, ShippingInfoTrace } from "@/types/user/order";
 import { useUserStore } from "@/store/user";
@@ -187,6 +187,7 @@ export default function OrderInfo() {
 
     /** 顶部状态副文案（对齐跨境：tip / 自动收货 / oStatusInfo） */
     const statusSubText = (() => {
+        if (orderInfo?.paidCancelRefundStatusName) return `${t("买家取消退款")}：${orderInfo.paidCancelRefundStatusName}`;
         if (isOfflineOrder && offlineClaimStatus === 0) return t("您已提交汇款凭证，等待财务人员核对流水，我们尽快完成审核。");
         if (isOfflineClaimRejected) {
             const reason = String(offlineClaimRejectReason || "").trim();
@@ -442,6 +443,25 @@ export default function OrderInfo() {
         cancelOrderReasonPopupRef.current?.open(id);
     };
 
+    // 取消并退款（我方新增）：已付未发货自助取消，二次确认后提交，
+    // 退款进度在顶部状态区展示。
+    const handleCancelPaidRefund = (id: number) => {
+        Taro.showModal({
+            title: t("取消并退款"),
+            content: t("确认取消该订单吗？订单尚未发货，取消后款项将原路退回。"),
+            success: async (res) => {
+                if (!res.confirm) return;
+                try {
+                    await cancelPaidRefund({ orderId: id });
+                    Taro.showToast({ title: t("已提交取消退款"), icon: "success" });
+                    void __getOrder();
+                } catch (e: any) {
+                    Taro.showToast({ title: e?.message || t("提交失败"), icon: "none" });
+                }
+            }
+        });
+    };
+
     const handlePay = (id: number) => {
         Taro.navigateTo({
             url: Number(orderInfo.payTypeId) === 3 ? `/pages/order/pay?orderId=${id}` : `/pages/order/cashier?orderId=${id}&from=orderInfo`
@@ -534,6 +554,7 @@ export default function OrderInfo() {
 
     const showBottomBar =
         (orderInfo?.availableActions?.cancelOrder ||
+            orderInfo?.availableActions?.cancelPaidRefund ||
             (orderInfo?.availableActions?.toPay && canShowToPay) ||
             isOfflineClaimRejected ||
             canViewOfflineClaim ||
@@ -1189,6 +1210,11 @@ export default function OrderInfo() {
                                             {orderInfo.availableActions?.cancelOrder ? (
                                                 <TigButton2 className="btn" onClick={() => handleCancelOrder(orderInfo.orderId)}>
                                                     {t("取消订单")}
+                                                </TigButton2>
+                                            ) : null}
+                                            {orderInfo.availableActions?.cancelPaidRefund ? (
+                                                <TigButton2 className="btn" onClick={() => handleCancelPaidRefund(orderInfo.orderId)}>
+                                                    {t("取消并退款")}
                                                 </TigButton2>
                                             ) : null}
                                             {orderInfo.availableActions?.toPay && canShowToPay ? (

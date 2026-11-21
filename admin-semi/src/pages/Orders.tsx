@@ -430,6 +430,12 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
                 <Space spacing={4}>
                   <Tag color={(statusColor[value] || 'blue') as any}>{value ? t(value) : '-'}</Tag>
                   {record.afterSalesIng ? <Tag color="orange">{t('售后中')}</Tag> : null}
+                  {record.paidCancelRefundStatus === 0 || record.paidCancelRefundStatus === 1 ? (
+                    <Tag color="orange">{t('买家取消退款中')}</Tag>
+                  ) : null}
+                  {record.paidCancelRefundStatus === 2 ? (
+                    <Tag color="grey">{t('买家取消已退款')}</Tag>
+                  ) : null}
                 </Space>
               ),
             },

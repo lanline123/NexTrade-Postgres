@@ -469,6 +469,438 @@ impl RefundApplyService {
         }
     }
 
+    // ————————————————————— 买家取消直退（我方新增·按用户口径） —————————————————————
+
+    /// 读取买家取消直退设置（生效值）。
+    async fn paid_cancel_settings(
+        &self,
+    ) -> Result<crate::system::paid_cancel_refund::PaidCancelRefundSettings> {
+        let raw = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code(crate::system::paid_cancel_refund::PAID_CANCEL_REFUND_CODE)
+            .await?;
+        Ok(crate::system::paid_cancel_refund::effective_paid_cancel_refund(
+            raw.as_deref(),
+        ))
+    }
+
+    /// 买家取消已付未发货订单并发起直退（论坛帖 347748，用户
+    /// 2026-11-21 20:45–20:46 拍板口径，我方新增）：
+    /// - 平台级设置主开关默认关：关时端点直接拒绝，买家侧无入口，
+    ///   全站零行为变化；
+    /// - 仅「已支付 + 未发货」的（子）订单可走本通道：整单实付
+    ///   （paylog 口径）全额退款，已有售后/退款占用时拒绝并引导
+    ///   售后通道；拆单以子单为单位判定，已发货子单不走本通道；
+    /// - 落 Wait 态 `refund_apply`（来源 `initiator = 3` 买家取消），
+    ///   按设置矩阵分流：小额免审命中 → 自动通过直达出款；进财务
+    ///   审核队列开 → 留在队列等财务审核；否则直接出款；
+    /// - 出款一律走既有财务退款链的资金执行（`execute_refund_money`）
+    ///   与完成点钩子（礼品卡按额返还、结算扣回、佣金回冲），
+    ///   不新造出款通道；退款完成即关闭订单（见
+    ///   [`Self::close_order_for_buyer_cancel`]）。
+    pub async fn create_buyer_cancel(
+        &self,
+        order_id: i32,
+        user_id: i32,
+        reason: Option<&str>,
+    ) -> Result<i32> {
+        let settings = self.paid_cancel_settings().await?;
+        if !settings.enabled {
+            return Err(Error::biz(400, "买家取消退款功能未开启"));
+        }
+        if order_id <= 0 {
+            return Err(Error::Validation("订单ID无效".into()));
+        }
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(order_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("订单不存在".into()))?;
+        if order.user_id != user_id {
+            return Err(Error::Forbidden("无权操作该订单".into()));
+        }
+        if let Some(msg) = buyer_cancel_gate_error(
+            order.order_status,
+            order.pay_status,
+            order.shipping_status,
+            order.is_valid,
+            order.order_type,
+        ) {
+            return Err(Error::biz(400, msg));
+        }
+        // 定金预售：已付定金、待付尾款阶段不可取消（与后台取消同口径）
+        if order.presale_type == Some(2) {
+            if let Some(presale) = self
+                .repos
+                .payment
+                .pay
+                .find_presale_by_order_id(order_id)
+                .await?
+            {
+                if presale.presale_status == 1 {
+                    return Err(Error::biz(
+                        400,
+                        "预售订单已支付定金，待付尾款阶段无法取消",
+                    ));
+                }
+            }
+        }
+        // 防重复提交：已有进行中的买家取消申请
+        if self
+            .repos
+            .payment
+            .refund_apply
+            .exists_active_by_order_initiator(
+                order_id,
+                RefundInitiator::BuyerCancel as i32,
+            )
+            .await?
+        {
+            return Err(Error::biz(400, "已提交取消退款申请，请勿重复提交"));
+        }
+        // 金额 = 整单实付；必须全额可退（部分占用说明已有售后/退款
+        // 在途，整单关闭语义不成立，引导回售后通道）
+        let amount = self.paid_amount(order_id).await?;
+        if amount <= Decimal::ZERO {
+            return Err(Error::biz(400, "订单无可退金额"));
+        }
+        if self.refundable_amount(order_id).await? < amount {
+            return Err(Error::biz(
+                400,
+                "订单已有退款或售后处理中，请通过售后通道处理",
+            ));
+        }
+
+        let reason = reason
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("买家取消订单");
+        if reason.chars().count() > 255 {
+            return Err(Error::Validation("取消原因不能超过255字".into()));
+        }
+        let now = utils::now_seconds() as i32;
+        let mut apply = RefundApply {
+            refund_id: 0,
+            refund_type: RefundType::Order as i32,
+            order_id,
+            user_id,
+            aftersale_id: 0,
+            refund_status: RefundApplyStatus::Wait as i32,
+            add_time: now,
+            refund_note: reason.to_string(),
+            online_balance: amount,
+            offline_balance: Decimal::ZERO,
+            refund_balance: amount,
+            is_online: 1,
+            is_offline: 0,
+            is_receive: 0,
+            paylog_refund_id: 0,
+            shop_id: order.shop_id,
+            payment_voucher: None,
+            initiator: i16::try_from(RefundInitiator::BuyerCancel as i32)
+                .unwrap_or_default(),
+        };
+        let refund_id = self.repos.payment.refund_apply.insert(&apply).await?;
+        apply.refund_id = refund_id;
+        let _ = self
+            .add_log(
+                refund_id,
+                order_id,
+                RefundType::Order as i32,
+                "",
+                "",
+                amount,
+                format!("买家取消订单发起退款：{reason}"),
+                user_id,
+            )
+            .await;
+        // 支付状态置「退款中」（条件更新，仅当仍为已支付）
+        self.set_order_pay_status(order_id, 2, 3).await;
+        tracing::info!(
+            "买家取消直退发起: id={refund_id} order_id={order_id} amount={amount}"
+        );
+        self.notify_buyer_cancel_submitted(&order, amount).await;
+
+        match settings.route_for(amount) {
+            crate::system::paid_cancel_refund::PaidCancelRoute::FinanceAudit => {
+                tracing::info!("买家取消直退进财务审核队列: id={refund_id}");
+            }
+            route => {
+                let exempt =
+                    route == crate::system::paid_cancel_refund::PaidCancelRoute::Exempt;
+                self.execute_buyer_cancel_now(&apply, refund_id, exempt)
+                    .await;
+            }
+        }
+        Ok(refund_id)
+    }
+
+    /// 买家取消直退的立即执行（小额免审 / 不进审核队列两条直达
+    /// 路径，与主动退款自动执行 `auto_execute_proactive` 同构）：
+    /// 资金执行 → Wait 流转 → 分销佣金回冲 → 完成点钩子
+    /// （礼品卡按额返还 + 已结算扣回 + 订单关闭）。
+    async fn execute_buyer_cancel_now(
+        &self,
+        apply: &RefundApply,
+        refund_id: i32,
+        exempt: bool,
+    ) {
+        if exempt {
+            let _ = self
+                .add_log(
+                    refund_id,
+                    apply.order_id,
+                    apply.refund_type,
+                    "",
+                    "",
+                    apply.refund_balance,
+                    format!(
+                        "小额免审自动通过（退款额 ¥{} 在免审上限内，系统免审）",
+                        apply.refund_balance
+                    ),
+                    apply.user_id,
+                )
+                .await;
+        }
+        let note = if exempt {
+            "小额免审自动执行退款"
+        } else {
+            "买家取消退款自动执行"
+        };
+        let (to_status, completed, card_part) =
+            match self.execute_refund_money(apply, refund_id).await {
+                Ok((MoneyOutcome::Completed, _, part)) => {
+                    (RefundApplyStatus::Processed as i32, true, part)
+                }
+                Ok((MoneyOutcome::ChannelPending, _, _)) => {
+                    (RefundApplyStatus::Processing as i32, false, Decimal::ZERO)
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "买家取消直退 资金执行失败 refund_id={refund_id} order_id={}: {e}",
+                        apply.order_id
+                    );
+                    (RefundApplyStatus::Processing as i32, false, Decimal::ZERO)
+                }
+            };
+        let transitioned = self
+            .repos
+            .payment
+            .refund_apply
+            .transition_status(
+                refund_id,
+                &[RefundApplyStatus::Wait as i32],
+                to_status,
+                Some(note),
+            )
+            .await
+            .unwrap_or(false);
+        if !transitioned {
+            return;
+        }
+        // 分销佣金回冲（与财务审核路径同点，尽力而为）：买家取消无
+        // 退货商品项，handler 按 aftersale_id=0 整单口径回冲。
+        if let Err(e) = self
+            .handle_salesman_order_on_refund(apply.order_id, 0)
+            .await
+        {
+            tracing::warn!(
+                "买家取消直退 分销佣金回退失败 refund_id={refund_id} order_id={}: {e}",
+                apply.order_id
+            );
+        }
+        if completed {
+            // 礼品卡返还（与 mark_processed 同为退款完成点）：按
+            // 资金执行的本笔卡构成按额返还（子单精确化口径）。
+            if apply.order_id > 0 {
+                if let Err(e) = self
+                    .repos
+                    .marketing
+                    .gift_card_issue
+                    .return_stored_cards_amount(
+                        apply.order_id,
+                        card_part,
+                        utils::now_seconds(),
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        "买家取消直退 礼品卡返还失败 refund_id={refund_id} order_id={}: {e}",
+                        apply.order_id
+                    );
+                }
+            }
+            self.settle_proactive_refund(refund_id, apply).await;
+            self.close_order_for_buyer_cancel(apply.order_id).await;
+        }
+    }
+
+    /// 买家取消退款完成后的订单关闭（完成点唯一收口：立即执行与
+    /// 财务审核两条路径的完成都经此，含渠道受理后经 `mark_processed`
+    /// 收尾的情形）：待发货 → 已取消（原子流转，成功才做后续收尾，
+    /// 重复调用天然幂等）、支付状态置已退款、回补库存、释放优惠券
+    /// 占用、买家站内信。
+    ///
+    /// 收尾口径与既有链对齐，不另定：库存回补同买家取消未支付单
+    /// （`OrderService::cancel`）；优惠券释放同售后完成/后台取消
+    /// （`release_by_order` + 父单兜底）；积分按已付退款既定口径
+    /// 不返还（售后与主动退款完成链均无积分返还，本服务模块头注
+    /// 亦载明积分退还未在退款链迁移）。
+    pub async fn close_order_for_buyer_cancel(&self, order_id: i32) {
+        if order_id <= 0 {
+            return;
+        }
+        let ok = self
+            .repos
+            .trade
+            .order
+            .transition_status(
+                order_id,
+                &[crate::trade::order::status::PAID],
+                crate::trade::order::status::CANCELED,
+            )
+            .await
+            .unwrap_or(false);
+        if !ok {
+            return;
+        }
+        self.set_order_pay_status(order_id, 3, 4).await;
+        // 取消备注（仅当为空时写，不覆盖已有备注）
+        let _ = sqlx::query(
+            "UPDATE \"order\" SET cancel_remark = '买家取消并退款' \
+             WHERE order_id = $1 AND (cancel_remark IS NULL OR cancel_remark = '')",
+        )
+        .bind(order_id)
+        .execute(&self.repos.pool)
+        .await;
+        // 回补库存（订单从未发货，库存与下单扣减对冲）
+        if let Ok(items) = self.repos.trade.order.find_items(order_id).await {
+            for item in items {
+                let sku = if item.sku_id > 0 {
+                    Some(item.sku_id)
+                } else {
+                    None
+                };
+                if let Err(e) = self
+                    .repos
+                    .catalog
+                    .product
+                    .restore_stock(item.product_id, sku, item.quantity)
+                    .await
+                {
+                    tracing::warn!(
+                        "买家取消关单 回补库存失败 order={order_id} product={}: {e}",
+                        item.product_id
+                    );
+                }
+            }
+        }
+        if let Ok(Some(order)) = self.repos.trade.order.find_by_id(order_id).await {
+            // 优惠券释放（本单释放为空时兜底父单，同售后完成口径）
+            if order.coupon_amount > Decimal::ZERO {
+                match self
+                    .repos
+                    .marketing
+                    .coupon
+                    .release_by_order(order_id)
+                    .await
+                {
+                    Ok(0) => {
+                        if let Some(parent_id) =
+                            order.parent_order_id.filter(|v| *v > 0)
+                        {
+                            let _ = self
+                                .repos
+                                .marketing
+                                .coupon
+                                .release_by_order(parent_id)
+                                .await;
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::warn!(
+                            "买家取消关单 优惠券释放失败 order={order_id}: {e}"
+                        );
+                    }
+                }
+            }
+            if order.user_id > 0 {
+                let content = format!(
+                    "您的订单 {} 已取消，退款已原路退回，请注意查收。",
+                    order.order_sn
+                );
+                if let Err(e) = self
+                    .repos
+                    .member
+                    .user_message
+                    .insert_user_message(
+                        order.user_id,
+                        "订单取消退款完成",
+                        &content,
+                        1,
+                        None,
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        "买家取消关单 买家通知失败 order={order_id}: {e}"
+                    );
+                }
+            }
+        }
+        tracing::info!("买家取消退款完成，订单已关闭: {order_id}");
+    }
+
+    /// 订单支付状态条件迁移（买家取消直退专用：2 已支付 → 3 退款中
+    /// → 4 已退款；被拒/退回时 3 → 2 恢复）。失败只告警不阻断主流程。
+    async fn set_order_pay_status(&self, order_id: i32, from: i32, to: i32) {
+        let res = sqlx::query(
+            "UPDATE \"order\" SET pay_status = $1 WHERE order_id = $2 AND pay_status = $3",
+        )
+        .bind(to)
+        .bind(order_id)
+        .bind(from)
+        .execute(&self.repos.pool)
+        .await;
+        if let Err(e) = res {
+            tracing::warn!(
+                "买家取消直退 更新订单支付状态失败 order={order_id} {from}->{to}: {e}"
+            );
+        }
+    }
+
+    /// 买家取消申请提交后的站内信（best-effort）。
+    async fn notify_buyer_cancel_submitted(
+        &self,
+        order: &nextrade_core::entities::Order,
+        amount: Decimal,
+    ) {
+        if order.user_id <= 0 {
+            return;
+        }
+        let content = format!(
+            "您已申请取消订单 {} 并退款，退款金额 ¥{}。审核通过后将原路退回，请注意查收。",
+            order.order_sn, amount
+        );
+        if let Err(e) = self
+            .repos
+            .member
+            .user_message
+            .insert_user_message(order.user_id, "取消退款申请已提交", &content, 1, None)
+            .await
+        {
+            tracing::warn!(
+                "买家取消直退 买家通知失败 order_id={} user={}: {e}",
+                order.order_id, order.user_id
+            );
+        }
+    }
+
     /// 更新退款申请金额/备注（仅待处理状态可改）。
     pub async fn update(&self, dto: &RefundApplyUpdateDTO) -> Result<()> {
         let existing = self
@@ -582,6 +1014,12 @@ impl RefundApplyService {
                     existing.user_id,
                 )
                 .await?;
+                // 买家取消来源被拒：退款不发生，订单继续履约——
+                // 支付状态从「退款中」恢复「已支付」，发货拦截随
+                // 申请终态自动解除。
+                if existing.initiator == RefundInitiator::BuyerCancel as i32 {
+                    self.set_order_pay_status(existing.order_id, 3, 2).await;
+                }
                 tracing::info!("退款申请已拒绝: id={} 原因={}", dto.refund_id, reason);
             }
             RefundApplyStatus::Cancel => {
@@ -609,6 +1047,11 @@ impl RefundApplyService {
                     existing.user_id,
                 )
                 .await?;
+                // 买家取消来源被退回：同拒绝口径，订单恢复「已支付」
+                // 继续履约（买家可改走售后通道）。
+                if existing.initiator == RefundInitiator::BuyerCancel as i32 {
+                    self.set_order_pay_status(existing.order_id, 3, 2).await;
+                }
                 tracing::info!("退款申请退回售后: id={}", dto.refund_id);
             }
             RefundApplyStatus::Processing => {
@@ -828,6 +1271,12 @@ impl RefundApplyService {
         // on_refund_completed 承担，两条路径互不重复触发。
         if existing.initiator > 0 {
             self.settle_proactive_refund(refund_id, &existing).await;
+        }
+        // 买家取消来源（initiator = 3）：退款完成即关闭订单
+        // （待发货 → 已取消 + 库存回补 + 券释放 + 置已退款），
+        // 收口在 close_order_for_buyer_cancel（原子流转，幂等）。
+        if existing.initiator == RefundInitiator::BuyerCancel as i32 {
+            self.close_order_for_buyer_cancel(existing.order_id).await;
         }
         Ok(())
     }
@@ -1394,6 +1843,50 @@ pub(crate) fn proactive_gate_error(
     }
 }
 
+/// 买家取消直退的状态门（纯函数，供单测）：仅「已支付 + 未发货」
+/// 的有效（子）订单可走本通道。
+///
+/// - 拆单父单（`is_valid != 1`）拒绝，退款单位是（子）订单；
+/// - 已部分发货（`shipping_status != 0`）拒绝——以（子）单为单位
+///   判定「未发货」，部分发货单仍走售后；
+/// - 拍卖单（11）与买家取消未支付单同口径拒绝；拼团单（2）的
+///   成团/解散口径走售后与结算既有链，本通道不接；
+/// - 支付状态须恰为 2（已支付）：3（退款中）说明已有退款在途，
+///   与「整单全额退」语义冲突。
+#[must_use]
+pub(crate) fn buyer_cancel_gate_error(
+    order_status: i32,
+    pay_status: i32,
+    shipping_status: i32,
+    is_valid: i32,
+    order_type: Option<i32>,
+) -> Option<&'static str> {
+    if is_valid != 1 {
+        return Some("该订单为拆单父单，请对子订单操作");
+    }
+    match order_type {
+        Some(11) => return Some("拍卖订单不可取消"),
+        Some(2) => return Some("拼团订单请通过售后处理"),
+        _ => {}
+    }
+    match order_status {
+        1 => {}
+        0 => return Some("订单尚未支付，请直接取消订单"),
+        2 => return Some("订单已发货，请通过售后处理"),
+        3 => return Some("订单已取消"),
+        4 => return Some("订单已失效"),
+        5 => return Some("订单已完成，请通过售后处理"),
+        _ => return Some("当前订单状态不支持取消退款"),
+    }
+    if shipping_status != 0 {
+        return Some("订单已部分发货，请通过售后处理");
+    }
+    if pay_status != 2 {
+        return Some("订单支付状态不支持取消退款");
+    }
+    None
+}
+
 /// 分销佣金回退的单行决策（纯函数，供单测；金额数学对照 Java
 /// `handleSalesmanOrderOnRefund`：占比 scale 4 HALF_UP、金额 2 位）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1688,6 +2181,34 @@ mod tests {
                 order_amount: dec("299.97"),
             }
         );
+    }
+
+    /// 买家取消直退状态门：仅已支付 + 未发货 + 有效单可走。
+    #[test]
+    fn buyer_cancel_gate_allows_paid_unshipped() {
+        // (order_status, pay_status, shipping_status, is_valid, order_type)
+        assert_eq!(buyer_cancel_gate_error(1, 2, 0, 1, Some(1)), None);
+        assert_eq!(buyer_cancel_gate_error(1, 2, 0, 1, None), None);
+    }
+
+    #[test]
+    fn buyer_cancel_gate_rejects() {
+        // 未支付
+        assert!(buyer_cancel_gate_error(0, 0, 0, 1, Some(1)).is_some());
+        // 已发货
+        assert!(buyer_cancel_gate_error(2, 2, 2, 1, Some(1)).is_some());
+        // 部分发货（待发货态但 shipping_status=1）
+        assert!(buyer_cancel_gate_error(1, 2, 1, 1, Some(1)).is_some());
+        // 已取消 / 已完成
+        assert!(buyer_cancel_gate_error(3, 4, 0, 1, Some(1)).is_some());
+        assert!(buyer_cancel_gate_error(5, 2, 2, 1, Some(1)).is_some());
+        // 拆单父单
+        assert!(buyer_cancel_gate_error(1, 2, 0, 0, Some(1)).is_some());
+        // 退款中（已有退款在途）
+        assert!(buyer_cancel_gate_error(1, 3, 0, 1, Some(1)).is_some());
+        // 拍卖 / 拼团
+        assert!(buyer_cancel_gate_error(1, 2, 0, 1, Some(11)).is_some());
+        assert!(buyer_cancel_gate_error(1, 2, 0, 1, Some(2)).is_some());
     }
 
     /// 分销回退决策：购买数量异常时跳过（Java 此处会除零，我方防御）。

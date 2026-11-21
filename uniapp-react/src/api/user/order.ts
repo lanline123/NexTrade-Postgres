@@ -53,6 +53,19 @@ export const cancelOrder = (data: object) => {
     });
 };
 
+/**
+ * @description 取消已付未发货订单并退款（我方新增，设置开关控制）
+ * @param data 包含订单ID（orderId）、取消原因（reason，可选）
+ * @returns 操作结果
+ */
+export const cancelPaidRefund = (data: { orderId: number; reason?: string }) => {
+    return request({
+        url: "user/order/cancelPaidRefund",
+        method: "post",
+        data
+    });
+};
+
 export interface OrderReasonConfig {
     /** 原因开关，取消订单与售后共用 */
     afterSalesReasonEnabled: number;

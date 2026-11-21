@@ -60,7 +60,10 @@ pub struct OfflineAuditDTO {
 /// 主动退款发起方（对应库中 `refund_apply.initiator`，迁移 007，我方新增）。
 ///
 /// 与售后来源正交：售后生成的申请以 `aftersale_id > 0` 识别且
-/// initiator 恒为 0；主动退款以 initiator 区分平台/商家。
+/// initiator 恒为 0；主动退款以 initiator 区分平台/商家；
+/// 买家取消直退（论坛帖 347748，用户 2026-11-21 拍板，我方新增）
+/// 以 initiator = 3 识别，与主动退款同属「总额口径」来源
+/// （`aftersale_id = 0`、金额为整单实付，资金执行扣礼品卡构成）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RefundInitiator {
     /// 买家售后 / 财务手工（存量默认）
@@ -69,6 +72,8 @@ pub enum RefundInitiator {
     Platform = 1,
     /// 商家主动发起
     Merchant = 2,
+    /// 买家取消已付未发货订单发起（我方新增）
+    BuyerCancel = 3,
 }
 
 impl RefundInitiator {
@@ -81,10 +86,23 @@ impl RefundInitiator {
         match initiator {
             1 => "平台主动",
             2 => "商家主动",
+            3 => "买家取消",
             _ if aftersale_id > 0 => "买家售后",
             _ => "手工退款",
         }
     }
+}
+
+/// 买家取消直退发起请求（我方新增端点 `cancelPaidRefund`）。
+///
+/// 只收订单与取消原因：金额（整单实付）、买家、店铺全部由服务端
+/// 按订单与登录态推导，请求参数不携带也不采信金额/shopId。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PaidCancelRefundCreateDTO {
+    pub order_id: Option<i32>,
+    /// 取消原因（可选，写入 refund_note 并在订单取消备注中留痕）
+    pub reason: Option<String>,
 }
 
 /// 主动退款发起请求（我方新增端点 `proactiveCreate`）。
@@ -152,9 +170,9 @@ pub struct RefundApplyVO {
     pub paylog_refund_id: i32,
     pub shop_id: i32,
     pub payment_voucher: Option<String>,
-    /// 发起方标记（迁移 007）：0 售后/手工 1 平台主动 2 商家主动
+    /// 发起方标记（迁移 007）：0 售后/手工 1 平台主动 2 商家主动 3 买家取消
     pub initiator: i32,
-    /// 来源展示名（平台主动 / 商家主动 / 买家售后 / 手工退款）
+    /// 来源展示名（平台主动 / 商家主动 / 买家取消 / 买家售后 / 手工退款）
     pub initiator_name: String,
 }
 

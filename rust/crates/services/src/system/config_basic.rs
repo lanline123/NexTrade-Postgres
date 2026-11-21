@@ -357,6 +357,37 @@ impl ConfigBasicService {
             .await
     }
 
+    /// 读取已付未发货买家取消直退设置（生效值：已存配置清洗后，
+    /// 或内置默认——主开关关、小额免审关、进财务审核队列开）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn get_paid_cancel_refund(&self) -> Result<Value> {
+        let stored = self
+            .repo()
+            .find_by_code(super::paid_cancel_refund::PAID_CANCEL_REFUND_CODE)
+            .await?;
+        Ok(super::paid_cancel_refund::effective_paid_cancel_refund(
+            stored.as_deref(),
+        )
+        .to_json())
+    }
+
+    /// 保存已付未发货买家取消直退设置（清洗后整块 JSON 落 config 表
+    /// `paidCancelRefund` 行）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn save_paid_cancel_refund(&self, payload: &Value) -> Result<()> {
+        let clean = super::paid_cancel_refund::sanitize_paid_cancel_refund(payload);
+        self.repo()
+            .save_code(
+                super::paid_cancel_refund::PAID_CANCEL_REFUND_CODE,
+                &clean.to_string(),
+            )
+            .await
+    }
+
     /// 读取购买按钮样式配置（生效值：已存配置清洗后，或内置默认）。
     ///
     /// # Errors

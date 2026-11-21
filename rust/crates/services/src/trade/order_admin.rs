@@ -405,6 +405,7 @@ fn build_vo(input: VoInput<'_>) -> OrderVO {
         is_change_order_status: 0,
         to_aftersalses: actions.to_aftersales,
         after_sales_ing: 0,
+        paid_cancel_refund_status: None,
         join_status: join_status_code,
         join_status_desc,
         groupon_promotion_record_id: groupon_record_id,
@@ -651,6 +652,19 @@ impl OrderAdminService {
             .into_iter()
             .collect();
 
+        // 「买家取消」标记（我方新增）：各单最新一笔买家取消退款申请状态
+        let buyer_cancel_map = self
+            .repos
+            .payment
+            .refund_apply
+            .latest_map_by_orders_initiator(
+                &order_ids,
+                nextrade_core::models::payment::refund_apply::RefundInitiator::BuyerCancel
+                    as i32,
+            )
+            .await
+            .unwrap_or_default();
+
         let product_ids = distinct_i32(
             orders
                 .iter()
@@ -702,6 +716,8 @@ impl OrderAdminService {
                 offline_claim: claims.get(&o.order_id).cloned(),
             });
             vo.after_sales_ing = i32::from(aftersales_ing.contains(&o.order_id));
+            vo.paid_cancel_refund_status =
+                buyer_cancel_map.get(&o.order_id).map(|a| a.refund_status);
             list.push(vo);
         }
         Ok(PageResult::new(total, list, &page))
@@ -787,6 +803,20 @@ impl OrderAdminService {
                 .await?
                 .contains(&order_id),
         );
+        // 「买家取消」标记（我方新增）：与列表同一口径回填
+        vo.paid_cancel_refund_status = self
+            .repos
+            .payment
+            .refund_apply
+            .find_latest_by_order_initiator(
+                order_id,
+                nextrade_core::models::payment::refund_apply::RefundInitiator::BuyerCancel
+                    as i32,
+            )
+            .await
+            .ok()
+            .flatten()
+            .map(|a| a.refund_status);
         // 代客跨店分成摘要（我方新增）：有 proxy_order_ext 记录才回填。
         if let Some(ext) = self
             .repos
@@ -859,6 +889,25 @@ impl OrderAdminService {
             if covered_qty >= total_qty {
                 return Err(Error::biz_msg("该订单存在售后，无法发货"));
             }
+        }
+
+        // 买家取消退款进行中禁止发货（我方新增）：整单退款在途时
+        // 发货会与退款完成后的关单/库存回补冲突；退款被拒/退回后
+        // 申请转终态，本拦截自动解除，订单可正常发货。
+        if self
+            .repos
+            .payment
+            .refund_apply
+            .exists_active_by_order_initiator(
+                order_id,
+                nextrade_core::models::payment::refund_apply::RefundInitiator::BuyerCancel
+                    as i32,
+            )
+            .await?
+        {
+            return Err(Error::biz_msg(
+                "买家已申请取消退款，退款处理完成前无法发货",
+            ));
         }
 
         if param.deliver_data.as_ref().is_none_or(Vec::is_empty) {

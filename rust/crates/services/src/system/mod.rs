@@ -7,6 +7,7 @@ pub mod area_code;
 pub mod cache_manage;
 pub mod config_basic;
 pub mod price_display;
+pub mod paid_cancel_refund;
 pub mod buy_style;
 pub mod account_security;
 pub mod ops_code;
