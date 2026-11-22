@@ -53,7 +53,8 @@ export default function ExchangeList() {
     const {
         isLoading,
         total,
-        data: lsit
+        data: lsit,
+        getList
     } = useList(getExchangeList, {
         params: filterParamsRef.current,
         path: {

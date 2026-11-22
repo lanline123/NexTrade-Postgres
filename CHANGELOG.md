@@ -2470,3 +2470,9 @@
 ### 修复
 
 - **19 包批次遗留前端构建损伤 4 处（部署轮第六次 build-admin/pc/h5 首次实测暴露）【我方修复】**：该批次各包此前只过签名核验、从未过 CI 构建，均为单文件小修、渲染与行为不变：① PC `pc-semi/src/components/federation/useFederationSso.ts`（@66c06b5 联邦登录前台接缝）——JSX 组件 `FederationLoginButton` 写在 `.ts` 文件里，SWC 按纯 TS 解析在 `<button type=...>` 处语法报错（build-pc run 44993354566）；组件逐字迁入新建 `FederationLoginButton.tsx`，`.ts` 只留 hook/逻辑，唯一引用方 `LoginClient.tsx` 的 import 拆为两行（push-files 不能删文件，故不取「改名 .tsx + 删旧 .ts」方案，无删除）。② admin `LicensedBadge.tsx:69`（@b97ee72 授权系统客户端）——Semi `Tag` 无 `title` 属性（TS2322，日志实证仅 `title` 一项非法，其余属性合法）；`title` 移到外层 `<span>` 承载，原生悬停提示文案与视觉不变。③ admin `TakeoutManage.tsx:527`——`STATUS_TAG` 映射的 `color` 被推断为 `string`，与 `Tag` 的 `TagColor` 不合（TS2322）；映射表 color 字段类型收窄为 `ComponentProps<typeof Tag>['color']`，颜色值（blue/cyan/green/grey/orange/red/amber）与状态文案逐字未动。④ H5 `uniapp-react/src/pages/order/src/CouponInfo.tsx:209`（@896d85c H5 体检批）——三元分支内 `{/* */}` 注释与 `<View>` 并列成双表达式（TS1005 等 7 条连环报错）；该分支包一层 `<>…</>` 片段（仅新增开/闭片段两行），渲染结果不变。同类扫查：三面前端 `src` 全部 `.ts` 文件已无 JSX 残留（`className=` 零命中，其余命中均为文档注释/HTML 字符串字面量/泛型误报）；`{/* */}` 注释居表达式括号首位的同型点全仓扫描为零。验收：入 main 后由部署线重派 build-admin / build-pc / build-h5 三 workflow，以三绿为准；报告 ~/workspace/fix-frontend-builds/REPORT.md。
+
+## 0.0.2 续 · 2026-11-22 批次（H5 构建单点修复：积分兑换页 useList 漏接 getList，未部署——无迁移，随下一 H5 合并版上线）
+
+### 修复
+
+- **H5 积分兑换列表页 `useList` 漏接 `getList` 返回值（部署轮第七次 build-h5 唯一错误）【我方修复】**：`uniapp-react/src/pages/exchange/list.tsx` 第 53–57 行 `useList(getExchangeList, …)` 解构只取 `{ isLoading, total, data: lsit }`，第 69 行下拉刷新回调却调用 `getList({ page: 1 })`，tsc 报 `error TS2304: Cannot find name 'getList'`（build-h5 日志实证，全工程仅此 1 条）。缺陷随 @5df6311（ux-h5 包）引入；`hooks/useList.ts` 返回值本含 `getList`，纯漏接绑定，与 hook 实现无关。修复：解构补 `getList` 一项（一行），其余逐字未动。同类复核：全工程 27 处生产 `useList` 调用点（26 处解构、含 `useList<…>` 泛型形态，另 1 处整对象绑定）逐一核对，各解构点实际引用的 hook 返回名均已接线，无第二处漏接（与 tsc 全工程仅报此 1 条互证）。验收：入 main 后由部署线重派 build-h5，以构建绿为准；报告 ~/workspace/push-queue/fix-h5-getlist/REPORT.md。
