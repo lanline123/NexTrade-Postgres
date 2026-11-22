@@ -24,3 +24,8 @@ H5_URL=https://battery.recy.cc/mobile
 
 # PC 服务名
 PC_SERVICE=nextrade-pc
+
+# 后端二进制路径与服务名（P3 可选项；缺省即代码内默认，与现行部署一致，
+# 一般无需写出——后端部署位置变更时才取消注释改值）
+# BACKEND_BIN=/www/wwwroot/rust/nextrade
+# BACKEND_SERVICE=nextrade

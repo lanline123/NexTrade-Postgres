@@ -128,10 +128,18 @@ userSelect: 'none',
 });
 
 return (
+// centered：标准居中（Semi 默认 margin-top:80px 顶置，长弹窗页脚易出视口需滚动）。
+// motion={false}：当前构建产物中 Semi 弹窗的全局动画类（.semi-modal-content-animate-* /
+// .semi-modal-mask-animate-* / .semi-modal-displayNone）缺失、仅剩 MapLocationPicker 的
+// scoped 覆盖；Semi 开启动画时 visible=false 后须等关闭动画 animationend 才卸载，
+// 动画类缺失使该事件永不触发 → 取消/X/Escape/遮罩四路关闭全部无效（2026-11-22 admin r9
+// 浏览器实点实证）。关闭动画后 visible=false 立即卸载，四路恢复 Semi 常规口径。
 <Modal
 title={t('从模板导入')}
 visible={visible}
 width={880}
+centered
+motion={false}
 onCancel={onClose}
 footer={
 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8}}>

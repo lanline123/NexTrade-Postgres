@@ -1,17 +1,22 @@
 #!/bin/bash
-# nextrade-updater.sh — admin 自助热更新的服务器侧独立执行器（我方新增，P2）。
+# nextrade-updater.sh — admin 自助热更新的服务器侧独立执行器（我方新增，
+# P2 主体 + P3 合流补丁 1–5 已并入）。
 #
-# 设计见 ~/workspace/hot-update-design/REPORT.md §5：
+# 设计见 ~/workspace/hot-update-design/REPORT.md §5（P3 扩展见 §4.3/§5.2
+# 与 updater-p3.sh 文件头）：
 # - 本脚本 root 所有、root 运行（systemd path unit 监视 spool/jobs 触发，
 #   或 cron 兜底），**不在热更新范围内，只能人工部署升级**；
 # - Web 进程只写 job 文件（spool/jobs/<id>.json，后端 SystemUpdateService
 #   生成），本脚本消费并把状态写回 spool/status/<id>.json、日志写
 #   spool/logs/<id>.log，后端读回同步落库供 admin 页面展示；
-# - 状态机：queued → downloading → verifying → backing_up → swapping →
-#   health_checking → done | failed → rolling_back → rolled_back /
+# - 状态机：queued → downloading → verifying → backing_up → migrating
+#   （P3：含 backend 的 job 先迁移后换面）→ swapping → health_checking →
+#   done | failed / migration_failed → rolling_back → rolled_back /
 #   rollback_failed。全局 flock 单 job 串行；
-# - 本期（P2）只处理静态三面 admin/pc/h5：job 含 backend 面、或
-#   schemaReady 不为 true，一律拒绝执行（后端与迁移执行在 P3）；
+# - P3 起放行 backend 面：含 backend 的 job 先经迁移阶段（updater-p3.sh
+#   阶段库调 migrate-runner.sh；迁移只进不退、失败不换任何面），换面时
+#   后端先行（backend-swap.sh 验 sha+ELF、版本端点严验、健康失败自动
+#   回滚旧二进制，schema 不随程序回滚）；schemaReady 不为 true 仍拒绝；
 # - 每个资产落地必验 sha256（对 job 内钉死的 manifest 快照），不符即中止、
 #   不解包；健康检查一律验内容（入口名 / BUILD_ID / Content-Type），不信裸 200；
 # - 换面纪律复用现行部署口径：admin 整目录 mv 换名 + 权限归一（www 755/644）；
@@ -39,6 +44,10 @@ ADMIN_URL="${ADMIN_URL:-https://admin.recy.cc}"
 PC_LOCAL_URL="${PC_LOCAL_URL:-http://127.0.0.1:3005}"
 H5_URL="${H5_URL:-https://battery.recy.cc/mobile}"
 DRY_RUN="${NEXTRADE_UPDATER_DRY_RUN:-0}"
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# P3 可选项（updater.conf 可覆盖；缺省即现行部署口径，补丁 4/5 引用）
+BACKEND_BIN="${BACKEND_BIN:-/www/wwwroot/rust/nextrade}"
+BACKEND_SERVICE="${BACKEND_SERVICE:-nextrade}"
 
 JOBS_DIR="$SPOOL_DIR/jobs"
 STATUS_DIR="$SPOOL_DIR/status"
@@ -120,10 +129,8 @@ job_id = job.get("jobId") or die("缺 jobId")
 surfaces = job.get("surfaces") or die("缺 surfaces")
 if not isinstance(surfaces, list) or not surfaces:
     die("surfaces 必须是非空数组")
-allowed = {"admin", "pc", "h5"}
+allowed = {"admin", "pc", "h5", "backend"}
 for s in surfaces:
-    if s == "backend":
-        die("job 含 backend 面：P2 updater 拒绝执行（后端更新在 P3）")
     if s not in allowed:
         die(f"未知面: {s}")
 if job.get("schemaReady") is not True:
@@ -326,6 +333,14 @@ rollback_all() {
         find "$H5_ROOT" -mindepth 1 -delete
         cp -a "${BACKUP_OF[h5]}/." "$H5_ROOT/" || rc=1
         ;;
+      backend)
+        # P3 补丁 5：后端一并退回旧二进制（迁移不退，schema 只进不退）
+        # shellcheck disable=SC1091
+        . "$SCRIPT_DIR/backend-swap.sh"
+        _aside=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("aside",""))' \
+                  "${HU_BACKEND_BIN}.hu-state.json" 2>/dev/null)
+        hu_be_rollback "$_aside" || rc=1
+        ;;
     esac
     log "已回滚: $s"
   done
@@ -425,13 +440,29 @@ process_job() {
     download_asset "$s" "${!file_var}" "$WORK_DIR/${!file_var}"
     write_status "verifying" "verify" "校验 ${!file_var} 的 sha256"
     verify_sha "$WORK_DIR/${!file_var}" "${!sha_var}"
-    mkdir -p "$WORK_DIR/pkg-$s"
-    tar -xzf "$WORK_DIR/${!file_var}" -C "$WORK_DIR/pkg-$s" || fail "解包 ${!file_var} 失败"
+    case "$s" in
+      backend) : ;;  # P3 补丁 2：裸二进制跳过解包，文件留 $WORK_DIR 供换版用
+      *)
+        mkdir -p "$WORK_DIR/pkg-$s"
+        tar -xzf "$WORK_DIR/${!file_var}" -C "$WORK_DIR/pkg-$s" || fail "解包 ${!file_var} 失败"
+        ;;
+    esac
   done
+
+  # P3 补丁 2：含 backend 的 job 在下载阶段后另拉迁移包（固定名资产，
+  # 不进清单——完整性由 migrate-runner 逐文件对清单 sha256 验算锚定；
+  # 发版侧由 pack-migrations.sh 按清单打包随 Release 发布）
+  if [[ " $SURFACES " == *" backend "* ]]; then
+    download_asset "migrations" "nextrade-migrations.tgz" "$WORK_DIR/nextrade-migrations.tgz"
+    mkdir -p "$WORK_DIR/migrations"
+    tar -xzf "$WORK_DIR/nextrade-migrations.tgz" -C "$WORK_DIR/migrations" \
+      || fail "解包 nextrade-migrations.tgz 失败"
+  fi
 
   # 包内硬校验（动 live 之前）
   for s in $SURFACES; do
     case "$s" in
+      backend) : ;;  # P3 补丁 2：裸二进制无包内校验（sha 已验；ELF 与版本严验在换版内）
       admin) validate_admin_pkg "$WORK_DIR/pkg-admin" ;;
       pc) validate_pc_pkg "$WORK_DIR/pkg-pc" ;;
       h5) validate_h5_pkg "$WORK_DIR/pkg-h5" ;;
@@ -447,9 +478,37 @@ process_job() {
 
   # swapping（含各面备份）
   write_status "backing_up" "backup" "备份现行版本"
+
+  # P3 补丁 3：迁移阶段（DRY_RUN 分支之后、swapping 之前）——含 backend /
+  # includeMigrations 的 job 先迁移后换面，静态 job 在阶段库内直接跳过；
+  # 失败时终态已由阶段库写好（migration_failed / failed），不得再换任何面
+  # shellcheck disable=SC1091
+  . "$SCRIPT_DIR/updater-p3.sh"
+  hu3_migrating_phase "$JOB_FILE" "$WORK_DIR" "$BACKUP_DIR" || {
+    finish_job
+    return 1
+  }
+
   write_status "swapping" "swap" "逐面换版"
+
+  # P3 补丁 4：后端先行——先换后端并严验版本，成功登记进 SWAPPED，其余
+  # 面随后；后端健康失败已在 backend-swap 内自动回滚（迁移不回滚）
+  if [[ " $SURFACES " == *" backend "* ]]; then
+    export HU_BACKEND_BIN="${BACKEND_BIN:-/www/wwwroot/rust/nextrade}"
+    export HU_BACKEND_UNIT="${BACKEND_SERVICE:-nextrade}"
+    local brc
+    hu3_swap_backend_phase "$JOB_FILE" "$WORK_DIR"; brc=$?
+    case $brc in
+      0) SWAPPED+=(backend) ;;
+      4) write_status "rolled_back" "backend" "后端健康检查失败，已自动回滚旧二进制（迁移不回滚）"; finish_job; return 1 ;;
+      5) write_status "rollback_failed" "backend" "后端回滚失败，需人工介入"; finish_job; return 1 ;;
+      *) fail "后端换版失败（rc=$brc）" ;;
+    esac
+  fi
+
   for s in $SURFACES; do
     case "$s" in
+      backend) : ;;  # 已先行处理
       admin) swap_admin ;;
       pc) swap_pc ;;
       h5) swap_h5 ;;
