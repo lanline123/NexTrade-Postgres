@@ -242,8 +242,8 @@ export default function PayChannelClient({ brand }: { brand: Brand }) {
             const container = formRef.current;
             if (container) {
               container.innerHTML = channel.html;
-              const forms = document.forms;
-              forms && forms[0]?.submit();
+              // 只提交本容器内的支付表单，不用 document.forms[0]（会误命中页面其他表单）（2026-11-22 体检修复）
+              container.querySelector('form')?.submit();
             }
           } else if (typeof channel.url === 'string' && channel.url) {
             window.location.href = channel.url;
@@ -271,8 +271,8 @@ export default function PayChannelClient({ brand }: { brand: Brand }) {
             const container = formRef.current;
             if (container) {
               container.innerHTML = channel.html;
-              const forms = document.forms;
-              forms && forms[0]?.submit();
+              // 同 alipay 分支：只提交本容器内的支付表单（2026-11-22 体检修复）
+              container.querySelector('form')?.submit();
             }
             return;
           }

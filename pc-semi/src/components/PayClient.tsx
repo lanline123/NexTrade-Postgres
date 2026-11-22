@@ -525,8 +525,9 @@ export default function PayClient({ orderId, defaultChannel }: { orderId: number
           const container = document.createElement('div');
           document.body.appendChild(container);
           container.innerHTML = payInfo.html;
-          const forms = document.forms;
-          if (forms && forms[0]) forms[0].submit();
+          // 只提交注入容器内的支付表单：document.forms[0] 会命中页面上第一个表单
+          //（本页线下认款弹窗的 form、页头搜索 form 等），误提交会跳错页（2026-11-22 体检修复）
+          container.querySelector('form')?.submit();
           return;
         }
         Toast.error({ content: '支付信息获取失败，请重试' });
@@ -690,6 +691,16 @@ export default function PayClient({ orderId, defaultChannel }: { orderId: number
 
   const submitOfflineClaim = async () => {
     const orderIdValue = Number(info?.order?.orderId || orderId);
+    // 转账时间/付款人是财务对账的必要信息：此前不校验会把 transferTime=0（1970）与空付款人
+    // 直接提交、财务无从核对（2026-11-22 体检修复）
+    if (!parseTransferTime(claimTransferTime)) {
+      Toast.error({ content: '请选择转账时间' });
+      return;
+    }
+    if (!claimPayerName.trim()) {
+      Toast.error({ content: '请输入付款人姓名' });
+      return;
+    }
     if (!claimVouchers.length) {
       Toast.error({ content: '付款凭证必传' });
       return;

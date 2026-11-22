@@ -229,6 +229,14 @@
         }
       }
 
+      /* 划线市场价（2026-11-22 体检补）：符号与金额同字号、整段划线 */
+      .price-origin {
+        margin-top: 2px;
+        font-size: 13px;
+        color: #999;
+        text-decoration: line-through;
+      }
+
       .buy {
         .view_detail {
           display: flex;

@@ -27,21 +27,40 @@ interface Record {
   aftersalesItems?: Item[];
 }
 
+const PAGE_SIZE = 20;
+
 export default function AfterSalesListClient() {
     const { t } = useTranslation();
   const [rows, setRows] = useState<Record[]>([]);
   const [loading, setLoading] = useState(true);
   const [needLogin, setNeedLogin] = useState(false);
+  // 分页与错误态（2026-11-22 体检补）：此前写死第 1 页 20 条、第 21 条起不可达；
+  // 且非登录类失败时 rows 保持空，被误呈现为「暂无已申请退换货订单」
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    apiGet<{ records?: Record[] }>('user/aftersales/getRecord', { page: 1, size: 20 })
-      .then((result) => setRows(result.records || []))
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : '';
-        setNeedLogin(message.includes('登录') || message.includes('401'));
+    setLoading(true);
+    setError('');
+    apiGet<{ records?: Record[]; total?: number }>('user/aftersales/getRecord', { page, size: PAGE_SIZE })
+      .then((result) => {
+        setRows(result.records || []);
+        setTotal(Number(result.total || 0));
+      })
+      .catch((caught) => {
+        const message = caught instanceof Error ? caught.message : '';
+        if (message.includes('登录') || message.includes('401')) {
+          setNeedLogin(true);
+        } else {
+          setError(message || t('售后列表加载失败'));
+        }
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [page, t, reloadKey]);
+
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   if (needLogin) {
     return (
@@ -72,12 +91,24 @@ export default function AfterSalesListClient() {
         </div>
       </div>
       <div className="return-content">
-        {rows.length ? (
+        {error ? (
+          <div className="no-result">
+            <div>
+              <span>{error}</span>{' '}
+              <Button onClick={() => setReloadKey((key) => key + 1)}>{t('重试')}</Button>
+            </div>
+          </div>
+        ) : rows.length ? (
+          <>
           <table className="custom-table">
             <thead className="table-header">
               <tr>
                 <th className="header-cell header-cell-first" style={{ width: 200 }}>{t('售后单号')}</th>
                 <th className="header-cell">{t('订单商品')}</th>
+                {/* 类型/状态/退款金额接口都有下发，此前表格不展示，用户看不出处理进度（2026-11-22 体检补） */}
+                <th className="header-cell" style={{ width: 110 }}>{t('售后类型')}</th>
+                <th className="header-cell" style={{ width: 110 }}>{t('状态')}</th>
+                <th className="header-cell" style={{ width: 110 }}>{t('退款金额')}</th>
                 <th className="header-cell" style={{ width: 140 }}>{t('申请时间')}</th>
               </tr>
             </thead>
@@ -95,11 +126,22 @@ export default function AfterSalesListClient() {
                       </div>
                     </div>
                   </td>
+                  <td>{record.aftersalesTypeName || '-'}</td>
+                  <td>{record.statusName || '-'}</td>
+                  <td>{record.refundAmount ? `¥${record.refundAmount}` : '-'}</td>
                   <td>{record.addTime || '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {pages > 1 ? (
+            <div className="pc-pagination" style={{ marginTop: 16, textAlign: 'right' }}>
+              <Button disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>{t('上一页')}</Button>{' '}
+              <span>{page} / {pages}</span>{' '}
+              <Button disabled={page >= pages || loading} onClick={() => setPage(page + 1)}>{t('下一页')}</Button>
+            </div>
+          ) : null}
+          </>
         ) : (
           <div className="no-result">
             <div>

@@ -43,6 +43,7 @@ export default function ReturnApplyListClient() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [needLogin, setNeedLogin] = useState(false);
   const size = 10;
 
   const load = useCallback(async () => {
@@ -55,7 +56,11 @@ export default function ReturnApplyListClient() {
     } catch (reason) {
       setRows([]);
       setTotal(0);
-      setError(reason instanceof Error ? reason.message : '售后列表加载失败');
+      const message = reason instanceof Error ? reason.message : '售后列表加载失败';
+      // 登录过期单独呈现去登录入口（与同域其他 client 的 needLogin 口径一致）：
+      // 此前只把后端原始文案当普通错误显示（2026-11-22 体检修复）
+      if (message.includes('登录') || message.includes('401')) setNeedLogin(true);
+      else setError(message);
     } finally {
       setLoading(false);
     }
@@ -77,6 +82,12 @@ export default function ReturnApplyListClient() {
 
       {loading ? <div className="comment-empty">{t('加载中…')}</div> : null}
       {error ? <div className="comment-empty">{error}</div> : null}
+      {!loading && needLogin ? (
+        <div className="no-result">
+          <div className="empty-text">{t('登录后申请售后')}</div>
+          <Link href="/login?redirect=/member/return/list">{t('去登录')}</Link>
+        </div>
+      ) : null}
 
       {!loading && !error && rows.length ? (
         <>
@@ -120,7 +131,8 @@ export default function ReturnApplyListClient() {
         </>
       ) : null}
 
-      {!loading && !rows.length ? (
+      {/* 空态必须排除 error/needLogin：此前失败时错误文案与「暂无可申请」同时叠显（2026-11-22 体检修复） */}
+      {!loading && !error && !needLogin && !rows.length ? (
         <div className="no-result">
           <div className="empty-img" />
           <div className="empty-text">{t('暂无可申请退换货订单')}</div>

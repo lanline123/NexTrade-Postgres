@@ -65,7 +65,9 @@ function buildCategoryUrl(seoLink?: string, categoryId?: string | number, pId?: 
   if (categoryId !== undefined && categoryId !== '') params.set('categoryId', String(categoryId));
   if (pId !== undefined && pId !== '') params.set('pId', String(pId));
   const query = params.toString();
-  const path = seoLink ? `/list/${seoLink}` : '/list';
+  // 带 seoLink 的分类必须走 /category/<seoLink> 兼容路由：/list 下没有 [slug] 路由，
+  // /list/<seoLink> 会落到全局 404 兜底页（2026-11-22 体检修复；当前接口未下发 seoLink 属潜伏）
+  const path = seoLink ? `/category/${seoLink}` : '/list';
   return query ? `${path}?${query}` : path;
 }
 

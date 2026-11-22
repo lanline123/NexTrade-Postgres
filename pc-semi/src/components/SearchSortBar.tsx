@@ -141,8 +141,9 @@ export default function SearchSortBar({
           {intervalOpen ? (
             <div className="interval-sort__dropdown">
               <form action={intervalAction} method="get">
-                {intervalHidden.map((item) => (
-                  <input key={item.name} type="hidden" name={item.name} value={item.value} />
+                {intervalHidden.map((item, index) => (
+                  // 隐藏域可含多条同名 attr，key 必须带下标（此前 duplicate key 警告、复用不可靠，2026-11-22 体检修复）
+                  <input key={`${item.name}-${index}`} type="hidden" name={item.name} value={item.value} />
                 ))}
                 <div className="interval-sort__input-row">
                   <div className="interval-sort__input-box">

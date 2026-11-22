@@ -446,11 +446,11 @@ export default function CheckoutClient({
     void updateCheck({ shippingType: next });
   };
 
-  const recalcCoupon = async (useDefault: boolean) => {
+  const recalcCoupon = async (useDefault: boolean, overrides: Record<string, unknown> = {}) => {
     if (couponBusy) return;
     setCouponBusy(true);
     try {
-      const result = await apiPost<CheckoutData>('order/check/updateCoupon', buildFormState({ useDefaultCouponIds: useDefault ? 1 : 0 }));
+      const result = await apiPost<CheckoutData>('order/check/updateCoupon', buildFormState({ useDefaultCouponIds: useDefault ? 1 : 0, ...overrides }));
       mergeResult(result);
       if (useDefault) Toast.success({ content: '已自动选择最优优惠券' });
     } catch (error) {
@@ -469,7 +469,9 @@ export default function CheckoutClient({
     const nextUserIds = checked ? userCouponIds.filter((id) => id !== userCouponId) : [...userCouponIds, userCouponId];
     setCouponIds(nextCouponIds);
     setUserCouponIds(nextUserIds);
-    void recalcCoupon(false);
+    // 必须把新选择以 overrides 传入：buildFormState 读的是当前渲染的 state，
+    // setState 尚未生效时直接重算会把旧选择发给后端、回显还会把勾选打回（2026-11-22 体检修复）
+    void recalcCoupon(false, { useCouponIds: nextCouponIds, selectUserCouponIds: nextUserIds });
   };
 
   /** 旧版 handleCredit：与余额互斥 */
@@ -1023,7 +1025,8 @@ export default function CheckoutClient({
                           style={giftCardMode ? undefined : { cursor: 'pointer' }}
                           onClick={() => toggleGiftCard(card)}
                         >
-                          <Checkbox checked={selected} disabled={giftCardMode} onChange={() => toggleGiftCard(card)} />
+                          {/* 只保留容器 onClick 切换：Checkbox 再挂 onChange 会与冒泡的容器点击叠加成双击切换（净效果不变）（2026-11-22 体检修复） */}
+                          <Checkbox checked={selected} disabled={giftCardMode} />
                           <span className="tit">{card.cardGroupName || t('礼品卡')}</span>
                           <span className="font-color">
                             {card.cardNumberMasked || card.cardNumber || ''}
@@ -1094,7 +1097,8 @@ export default function CheckoutClient({
                               key={userCouponId}
                               onClick={() => toggleCoupon(coupon)}
                             >
-                              <Checkbox checked={active} onChange={() => toggleCoupon(coupon)} />
+                              {/* 同礼品卡：只保留容器 onClick，避免与 Checkbox onChange 叠加双击切换（2026-11-22 体检修复） */}
+                              <Checkbox checked={active} />
                               <div>
                                 <div className={`coupon-info${coupon.couponDesc ? ' border' : ''}`}>
                                   <div className="coupon-off-text">

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import PcHeader from '@/components/PcHeader';
 import PcFooter from '@/components/PcFooter';
@@ -32,14 +33,16 @@ export const metadata: Metadata = { title: '退款申请记录 · 万物新生',
  *     空态 .no-result > div > img.empty-img + span.empty-text（"暂无已申请退换货订单"）
  *
  * menuList 取自旧版 Log.vue:150-153：售后申请 `/member/return/list` / 申请记录 `/member/return/log`。
- * 数据请求 `getAftersalesRecords`（page/size）保持原样，未改动请求层。
+ * 数据请求 `getAftersalesRecords`（page/size）；2026-11-22 体检补 authToken 透传（见函数处注释）。
  */
 export default async function ReturnLogPage({ searchParams }: { searchParams?: { [key: string]: string | string[] | undefined } }) {
   const t = getServerT();
   const page = Math.max(1, Number(Array.isArray(searchParams?.page) ? searchParams?.page[0] : searchParams?.page) || 1);
   const size = 10;
+  // 登录态在服务端只能读 cookie：透传给 getAftersalesRecords，否则后端恒拒、记录恒空（2026-11-22 体检修复）
+  const authToken = cookies().get('accessToken')?.value || undefined;
   const [data, header] = await Promise.all([
-    getAftersalesRecords({ page, size }).catch(() => ({ records: [], total: 0 })),
+    getAftersalesRecords({ page, size, authToken }).catch(() => ({ records: [], total: 0 })),
     getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   const pages = Math.max(1, Math.ceil(data.total / size));

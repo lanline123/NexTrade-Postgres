@@ -17,7 +17,7 @@
  *   优先 `cancelOrderReasonList`，缺失时回落 `afterSalesReasonList`，
  *   避免后端未补字段时弹窗变成空列表。
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Modal, Radio, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 
@@ -50,6 +50,15 @@ export default function MemberCancelOrderDialog({
   /** 原因配置已就绪且开关开启 → 展示单选原因弹窗 */
   const [reasonEnabled, setReasonEnabled] = useState(false);
 
+  // 回调经 ref 转发：父组件（订单详情每秒倒计时重渲染）传入的 onClose/onSuccess 是内联函数、
+  // 身份每渲染都变，若进 effect 依赖会让打开中的弹窗每秒重拉配置、重复弹确认框（2026-11-22 体检修复）
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const onSuccessRef = useRef(onSuccess);
+  onSuccessRef.current = onSuccess;
+
+  // 失败返回 null 与「开关关闭」严格区分：此前失败也返回 enabled:false，
+  // 会被误当开关关闭、降级成无原因直接取消（2026-11-22 体检修复）
   const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
@@ -64,19 +73,26 @@ export default function MemberCancelOrderDialog({
       return { enabled: Number(config?.afterSalesReasonEnabled ?? 0) === 1, list };
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : t('获取取消原因失败') });
-      return { enabled: false, list: [] as string[] };
+      return null;
     } finally {
       setLoading(false);
     }
   }, [t]);
 
-  // 打开时加载原因配置；开关关闭时直接走「无原因二次确认」
+  // 打开时加载原因配置；开关关闭时直接走「无原因二次确认」。
+  // 依赖只留 visible/orderId/loadConfig：回调走 ref，避免父组件重渲染让本 effect 每秒重跑
   useEffect(() => {
     if (!visible || !orderId) return;
     let cancelled = false;
     void (async () => {
-      const { enabled, list } = await loadConfig();
+      const result = await loadConfig();
       if (cancelled) return;
+      if (!result) {
+        // 配置拉取失败：只报错并关闭，绝不进入无原因取消分支
+        onCloseRef.current();
+        return;
+      }
+      const { enabled, list } = result;
       setReasonEnabled(enabled && list.length > 0);
       if (!enabled || !list.length) {
         // 旧版：开关关闭 → cancelWithoutReason()，直接确认框，不展示原因单选
@@ -88,19 +104,19 @@ export default function MemberCancelOrderDialog({
             try {
               await apiPost('user/order/cancelOrder', { id: orderId });
               Toast.success({ content: t('取消订单成功') });
-              onSuccess();
+              onSuccessRef.current();
             } catch (error) {
               Toast.error({ content: error instanceof Error ? error.message : t('取消失败') });
             }
           },
         });
-        onClose();
+        onCloseRef.current();
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [visible, orderId, loadConfig, onClose, onSuccess, t]);
+  }, [visible, orderId, loadConfig, t]);
 
   const submit = async () => {
     if (!selected || submitting) return;

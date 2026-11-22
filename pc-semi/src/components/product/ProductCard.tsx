@@ -42,6 +42,8 @@ export interface ProductCardItem {
   picUrl?: string;
   productPrice?: number | string;
   price?: number | string;
+  /** 市场价（划线价）：搜索/列表接口有下发，此前类型里根本没有该字段、卡片从不渲染划线价（2026-11-22 体检补） */
+  marketPrice?: number | string;
   /* 询价契约（后端下发）：商品级开关 / 派生态 / 有价型号最低价 */
   isInquiry?: number | string;
   inquiryState?: string;
@@ -160,12 +162,23 @@ export default function ProductCard({
   // 原版 pickPic：picUrl > picThumb（picThumb 是 200px 缩略图，卡片 240px 放大会发虚）
   const image = product.picUrl || product.picThumb || '';
   const price = splitDisplayPrice(inqState === 'partial' ? (product.minPricedPrice ?? product.productPrice ?? product.price) : (product.productPrice ?? product.price));
+  /* 划线价口径与装修商品组一致：市场价已填且高于售价才显示（符号与金额同字号一起划线） */
+  const marketPriceNum = Number(product.marketPrice ?? 0);
+  const salePriceNum = Number(product.productPrice ?? product.price ?? 0);
+  const showMarketPrice = !priceGated && inqState === 'none' && marketPriceNum > 0 && marketPriceNum > salePriceNum;
+  const marketPrice = showMarketPrice ? splitDisplayPrice(product.marketPrice) : null;
   const shopTitle = product.shop?.shopTitle || t('官方自营');
 
   async function addToCart(event: React.MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
     if (adding || !product.productId) return;
+    // 未登录先跳登录（带回跳）：此前直接调接口、只弹后端报错文案，与首页装修加购口径不一致（2026-11-22 体检修复）
+    if (typeof window !== 'undefined' && !window.localStorage.getItem('accessToken')) {
+      const redirect = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+      window.location.href = `/login?redirect=${redirect}`;
+      return;
+    }
     setAdding(true);
     try {
       await apiPost('cart/cart/addToCart', { id: Number(product.productId), number: 1 });
@@ -327,13 +340,23 @@ export default function ProductCard({
                 </Link>
               </div>
             ) : (
-              <div className="price align-bottom">
-                <div className="util">{price.symbol || '￥'}</div>
-                <div className="num">{price.integer}</div>
-                {price.decimals ? <div className="num decimal">{price.decimals}</div> : null}
-                {price.suffix ? <div className="num">{price.suffix}</div> : null}
-                {inqState === 'partial' ? <div className="num">{t('起')}</div> : null}
-              </div>
+              <>
+                <div className="price align-bottom">
+                  <div className="util">{price.symbol || '￥'}</div>
+                  <div className="num">{price.integer}</div>
+                  {price.decimals ? <div className="num decimal">{price.decimals}</div> : null}
+                  {price.suffix ? <div className="num">{price.suffix}</div> : null}
+                  {inqState === 'partial' ? <div className="num">{t('起')}</div> : null}
+                </div>
+                {marketPrice ? (
+                  <div className="price-origin">
+                    {marketPrice.symbol || '￥'}
+                    {marketPrice.integer}
+                    {marketPrice.decimals}
+                    {marketPrice.suffix || ''}
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
           {priceGated ? null : buyBtn && !buyBtn.show ? null : inqState === 'all' ? (

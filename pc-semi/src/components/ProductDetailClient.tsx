@@ -283,6 +283,8 @@ export default function ProductDetailClient({
   const [consultTotal, setConsultTotal] = useState(0);
   const [consultPage, setConsultPage] = useState(1);
   const [consultLoading, setConsultLoading] = useState(false);
+  const [consultText, setConsultText] = useState('');
+  const [consultSubmitting, setConsultSubmitting] = useState(false);
 
   // —— 营销 / 店铺 / 推荐 ——
   const [coupons, setCoupons] = useState<CouponItem[]>([]);
@@ -307,6 +309,12 @@ export default function ProductDetailClient({
   const [inquirySku, setInquirySku] = useState<{ skuId?: number; skuValue?: string } | null>(null);
   const [shareUrl, setShareUrl] = useState('');
   const [qrData, setQrData] = useState('');
+
+  // 分享链接挂载即备好：此前只在打开分享弹窗时赋值，顶部微博/QQ 空间锚点
+  // 首次点击会带空 url 分享（2026-11-22 体检修复）
+  useEffect(() => {
+    if (typeof window !== 'undefined') setShareUrl(window.location.href.split('#')[0]);
+  }, []);
 
   const skuGroups = useMemo(() => buildSkuGroups(detail), [detail]);
   const skuList = (detail.skuList || []) as SkuRow[];
@@ -364,7 +372,8 @@ export default function ProductDetailClient({
   const limit = Number(selectedSku?.limitNumber ?? item.limitNumber ?? 0);
   const minBuy = Number(item.minBuyCount ?? 0);
   const minQuantity = minBuy >= 2 ? minBuy : 1;
-  const maxQuantity = limit > 0 ? limit : stock > 0 ? stock : 1;
+  // 上限取限购与库存的较小者：此前限购 > 库存时按限购放行、可超库存下单（2026-11-22 体检修复）
+  const maxQuantity = limit > 0 ? (stock > 0 ? Math.min(limit, stock) : limit) : stock > 0 ? stock : 1;
   const outOfStock = stock <= 0;
   const skuDisabled = selectedSku?.isEnabled === 0;
   const price = livePrice ?? selectedSku?.skuPrice ?? selectedSku?.price ?? item.productPrice;
@@ -576,6 +585,12 @@ export default function ProductDetailClient({
       })
       .catch(() => undefined)
       .finally(() => alive && setConsultLoading(false));
+    // 收藏初始态：此前恒为 false，已收藏用户进页显示未收藏、再点会重复 save 而非取消（2026-11-22 体检修复）
+    apiGet<boolean>('product/product/isCollect', { id: productId, shopId })
+      .then((result) => {
+        if (alive) setCollected(result === true);
+      })
+      .catch(() => undefined);
     return () => {
       alive = false;
     };
@@ -640,6 +655,8 @@ export default function ProductDetailClient({
       else url.searchParams.delete('skuId');
       window.history.replaceState({ ...window.history.state }, '', url.href);
       if (matched?.skuId) setSkuId(Number(matched.skuId));
+      // 取消选择/无匹配 SKU 时必须清掉旧 skuId：否则询价/参团会带上已取消的规格（2026-11-22 体检修复）
+      else setSkuId(undefined);
     }
   };
 
@@ -657,6 +674,44 @@ export default function ProductDetailClient({
   };
 
   const add = async (next?: 'cart' | 'buy') => {
+    // 价格门控兜底：浮动购买栏等入口与主购买区同口径——未认证访客不给购买，
+    // 直接去门控入口（登录/认证），不再把加购发给后端吃拦截报错（2026-11-22 体检修复）
+    if (priceGated && gateCopy) {
+      window.location.href = gateCopy.href;
+      return;
+    }
+    // B2B 批量采购模式：按批量表逐行加购。此前批量数量只喂合计试算、无人消费，
+    // 点购买只按单品 quantity 加 1 件单规格且无提示（2026-11-22 体检修复）。
+    // 「立即购买」批量场景先整批入车再跳购物车勾选结算（批量无单件 isQuick 语义）。
+    if (isB2BMode && b2bTabIndex === 1) {
+      const rows = b2bSkuList.filter((row) => Number(row.num) > 0 && Number(row.isInquiry) !== 1);
+      if (!rows.length) {
+        Toast.warning({ content: '请先填写采购数量' });
+        return;
+      }
+      if (!requireLogin()) return;
+      setAdding(true);
+      try {
+        for (const row of rows) {
+          await addToCart({
+            id: Number(item.productId),
+            number: Number(row.num) || 1,
+            skuId: Number(row.skuId) || undefined,
+          } as Parameters<typeof addToCart>[0]);
+        }
+        if (next === 'buy') {
+          window.location.href = '/cart';
+          return;
+        }
+        Toast.success({ content: '已加入购物车' });
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('pc-cart-change'));
+      } catch (error) {
+        Toast.error({ content: error instanceof Error ? error.message : '加入购物车失败' });
+      } finally {
+        setAdding(false);
+      }
+      return;
+    }
     if (requireSku) {
       Toast.warning({ content: '请先选择商品规格' });
       return;
@@ -816,6 +871,27 @@ export default function ProductDetailClient({
       Toast.error({ content: '评价加载失败' });
     } finally {
       setCommentLoading(false);
+    }
+  };
+
+  /** 商品咨询提交：此前咨询区只有列表没有入口，后端 POST user/feedback/submit
+   * （type=2 商品、带 productId）一直无人调用（2026-11-22 体检补齐） */
+  const submitConsult = async () => {
+    const content = consultText.trim();
+    if (!content) {
+      Toast.warning({ content: '请输入咨询内容' });
+      return;
+    }
+    if (!requireLogin()) return;
+    setConsultSubmitting(true);
+    try {
+      await apiPost('user/feedback/submit', { type: 2, productId, content });
+      setConsultText('');
+      Toast.success({ content: '咨询已提交，商家回复后将公开展示' });
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : '咨询提交失败' });
+    } finally {
+      setConsultSubmitting(false);
     }
   };
 
@@ -1038,9 +1114,12 @@ export default function ProductDetailClient({
           <div className="shop-actions">
             {shopId > 0 ? (
               <div className="button-wrap">
-                <button type="button" className="tig-button-no-ripple action-btn">
-                  <span className="button-content">{t('进入店铺')}</span>
-                </button>
+                {/* 此前是无 onClick 的死按钮（同卡店名才是链接），补齐跳转（2026-11-22 体检修复） */}
+                <Link href={`/shop/${shopId}`}>
+                  <button type="button" className="tig-button-no-ripple action-btn">
+                    <span className="button-content">{t('进入店铺')}</span>
+                  </button>
+                </Link>
               </div>
             ) : null}
           </div>
@@ -1163,7 +1242,7 @@ export default function ProductDetailClient({
       {grouponInfo ? (
         <ProductJoiningClient productId={productId} groupon={grouponInfo} skuId={selectedSku?.skuId ? Number(selectedSku.skuId) : skuId} number={quantity} />
       ) : null}
-      {seckillPrice !== null ? (
+      {seckillPrice !== null && !priceGated ? (
         <div className="pds-panel pds-panel--seckill">
           <div className="pds-panel__row">
             <Tag color="red">{t('限时秒杀')}</Tag>
@@ -1174,7 +1253,7 @@ export default function ProductDetailClient({
         </div>
       ) : null}
 
-      {grouponInfo && grouponPrice ? (
+      {grouponInfo && grouponPrice && !priceGated ? (
         <div className="pds-panel pds-panel--groupon">
           <div className="pds-panel__row">
             <Tag color="orange">{grouponRecordId > 0 ? '好友邀请参团' : '拼团'}</Tag>
@@ -1611,7 +1690,7 @@ export default function ProductDetailClient({
    * 逐档价格用旧版 FormatPrice 的产物结构。
    */
   /* 商品级询价时阶梯价整块不渲染（价格位不露价）；部分型号询价时阶梯价为有价型号口径，保留 */
-  const wholesale = wholesalePriceList.length && !productIsInquiry ? (
+  const wholesale = wholesalePriceList.length && !productIsInquiry && !priceGated ? (
     <div className="mp-b2b-sku">
       <div className="b2b-sku">
       <div className="b2b-sku-content">
@@ -1844,7 +1923,8 @@ export default function ProductDetailClient({
       <div><span>{t('商品编号')}</span><b>{item.productSn || '-'}</b></div>
       <div><span>{t('库存')}</span><b>{stock}</b></div>
       <div><span>{t('上架时间')}</span><b>{formatDateTime(item.addTime) || '-'}</b></div>
-      {skuList.length ? <div><span>{t('规格')}</span><b>{skuList.map((row: any) => `${row.name || ''}：${row.value || ''}`).join(' / ')}</b></div> : null}
+      {/* SKU 行没有顶层 name/value 字段（规格在 skuData/skuValue 里），此前恒渲染「： / ：」（2026-11-22 体检修复） */}
+      {skuList.length ? <div><span>{t('规格')}</span><b>{skuList.map((row: any) => (Array.isArray(row.skuData) && row.skuData.length ? row.skuData.map((d: any) => `${d.name || ''}：${d.value || ''}`).join(' ') : String(row.skuValue || '').replace(/\|/g, ' '))).filter(Boolean).join(' / ')}</b></div> : null}
       {detail.attrList?.normal?.length ? detail.attrList.normal.map((attr: any) => (
         <div key={attr.attrName}><span>{attr.attrName}</span><b>{Array.isArray(attr.attrList) ? attr.attrList.map((v: any) => v.attrValue).filter(Boolean).join(' / ') : '-'}</b></div>
       )) : null}
@@ -1908,6 +1988,16 @@ export default function ProductDetailClient({
   const consultContent = (
     <div className="pds-consults">
       <div className="pds-consults__note">共 {consultTotal} 条咨询，咨询内容由商家回复后展示。</div>
+      <div className="pds-consult-form">
+        <textarea
+          rows={3}
+          maxLength={500}
+          value={consultText}
+          placeholder={t('请输入您想咨询的问题')}
+          onChange={(event) => setConsultText(event.target.value)}
+        />
+        <Button theme="solid" type="primary" loading={consultSubmitting} onClick={() => void submitConsult()}>{t('提交咨询')}</Button>
+      </div>
       {consults.length ? (
         <>
           {consults.map((consult, index) => (
@@ -2096,6 +2186,16 @@ export default function ProductDetailClient({
         {selectedInquiry ? (
           <>
             <Button size="large" theme="solid" type="primary" onClick={openInquiryForSelected}>{t('立即询价')}</Button>
+            <Button size="large" loading={collecting} onClick={() => void collect()}>
+              {collected ? '已收藏' : '收藏'}
+            </Button>
+          </>
+        ) : priceGated && gateCopy ? (
+          <>
+            {/* 价格门控：浮动栏与主购买区同口径，只给登录/认证入口（2026-11-22 体检修复） */}
+            <Link href={gateCopy.href}>
+              <Button size="large" theme="solid" type="primary">{t(gateCopy.text)}</Button>
+            </Link>
             <Button size="large" loading={collecting} onClick={() => void collect()}>
               {collected ? '已收藏' : '收藏'}
             </Button>

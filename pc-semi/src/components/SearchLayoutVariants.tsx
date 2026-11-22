@@ -164,13 +164,14 @@ function PriceForm({ ctx, className = '' }: { ctx: SearchLayoutContext; classNam
   const bare = className.trim().length > 0;
   return (
     <form action={ctx.listPath} method="get" className={bare ? className : 'pc-search-price-form'}>
-      {ctx.keyword ? <input type="hidden" name="keyword" value={ctx.keyword} /> : null}
-      {ctx.cat ? <input type="hidden" name="cat" value={ctx.cat} /> : null}
-      {ctx.brand ? <input type="hidden" name="brand" value={ctx.brand} /> : null}
-      {ctx.serializeSelectedAttrs(ctx.selectedAttrs).map((item) => (
-        <input key={item} type="hidden" name="attr" value={item} />
+      {/* 隐藏域改由 buildQuery 全量生成（与现代版价格表单同口径）：此前手列只有
+          keyword/cat/brand/attr/view，店内搜索提交价格区间会丢 shopId 扩大到全站、
+          couponId/sort/order 也一并丢失（2026-11-22 体检修复） */}
+      {Array.from(
+        new URLSearchParams(ctx.buildQuery({ min: undefined, max: undefined, page: undefined }, 1).replace(/^\?/, '')).entries(),
+      ).map(([name, value], index) => (
+        <input key={`${name}-${index}`} type="hidden" name={name} value={value} />
       ))}
-      {ctx.viewMode === 'list' ? <input type="hidden" name="view" value="list" /> : null}
       <input type="text" name="min" placeholder={`${currencySymbol()} ${t('¥最低价').replace(/^[¥￥]\s*/, '')}`} defaultValue={ctx.min} className={bare ? '' : 'pc-search-price-input'} />
       <span> - </span>
       <input type="text" name="max" placeholder={`${currencySymbol()} ${t('¥最高价').replace(/^[¥￥]\s*/, '')}`} defaultValue={ctx.max} className={bare ? '' : 'pc-search-price-input'} />
@@ -184,18 +185,22 @@ function Results({ ctx }: { ctx: SearchLayoutContext }) {
   return (
     <>
       <ProductGrid products={ctx.records} showSales={ctx.showSales} showShopTag={ctx.showShopTag} buyBtn={ctx.buyBtn} layout={ctx.viewMode === 'list' ? 'list' : 'grid'} />
-      {!ctx.records.length ? <div className="pc-list-empty">{t('没有找到符合条件的商品')}</div> : null}
+      {/* 空态只保留 ProductGrid 内的一处：此前这里再渲染一条，两条提示上下叠显（2026-11-22 体检修复） */}
       {ctx.pages > 1 ? (
         <nav className="pc-pagination">
           {ctx.page > 1 ? <Link href={`${ctx.listPath}${ctx.buildQuery({}, ctx.page - 1)}`}>{t('上一页')}</Link> : <span className="is-disabled">{t('上一页')}</span>}
-          {Array.from({ length: Math.min(ctx.pages, 8) }).map((_, index) => {
-            const next = index + 1;
-            return (
-              <Link key={next} href={`${ctx.listPath}${ctx.buildQuery({}, next)}`} className={next === ctx.page ? 'is-active' : ''}>
-                {next}
-              </Link>
-            );
-          })}
+          {/* 滑动窗口分页（同 app/search/page.tsx 口径，此前写死前 8 页） */}
+          {(() => {
+            const start = Math.min(Math.max(1, ctx.page - 3), Math.max(1, ctx.pages - 7));
+            return Array.from({ length: Math.min(ctx.pages, 8) }).map((_, index) => {
+              const next = start + index;
+              return (
+                <Link key={next} href={`${ctx.listPath}${ctx.buildQuery({}, next)}`} className={next === ctx.page ? 'is-active' : ''}>
+                  {next}
+                </Link>
+              );
+            });
+          })()}
           {ctx.page < ctx.pages ? <Link href={`${ctx.listPath}${ctx.buildQuery({}, ctx.page + 1)}`}>{t('下一页')}</Link> : <span className="is-disabled">{t('下一页')}</span>}
         </nav>
       ) : null}

@@ -14,7 +14,7 @@
  *
  * 旧源码中「重新申请」由 ENABLE_REAPPLY=false 关闭，未迁移该按钮（缺后端接口）。
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button, Card, Modal, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
@@ -200,6 +200,21 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
     const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
     return days > 0 ? t('{d}天{t}', { d: days, t: `${pad(h)}:${pad(m)}:${pad(s)}` }) : `${pad(h)}:${pad(m)}:${pad(s)}`;
   }, [autoAgreeEndMs, nowTs]);
+
+  // 倒计时归零后重新拉取一次（文件头注释承诺的行为，此前只写了注释没有实现，
+  // 归零后状态停在旧值直到手动刷新，2026-11-22 体检修复）
+  const wasCountingRef = useRef(false);
+  useEffect(() => {
+    if (showCountdown) {
+      wasCountingRef.current = true;
+      return;
+    }
+    if (wasCountingRef.current) {
+      wasCountingRef.current = false;
+      load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCountdown]);
 
   const status = Number(detail?.status ?? -1);
   const isExchange = Number(detail?.aftersaleType) === 3;

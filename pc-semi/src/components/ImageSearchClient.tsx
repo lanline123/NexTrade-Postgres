@@ -26,6 +26,8 @@ import i18n from '@/i18n';
 const PAGE_SIZE = 30;
 const GUEST_SESSION_KEY = 'imageSearchGuestSession';
 const PREVIEW_KEY = 'imageSearchPreview';
+/** 头部入口（PcImageSearchEntry）暂存待检索图片的键：此前结果页从不读它，入口选图到结果页必丢失（2026-11-22 体检修复） */
+const PENDING_ENTRY_KEY = 'pcImageSearchPendingPreview';
 
 interface Capabilities {
   enabled?: boolean;
@@ -304,6 +306,37 @@ export default function ImageSearchClient({ footer }: { footer?: ReactNode }) {
     }
   };
 
+  // 头部入口带图跳转落地：消费入口暂存的 dataURL 并自动上传检索（只消费一次；
+  // URL 已带 searchToken 时走上面的令牌分支，不重复上传）
+  const pendingConsumedRef = useRef(false);
+  useEffect(() => {
+    if (pendingConsumedRef.current) return;
+    if (readQueryParam('searchToken') || readQueryParam('token')) return;
+    let dataUrl = '';
+    try {
+      dataUrl = sessionStorage.getItem(PENDING_ENTRY_KEY) || '';
+      if (dataUrl) sessionStorage.removeItem(PENDING_ENTRY_KEY);
+    } catch {
+      // ignore
+    }
+    if (!dataUrl) return;
+    pendingConsumedRef.current = true;
+    setPreview(dataUrl);
+    try {
+      sessionStorage.setItem(PREVIEW_KEY, dataUrl);
+    } catch {
+      // ignore
+    }
+    void fetch(dataUrl)
+      .then((response) => response.blob())
+      .then((blob) => {
+        const file = new File([blob], 'image-search.png', { type: blob.type || 'image/png' });
+        void upload(file);
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -481,17 +514,22 @@ export default function ImageSearchClient({ footer }: { footer?: ReactNode }) {
             ) : (
               <p className="pc-search-empty">{t('没有找到相似商品，试试更换图片或调整筛选条件')}</p>
             )}
-            {pages > 1 ? (
+            {/* 无 searchToken（后端直返 records）时翻页接口无从调用，此前页码可点却毫无反应：
+                不渲染分页；有令牌时页码改滑动窗口（此前写死前 8 页，第 9 页起无高亮不可达）（2026-11-22 体检修复） */}
+            {pages > 1 && token ? (
               <nav className="pc-pagination">
                 {page > 1 ? <button type="button" onClick={() => void changePage(page - 1)}>{t('上一页')}</button> : <span className="is-disabled">{t('上一页')}</span>}
-                {Array.from({ length: Math.min(pages, 8) }).map((_, index) => {
-                  const next = index + 1;
-                  return (
-                    <button key={next} type="button" className={next === page ? 'is-active' : ''} onClick={() => void changePage(next)}>
-                      {next}
-                    </button>
-                  );
-                })}
+                {(() => {
+                  const start = Math.min(Math.max(1, page - 3), Math.max(1, pages - 7));
+                  return Array.from({ length: Math.min(pages, 8) }).map((_, index) => {
+                    const next = start + index;
+                    return (
+                      <button key={next} type="button" className={next === page ? 'is-active' : ''} onClick={() => void changePage(next)}>
+                        {next}
+                      </button>
+                    );
+                  });
+                })()}
                 {page < pages ? <button type="button" onClick={() => void changePage(page + 1)}>{t('下一页')}</button> : <span className="is-disabled">{t('下一页')}</span>}
               </nav>
             ) : null}

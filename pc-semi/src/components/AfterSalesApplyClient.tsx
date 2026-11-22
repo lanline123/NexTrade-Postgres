@@ -159,6 +159,14 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
       return options.filter(([, label]) => label !== '退货/退款' && label !== '换货');
     }, [config.aftersaleType, data?.order?.orderStatus]);
 
+    // 选项被过滤后把 type 夹回现存选项：待发货订单过滤掉 type=1/3 后，state 仍停在初始 1，
+    // 界面无任何单选被选中、提交却发出被过滤掉的类型（2026-11-22 体检修复）
+    useEffect(() => {
+      if (aftersaleTypeOptions.length && !aftersaleTypeOptions.some(([key]) => Number(key) === type)) {
+        setType(Number(aftersaleTypeOptions[0][0]));
+      }
+    }, [aftersaleTypeOptions, type]);
+
     const selectedItems = useMemo(
         () =>
             Object.entries(quantities)
@@ -248,6 +256,15 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
       Toast.warning({ content: '请选择售后商品' });
       return;
     }
+    if (!aftersaleTypeOptions.some(([key]) => Number(key) === type)) {
+      Toast.warning({ content: t('请选择售后类型') });
+      return;
+    }
+    // 原因启用且有原因列表时必选：此前可把默认首项改回空选项直接提交、靠后端报错兜底（2026-11-22 体检修复）
+    if (Number(config.afterSalesReasonEnabled ?? 1) === 1 && config.aftersaleReason?.length && !reason) {
+      Toast.warning({ content: t('请选择售后原因') });
+      return;
+    }
     setSubmitting(true);
     try {
       await apiPost('user/aftersales/create', {
@@ -276,6 +293,21 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
           <div className="no-result">
             <span>{t('登录后申请售后')}</span>
             <Link className="font-color" href={`/login?redirect=/member/return/info?orderId=${orderId}`}>{t('去登录')}</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // orderId 缺失或数据加载失败：渲染错误态而不是一张可点的空表单
+  // （此前 data 为空仍渲染完整表单，提交只得到「请选择售后商品」，2026-11-22 体检修复）
+  if (!loading && (!orderId || !data?.order)) {
+    return (
+      <div className="info-row mp-return-info">
+        <div className="log-return-content">
+          <div className="no-result">
+            <span>{t('售后数据加载失败或订单不存在')}</span>
+            <Link className="font-color" href="/member/return/list">{t('返回售后申请')}</Link>
           </div>
         </div>
       </div>

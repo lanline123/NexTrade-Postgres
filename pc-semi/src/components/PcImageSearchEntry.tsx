@@ -4,11 +4,11 @@
  * 以图搜图入口（源码：view/pc/components/imageSearch/ImageSearchEntry.vue）
  *
  * React + Semi 版：入口按钮 + 悬停/点击触发的浮层面板（源码为 el-popover）。
- * 能力开关读取 `/api/search/imageSearch/capabilities`（enabled/pcEnabled/shopEnabled/formats）；
+ * 能力开关读取 `/api/search/image/capabilities`（enabled/pcEnabled/shopEnabled/formats）；
  * 店铺内入口额外要求 shopEnabled。
  *
- * 源码把选中的图片交给结果页上传检索；本仓库结果页 `/search/image` 自带选图上传流程，
- * 故提交时跳转结果页（本地暂存预览 dataURL 供后续接入，见 remaining gaps）。
+ * 源码把选中的图片交给结果页上传检索；本仓库提交时把预览 dataURL 暂存
+ * sessionStorage（键 pcImageSearchPendingPreview），结果页挂载时消费并自动上传检索。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Camera from '@icon-park/react/es/icons/Camera';
@@ -67,7 +67,9 @@ export default function PcImageSearchEntry({ shopId }: { shopId?: number | strin
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/search/imageSearch/capabilities', { credentials: 'include' })
+    // 后端只有 /search/image/capabilities 这一条路由：此前多写了 imageSearch 段恒 404，
+    // capabilities 永远为空、入口永不渲染（2026-11-22 体检修复，线上实测 404 vs 200）
+    fetch('/api/search/image/capabilities', { credentials: 'include' })
       .then((response) => response.json())
       .then((json) => {
         if (!cancelled) setCapabilities((json?.data || null) as Capabilities | null);

@@ -410,7 +410,7 @@ export default function CartClient() {
       const productIds = Array.from(
         new Set(
           (normalized.cartList || [])
-            .flatMap((group: any) => (group?.productList || []) as Array<{ productId?: number; product_id?: number }>)
+            .flatMap((group: any) => (group?.carts || []) as Array<{ productId?: number; product_id?: number }>)
             .map((product) => Number(product.productId || product.product_id))
             .filter((id) => Number.isFinite(id) && id > 0),
         ),
@@ -927,10 +927,13 @@ export default function CartClient() {
                                   <div className="money pt5 priceFormOurty discount-price">
                                     <Price value={product.price} />
                                   </div>
-                                  <div className="money pt5 priceFormQurty orgin-price">
-                                    <Price value={originPrice} />
-                                    <div className="discount-txt">优惠{getDiscount(currentPrice, originPrice)}%</div>
-                                  </div>
+                                  {/* 划线原价只在真有优惠时显示（原价 > 现价）；无优惠时同价划线 + 「优惠0%」属误导（2026-11-22 体检修复） */}
+                                  {originPrice > currentPrice ? (
+                                    <div className="money pt5 priceFormQurty orgin-price">
+                                      <Price value={originPrice} />
+                                      <div className="discount-txt">优惠{getDiscount(currentPrice, originPrice)}%</div>
+                                    </div>
+                                  ) : null}
                                 </div>
                               ) : (
                                 <span className="cart-invalid-text">{t('暂不支持购买')}</span>

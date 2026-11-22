@@ -19,7 +19,7 @@
  *
  * 已知后端缺口（前端守卫下自动隐藏，不报错）：
  * - Rust 订单列表 availableActions 未下发 offlinePaymentClaimDetail；VO 无 offlinePaymentClaimStatus/payTypeId 字段
- * - orderNum 无 all 字段，「全部」角标恒 0
+ * - orderNum 无 all 字段：「全部」角标由前端对各状态角标求和兜底（2026-11-22 体检补）
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -386,18 +386,28 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
             setTab(key as TabKey);
           }}
         >
-          {visibleTabs.map((item) => (
-            <Tabs.TabPane
-              key={item.key}
-              itemKey={item.key}
-              tab={
-                <span className="mol-tab">
-                  {t(item.label)}
-                  {Number(nums[item.key] || 0) > 0 ? <span className="mol-tab__num">{nums[item.key]}</span> : null}
-                </span>
-              }
-            />
-          ))}
+          {visibleTabs.map((item) => {
+            // 「全部」角标：orderNum 无 all 字段时用各状态角标之和兜底（此前恒不显示，2026-11-22 体检修复）
+            const count =
+              item.key === 'all'
+                ? Number(nums.all || 0) ||
+                  Object.entries(nums)
+                    .filter(([key]) => key !== 'all')
+                    .reduce((sum, [, value]) => sum + (Number(value) || 0), 0)
+                : Number(nums[item.key] || 0);
+            return (
+              <Tabs.TabPane
+                key={item.key}
+                itemKey={item.key}
+                tab={
+                  <span className="mol-tab">
+                    {t(item.label)}
+                    {count > 0 ? <span className="mol-tab__num">{count}</span> : null}
+                  </span>
+                }
+              />
+            );
+          })}
         </Tabs>
         <Input
           className="mol-search"
@@ -406,7 +416,15 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
           placeholder={t('收货人名称或订单号')}
           value={keyword}
           showClear
-          onChange={(value) => setKeyword(value)}
+          onChange={(value) => {
+            setKeyword(value);
+            // 点清除（×）清空关键词时立即回到未筛选列表：此前只改 state 不重拉，
+            // 列表停留在旧筛选结果，必须切 tab/翻页才恢复（2026-11-22 体检修复）
+            if (value === '' && keyword) {
+              setPage(1);
+              load({ page: 1, keyword: '' });
+            }
+          }}
           onEnterPress={() => {
             setPage(1);
             load({ page: 1, keyword });
@@ -535,7 +553,9 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
                     </div>
                     <div className="mol-card__actions">
                       <Button theme="borderless" onClick={() => go(`/member/order/info?id=${order.orderId}`)}>{t('订单详情')}</Button>
-                      {actions.confirmReceipt && !isCardSecretOrder(order) ? (
+                      {/* 查看物流以运单信息存在为准（与详情页口径一致）：此前挂在 confirmReceipt 动作上，
+                          该动作后端只对已发货(status=2)下发，已完成订单在列表里看不了物流（2026-11-22 体检修复） */}
+                      {(order.trackingNo || order.logisticsName) && !isCardSecretOrder(order) ? (
                         <Button theme="borderless" onClick={() => viewLogistics(order)}>{t('查看物流')}</Button>
                       ) : null}
                       {canShowToPay(order) ? (

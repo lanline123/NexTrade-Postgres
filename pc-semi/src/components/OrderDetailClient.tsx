@@ -235,10 +235,19 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
 
   useEffect(() => {
     load();
-    const timer = setInterval(() => setNowTs(Date.now()), 1000);
-    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
+
+  // 倒计时秒针只在有未到期的支付截止时间时运行：此前无条件每秒重渲染整页，
+  // 连带取消弹窗的内联回调每秒换身份、弹窗内配置被反复重拉（2026-11-22 体检修复）
+  const payEndRaw = String(detail?.payEndTime || '');
+  useEffect(() => {
+    if (!payEndRaw) return;
+    const endMs = Date.parse(payEndRaw.replace(/-/g, '/'));
+    if (!Number.isFinite(endMs) || endMs <= Date.now()) return;
+    const timer = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [payEndRaw]);
 
   const payCountdown = useMemo(() => {
     const raw = String(detail?.payEndTime || '');
@@ -289,8 +298,12 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
   const buyAgain = async () => {
     try {
       await apiPost('user/order/buyAgain', { id: orderId });
-      Toast.success({ content: '已加入购物车' });
-      window.location.href = '/cart';
+      // 与订单列表 onReBuy 统一（对齐原版：buyAgain 后跳结算页）：
+      // 此前详情页跳 /cart、列表跳 /order/check，同一动作两页两种结果（2026-11-22 体检修复）
+      Toast.success({ content: t('正在跳转中，请稍后~') });
+      setTimeout(() => {
+        window.location.href = '/order/check';
+      }, 1500);
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : '操作失败' });
     }
@@ -369,8 +382,10 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
   const shippingFeeLabel = isReserveOrder ? t('上门服务费') : isLocalDeliveryOrder ? t('配送费') : '快递';
   const shippingFeeFreeText = isReserveOrder ? t('免费上门') : isLocalDeliveryOrder ? t('免配送费') : '包邮';
 
+  // 线下支付只认 payTypeId===3（与本页 isOfflineOrder 口径一致）：此前其余值（含 0/缺失的异常数据）
+  // 一律显示「线下支付」，会误导用户以为是线下付款订单（2026-11-22 体检修复）
   const payText =
-    isGiftCardExchange ? t('礼品卡兑换') : Number(detail.payTypeId) === 1 ? t('在线支付') : Number(detail.payTypeId) === 2 ? t('货到付款') : '线下支付';
+    isGiftCardExchange ? t('礼品卡兑换') : Number(detail.payTypeId) === 1 ? t('在线支付') : Number(detail.payTypeId) === 2 ? t('货到付款') : Number(detail.payTypeId) === 3 ? t('线下支付') : '-';
 
   return (
     <div className="info-row">
@@ -483,7 +498,9 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
             {actionEnabled(actions, 'toAftersales', 'toAfterSales') && !giftCardBlocked && orderSource !== 'pos' && orderType !== 14 && !isPickupCompleted ? (
               <Link href={`/member/return/info?orderId=${detail.orderId || orderId}`}><Button>{t('整单售后')}</Button></Link>
             ) : null}
-            {actionEnabled(actions, 'toAftersales', 'toAfterSales') ? (
+            {/* 与上方「整单售后」同一套守卫：此前按商品售后只判 toAftersales，
+                礼品卡兑换/POS/跨店/自提完成订单也能点进申请页（2026-11-22 体检修复） */}
+            {actionEnabled(actions, 'toAftersales', 'toAfterSales') && !giftCardBlocked && orderSource !== 'pos' && orderType !== 14 && !isPickupCompleted ? (
               <Link href={`/member/aftersales/apply?orderId=${detail.orderId || orderId}`}><Button>{t('按商品售后')}</Button></Link>
             ) : null}
             {actionEnabled(actions, 'toComment') ? (

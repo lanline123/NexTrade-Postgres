@@ -1,4 +1,5 @@
 import { getHomeDecorate, getProducts } from '@/lib/api';
+import { formatDisplayPrice } from '@/lib/currency';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -49,7 +50,8 @@ async function LegacyHome() {
     <Link className="legacy-home__card" key={`${row.productId || row.productSn || index}`} href={`/product/${row.productId || row.productSn || ''}`}>
       <img src={String(row.picThumb || row.picUrl || '')} alt={String(row.productName || '')} loading="lazy" />
       <strong>{String(row.productName || '')}</strong>
-      <b>¥ {Number(row.productPrice || 0).toFixed(2)}</b>
+      {/* 价格走全站展示口径（万级缩略）：此前裸 toFixed(2)，大额商品会显示 ¥35000000.00（2026-11-22 体检修复） */}
+      <b>¥ {formatDisplayPrice(row.productPrice || 0)}</b>
     </Link>
   );
   return (
@@ -72,10 +74,13 @@ async function LegacyHome() {
         <h2 className="com-pc-title">{t('推荐商品')}</h2>
         <div className="legacy-home__grid">{products.slice(0, 4).map(card)}</div>
       </section>
-      <section className="legacy-home__floor">
-        <h2 className="com-pc-title">{t('猜你喜欢')}</h2>
-        <div className="legacy-home__grid">{products.length > 4 ? products.slice(4, 8).map(card) : products.map(card)}</div>
-      </section>
+      {/* 猜你喜欢只在有第 5 件起商品时出现：此前 ≤4 件时整段与「推荐商品」重复渲染（2026-11-22 体检修复） */}
+      {products.length > 4 ? (
+        <section className="legacy-home__floor">
+          <h2 className="com-pc-title">{t('猜你喜欢')}</h2>
+          <div className="legacy-home__grid">{products.slice(4, 8).map(card)}</div>
+        </section>
+      ) : null}
       {!products.length ? <div className="pc-list-empty">{t('商品数据加载失败，请稍后刷新')}</div> : null}
     </div>
   );

@@ -1123,11 +1123,15 @@ export interface AftersalesRecordItem {
   [key: string]: unknown;
 }
 
-export async function getAftersalesRecords(params: { page?: number; size?: number } = {}): Promise<{ records: AftersalesRecordItem[]; total: number }> {
+export async function getAftersalesRecords(params: { page?: number; size?: number; authToken?: string } = {}): Promise<{ records: AftersalesRecordItem[]; total: number }> {
   const query = new URLSearchParams();
   query.set('page', String(params.page || 1));
   query.set('size', String(params.size || 10));
-  const response = await fetch(`${SERVER_API_BASE}/api/user/aftersales/getRecord?${query.toString()}`, { cache: 'no-store' });
+  // 该接口要求登录：服务端调用必须透传 accessToken cookie（与 getShopList 的 authToken 同口径）。
+  // 此前裸 fetch 无 Authorization，后端恒拒、页面 catch 吞成空列表，售后记录页永远显示「暂无」（2026-11-22 体检修复）
+  const headers: Record<string, string> = {};
+  if (params.authToken) headers.Authorization = `Bearer ${params.authToken}`;
+  const response = await fetch(`${SERVER_API_BASE}/api/user/aftersales/getRecord?${query.toString()}`, { cache: 'no-store', headers });
   const data = await readData<any>(response);
   return { records: Array.isArray(data?.records) ? data.records : [], total: Number(data?.total || 0) };
 }

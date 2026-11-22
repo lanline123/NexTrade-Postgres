@@ -36,8 +36,15 @@ export default async function CategorySlugPage({ params, searchParams }: PagePro
   }
   const query = new URLSearchParams();
   if (categoryId) query.set('cat', categoryId);
-  const keyword = read(searchParams?.keyword);
-  if (keyword) query.set('keyword', keyword);
+  // 其余查询参数（brand/sort/min/max/attr/page/pId 等）原样透传：
+  // 此前只保留 cat+keyword，从分类 SEO 链接带筛选条件进入会全部丢失（2026-11-22 体检修复）
+  for (const [key, value] of Object.entries(searchParams || {})) {
+    if (key === 'cat' || key === 'categoryId') continue;
+    const values = Array.isArray(value) ? value : [value];
+    values.forEach((item) => {
+      if (item) query.append(key, item);
+    });
+  }
   const suffix = query.toString();
   redirect(suffix ? `/search?${suffix}` : '/search');
 }

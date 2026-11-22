@@ -511,6 +511,9 @@ export default async function SearchPage(props: PageProps) {
   const selectedBrandName = String(filterResult?.filterSelected?.brand ?? '');
   const esAttrs = normalizeEsAttrs(esAttrResult, filterResult?.filter?.attrs);
   const records = (productResult?.records || []) as unknown as ProductListItem[];
+  // 接口失败（postApi 吞错返回 null）与「真的没有商品」必须分开呈现：
+  // 此前两者同态，用户只看到「没有找到商品」，无从知道是故障（2026-11-22 体检修复）
+  const productLoadFailed = tab === 'goods' && productResult === null;
   const total = Number(productResult?.total || 0);
   const pages = Math.max(1, Math.ceil(total / size));
   const shops = (shopResult?.records || []) as ShopItem[];
@@ -608,7 +611,8 @@ export default async function SearchPage(props: PageProps) {
   ];
   /* 旧版「区间」下拉的预设：沿用页面既有的价格区间，每项各自带 min/max */
   const intervalPresets = PRICE_RANGES.filter((item) => item.key !== 'all').map((item) => ({
-    key: item.label,
+    // key 此前误用 label：SearchSortBar 下拉里标题与副标题同文重复出现（2026-11-22 体检修复）
+    key: item.key,
     label: item.label,
     href: `${listPath}${buildQuery({ min: item.min || undefined, max: item.max || undefined }, 1)}`,
     active: priceRange === item.key,
@@ -622,7 +626,8 @@ export default async function SearchPage(props: PageProps) {
   const intervalResetHref = `${listPath}${buildQuery({ min: undefined, max: undefined }, 1)}`;
   /* 旧版 Filter.vue 一级分类：第一项固定是「全部」 */
   const categoryStripItems = [
-    { key: 'all', label: t('全部'), href: tabHref('goods'), active: !cat },
+    // 「全部」必须清掉 cat：此前用 tabHref('goods') 会保留当前分类，点全部仍停在该分类（2026-11-22 体检修复）
+    { key: 'all', label: t('全部'), href: `${listPath}${buildQuery({ cat: undefined }, 1)}`, active: !cat },
     ...categories.map((item) => {
       const id = String(item.id ?? '');
       return {
@@ -707,15 +712,22 @@ export default async function SearchPage(props: PageProps) {
           className={`goods-list__box${goodsLoading ? ' goods-list__box--loading' : ''}${records.length ? '' : ' goods-list__box--empty'}`}
         >
           <div className="goods-list-c">
-            <ProductGrid
-              products={records}
-              showSales={Boolean(searchConfig?.showSales)}
-              showShopTag={Boolean(searchConfig?.showShopTag)}
-              buyBtn={searchBuyBtn}
-              gridClassName="wrap mp-search-card"
-              fixedNameTwoLines
-              layout={viewMode}
-            />
+            {productLoadFailed ? (
+              <div className="pc-list-empty">
+                <p>{t('商品加载失败，请稍后重试')}</p>
+                <Link href={`${listPath}${buildQuery({}, page)}`}>{t('重新加载')}</Link>
+              </div>
+            ) : (
+              <ProductGrid
+                products={records}
+                showSales={Boolean(searchConfig?.showSales)}
+                showShopTag={Boolean(searchConfig?.showShopTag)}
+                buyBtn={searchBuyBtn}
+                gridClassName="wrap mp-search-card"
+                fixedNameTwoLines
+                layout={viewMode}
+              />
+            )}
           </div>
         </div>
         {/* 旧版 CatGoodsList.vue 底部：Element Plus 分页 */}
@@ -730,16 +742,20 @@ export default async function SearchPage(props: PageProps) {
                 <span className="btn-prev disabled">{t('上一页')}</span>
               )}
               <ul className="el-pager">
-                {Array.from({ length: Math.min(pages, 8) }).map((_, index) => {
-                  const next = index + 1;
-                  return (
-                    <li key={next}>
-                      <Link href={`${listPath}${buildQuery({}, next)}`} className={`number${next === page ? ' active' : ''}`}>
-                        {next}
-                      </Link>
-                    </li>
-                  );
-                })}
+                {/* 滑动窗口分页：此前写死前 8 页，总页数 >8 时第 9 页起无页码且当前页无高亮（2026-11-22 体检修复） */}
+                {(() => {
+                  const start = Math.min(Math.max(1, page - 3), Math.max(1, pages - 7));
+                  return Array.from({ length: Math.min(pages, 8) }).map((_, index) => {
+                    const next = start + index;
+                    return (
+                      <li key={next}>
+                        <Link href={`${listPath}${buildQuery({}, next)}`} className={`number${next === page ? ' active' : ''}`}>
+                          {next}
+                        </Link>
+                      </li>
+                    );
+                  });
+                })()}
               </ul>
               {page < pages ? (
                 <Link href={`${listPath}${buildQuery({}, page + 1)}`} className="btn-next">
@@ -872,10 +888,12 @@ export default async function SearchPage(props: PageProps) {
                     brandOptions={sortBrandOptions}
                     brandActive={Boolean(brand)}
                     filterPanel={
+                      // selectedBrands 必须拆逗号串：brand 是 "1,2" 形式的多选串，整串当单个 id
+                      // 传入会让已选品牌不高亮、计数错误、再点已选品牌拼出重复参数（2026-11-22 体检修复）
                       <SearchAllFilterPanel
                         brands={brands}
                         attrs={esAttrs}
-                        selectedBrands={brand ? [brand] : []}
+                        selectedBrands={brand ? brand.split(',').filter(Boolean) : []}
                         selectedAttrs={selectedAttrsMap}
                         baseQuery={brandBaseQuery}
                         basePath={listPath}
@@ -961,19 +979,23 @@ export default async function SearchPage(props: PageProps) {
                           <span className="btn-prev disabled">{t('上一页')}</span>
                         )}
                         <ul className="el-pager">
-                          {Array.from({ length: Math.min(shopPages, 8) }).map((_, index) => {
-                            const next = index + 1;
-                            return (
-                              <li key={next}>
-                                <Link
-                                  href={`${listPath}${buildQuery({}, next)}`}
-                                  className={`number${next === page ? ' active' : ''}`}
-                                >
-                                  {next}
-                                </Link>
-                              </li>
-                            );
-                          })}
+                          {/* 同商品分页：滑动窗口（2026-11-22 体检修复） */}
+                          {(() => {
+                            const start = Math.min(Math.max(1, page - 3), Math.max(1, shopPages - 7));
+                            return Array.from({ length: Math.min(shopPages, 8) }).map((_, index) => {
+                              const next = start + index;
+                              return (
+                                <li key={next}>
+                                  <Link
+                                    href={`${listPath}${buildQuery({}, next)}`}
+                                    className={`number${next === page ? ' active' : ''}`}
+                                  >
+                                    {next}
+                                  </Link>
+                                </li>
+                              );
+                            });
+                          })()}
                         </ul>
                         {page < shopPages ? (
                           <Link href={`${listPath}${buildQuery({}, page + 1)}`} className="btn-next">

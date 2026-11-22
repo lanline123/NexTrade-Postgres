@@ -178,10 +178,15 @@ export default function SearchAllFilterPanel({
       const next = current.includes(optionKey)
         ? current.filter((item) => item !== optionKey)
         : [...current, optionKey];
-      // 重建全部 attr 参数；清空的属性不保留
+      // 重建全部 attr 参数；清空的属性不保留。
+      // 该属性此前无任何已选值时不在 selectedAttrs 里，必须把本次切换结果追加进去，
+      // 否则生成的链接与当前 URL 相同、首次点击任何未选属性都无效（2026-11-22 体检修复）
       const merged = Object.entries(selectedAttrs).map(([name, values]) =>
         name === section.attrName ? [name, next] as const : [name, values] as const,
       );
+      if (!Object.prototype.hasOwnProperty.call(selectedAttrs, section.attrName)) {
+        merged.push([section.attrName, next] as const);
+      }
       params.delete('attr');
       /**
        * 属性参数格式必须与页面既有序列化一致（app/search/page.tsx serializeSelectedAttrs）：
