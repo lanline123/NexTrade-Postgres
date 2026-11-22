@@ -1614,6 +1614,38 @@ impl From<&HubSsoRequest> for HubSsoRequestVO {
     }
 }
 
+/// 管理端：SSO 本机发起 VO（成员侧视角，设计 §1.3「本机发起」页签；
+/// 前台接缝补线）。state_hash 是 CSRF 令牌哈希，不出后端——本 VO
+/// 刻意不含该字段，与请求 VO 不含 code_hash 同口径。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubSsoStateVO {
+    pub id: i32,
+    pub link_id: i32,
+    /// 目标中枢名（连接对端名，服务层回填）。
+    pub peer_name: String,
+    /// 0 待回调 / 1 已完成。
+    pub status: i32,
+    /// 回调落成的本地会员（未完成为 0）。
+    pub local_user_id: i32,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+impl From<&HubSsoState> for HubSsoStateVO {
+    fn from(r: &HubSsoState) -> Self {
+        Self {
+            id: r.id,
+            link_id: r.link_id,
+            peer_name: String::new(),
+            status: i32::from(r.status),
+            local_user_id: r.local_user_id,
+            add_time: r.add_time,
+            update_time: r.update_time,
+        }
+    }
+}
+
 /// 纯逻辑：returnUrl 白名单校验——必须以连接登记的成员地址为前缀
 /// （配对登记地址即白名单，总设计 §6.3 redirect_uri 白名单的实现形态）。
 #[must_use]

@@ -5230,6 +5230,33 @@ impl FederationService {
         };
         Ok(PageResult::new(total.max(0) as u64, list, &page))
     }
+
+    /// 管理端：SSO 本机发起列表（成员侧视角，会员模块闸；设计 §1.3
+    /// 「本机发起」页签，前台接缝补线）。与中枢侧请求列表同页分视角：
+    /// 本表记本站前台发起的联邦登录（目标中枢、是否已回调落号），
+    /// 中枢实例上本表为空属正常（发起记录只在成员侧产生）。
+    pub async fn list_sso_states(
+        &self,
+        q: &HubSsoListQuery,
+    ) -> Result<PageResult<HubSsoStateVO>> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_sso_states(q).await?;
+        let mut list = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let mut vo = HubSsoStateVO::from(r);
+            if r.link_id > 0 {
+                if let Ok(link) = self.load_link(r.link_id).await {
+                    vo.peer_name = link.peer_name.clone();
+                }
+            }
+            list.push(vo);
+        }
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
 }
 
 // ———————————————————— 自由函数 ————————————————————

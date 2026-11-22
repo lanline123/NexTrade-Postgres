@@ -1704,6 +1704,29 @@ impl HubFederationRepository {
         Ok((rows, total.0.max(0)))
     }
 
+    /// 管理端：SSO 本机发起分页（成员侧视角，设计 §1.3「本机发起」页签）。
+    /// 过滤口径与中枢侧请求列表一致（link_id / status），共用过滤构造。
+    pub async fn list_sso_states(
+        &self,
+        q: &HubSsoListQuery,
+    ) -> Result<(Vec<HubSsoState>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+
+        let total: (i64,) = sso_state_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = sso_state_page_query(q, size as i64, offset)
+            .build_query_as::<HubSsoState>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
     /// 成员侧落发起记录（state 只存哈希）。
     pub async fn insert_sso_state(
         &self,
@@ -2919,6 +2942,28 @@ fn push_sso_filters(qb: &mut QueryBuilder<'static, Postgres>, q: &HubSsoListQuer
         qb.push(" AND status = ");
         qb.push_bind(status as i16);
     }
+}
+
+fn sso_state_count_query(q: &HubSsoListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_sso_state WHERE 1=1");
+    push_sso_filters(&mut qb, q);
+    qb
+}
+
+fn sso_state_page_query(
+    q: &HubSsoListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_sso_state WHERE 1=1");
+    push_sso_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
 }
 
 // ———————————————————— 列表查询构造（纯函数，供单测断言占位符序列） ————————————————————
@@ -4468,6 +4513,20 @@ mod list_sql_tests {
         let q = HubSsoListQuery::default();
         assert_placeholders(sso_count_query(&q).sql(), 0);
         assert_placeholders(sso_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn sso_state_list_filters() {
+        let q = HubSsoListQuery {
+            link_id: Some(3),
+            status: Some(1),
+            ..Default::default()
+        };
+        assert_placeholders(sso_state_count_query(&q).sql(), 2);
+        assert_placeholders(sso_state_page_query(&q, 20, 0).sql(), 4);
+        let q = HubSsoListQuery::default();
+        assert_placeholders(sso_state_count_query(&q).sql(), 0);
+        assert_placeholders(sso_state_page_query(&q, 20, 0).sql(), 2);
     }
 
     #[test]

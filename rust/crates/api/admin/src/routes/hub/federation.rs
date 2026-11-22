@@ -46,6 +46,7 @@
 //! | `POST` | `/hub/myLinks/syncMembers` | 成员侧手动同步会员（二期） |
 //! | `POST` | `/hub/myLinks/reportOrders` | 成员侧手动上报订单（二期） |
 //! | `GET`  | `/hub/sso/requests` | 登录互认授权审计（三期①，迁移 042，会员模块闸） |
+//! | `GET`  | `/hub/sso/states` | 登录互认本机发起列表（成员侧视角，三期① 前台接缝补线，会员模块闸） |
 //! | `GET`  | `/hub/config/packages` | 配置包列表（三期②，迁移 043） |
 //! | `POST` | `/hub/config/publish` | 发布配置包（三期②） |
 //! | `POST` | `/hub/config/revoke` | 撤销配置包（三期②） |
@@ -92,7 +93,8 @@ use nextrade_core::models::hub::federation::{
     HubConfigApplyListQuery, HubConfigApplyVO, HubConfigListQuery, HubConfigPackageVO,
     HubPairInitiateDTO, HubPairingCodeVO, HubPairingCreateDTO, HubPriceOverrideSaveDTO,
     HubSettleAccountVO, HubSettleLineListQuery, HubSettleLineVO, HubSettleStatementListQuery,
-    HubSettleStatementVO, HubSsoListQuery, HubSsoRequestVO, HubWalletAccountListQuery,
+    HubSettleStatementVO, HubSsoListQuery, HubSsoRequestVO, HubSsoStateVO,
+    HubWalletAccountListQuery,
     HubWalletLineListQuery, HubWalletLineVO, HubWalletMirrorListQuery, HubWalletMirrorVO,
     HubXorderListQuery, HubXorderRouteListQuery, HubXorderRouteVO, HubXorderVO,
     SettleAccountAdjustDTO, SettleAccountOpenDTO, SettleGenerateDTO, SettleLineStatusDTO,
@@ -106,7 +108,7 @@ use crate::support::tenant::platform_only;
 use crate::AdminState;
 
 /// 本域路由（去掉 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 59] = [
+const ROUTE_TABLE: [(&str, &str, &str); 60] = [
     ("GET", "/hub/overview", "HubController.overview"),
     ("GET", "/hub/credentials/list", "HubController.credentialList"),
     ("GET", "/hub/credentials/detail", "HubController.credentialDetail"),
@@ -139,6 +141,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 59] = [
     ("POST", "/hub/myLinks/syncMembers", "HubController.myLinkSyncMembers"),
     ("POST", "/hub/myLinks/reportOrders", "HubController.myLinkReportOrders"),
     ("GET", "/hub/sso/requests", "HubController.ssoRequests"),
+    ("GET", "/hub/sso/states", "HubController.ssoStates"),
     ("GET", "/hub/config/packages", "HubController.configPackages"),
     ("POST", "/hub/config/publish", "HubController.configPublish"),
     ("POST", "/hub/config/revoke", "HubController.configRevoke"),
@@ -170,7 +173,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 59] = [
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
-    // 中枢管理面（46 条）：整域挂 platform_only，仅平台账号可达。联邦端点
+    // 中枢管理面（45 条）：整域挂 platform_only，仅平台账号可达。联邦端点
     // 不在权限生成表内（/hub/ 条目为 0），权限中间件对无条目路由放行，
     // 若不挂本层，任一店铺级管理账号在联邦开启时即可签发/重置凭证密钥、
     // 中央账本记账、确认跨站结算（体检线 6 登记 R1）。
@@ -222,8 +225,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/settle/confirm", post(settle_confirm))
         .route("/hub/settle/markSettled", post(settle_mark_settled))
         .layer(axum::middleware::from_fn(platform_only));
-    // 成员侧自助面（13 条）：本机作为成员站的视角（发起配对、同步会员/订单、
-    // 配置落地确认、跨店路由单、账本镜像），保持仅登录可达、不挂平台守卫。
+    // 成员侧自助面（14 条）：本机作为成员站的视角（发起配对、同步会员/订单、
+    // 配置落地确认、跨店路由单、账本镜像、登录互认本机发起列表），保持仅登录可达、不挂平台守卫。
     // /hub/links/list 为两面共用读端点（中枢页传 role=1、我的连接页传
     // role=2），不整端点挂守卫，改在 link_list handler 内按 role 分流。
     let member_side = Router::new()
@@ -239,7 +242,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/config/decide", post(config_decide))
         .route("/hub/xorder/routes", get(xorder_routes))
         .route("/hub/xorder/syncRouteStatus", post(xorder_sync_route_status))
-        .route("/hub/wallet/mirror", get(wallet_mirror));
+        .route("/hub/wallet/mirror", get(wallet_mirror))
+        .route("/hub/sso/states", get(sso_states));
     Router::new().merge(hub_admin).merge(member_side)
 }
 
@@ -522,6 +526,14 @@ async fn sso_requests(
     Query(q): Query<HubSsoListQuery>,
 ) -> ApiResult<PageResult<HubSsoRequestVO>> {
     ok(state.hub.federation.list_sso_requests(&q).await?)
+}
+
+/// 三期① 前台接缝补线：登录互认本机发起列表（成员侧视角）。
+async fn sso_states(
+    State(state): State<AdminState>,
+    Query(q): Query<HubSsoListQuery>,
+) -> ApiResult<PageResult<HubSsoStateVO>> {
+    ok(state.hub.federation.list_sso_states(&q).await?)
 }
 
 /// 三期②：配置包列表（中枢）。
