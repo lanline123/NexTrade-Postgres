@@ -2316,3 +2316,12 @@
 - **供应商编辑永远失败（原版有）**：`VendorList` drawer 的 updateApi 误指单字段宏接口 updateInfo——改走真更新 `/vendor/vendor/update`；新建时联系人/电话组装进 vendorData 提交（原先静默丢失）。
 - **批发三设置永远保存失败（原版有）**：`WholesaleProducts` 批发价/起批量/倍数三弹窗提交字段与后端 DTO 完全错位（wholesalePrice/moqDimension/multiple 均被 serde 忽略）——批发价改为按 price/detail 的 SKU×等级×阶梯行编辑回提交 priceRows、起批量字段改 dimension（批量弹窗补维度选择）、倍数按 buyRule/detail 的 skuRules 逐 SKU 编辑提交 skuMultiples；`WholesalerGrades`/`Wholesalers` 的 setStatus/changeGrade/delete 后端收 Query 参数、前端原发 JSON body 恒报参数缺失——改 query 传参；批发商等级列表后端返回裸数组、框架 ListPage 只认 records 信封恒空——框架加裸数组兜底；等级删除补二次确认（与传参修复同批，防裸删生效）。
 - **采购域多处（原版有/我方新增混合，逐项见审计报告）**：退货可退量恒 0 致退货单建不出来（改按 入库量−已退量 现算、键名双读）；入库详情/退货带出误传采购订单 id 查入库单详情（改入库单主键）；对账候选入库/退货同号撞键改复合键；对账工具栏单号搜索参数后端不接收（改 keyword）、导出实为 JSON 却名「导出EXCEL」（改「导出JSON」+ .json 落盘，真 Excel 登记后端立项）；对账补驳回（带原因）/重新提交/作废三入口（后端端点已有、前端缺失）；采购订单/入库/退货/供应商/供应商商品五页死筛选清理（后端不接收的字段撤除或并入 keyword、文案如实）；供应商分类编辑静默清备注/重置排序（回填 + 排序项 + 提交带 sortOrder）；供应商商品汇总卡数字恒错（改取两列表真实 total）；选品弹窗跨页勾选丢失（改累积 Map）；订单收货入库时间标必填不校验（补校验）；`UserCertifications` 批量删除绕过状态门控（rowSelectable 仅已拒绝可选）；`Members` 禁用会员补二次确认、批量加积分/余额补 >0 校验、状态开关改受控同步、导入文案删虚假承诺；`MemberTags` detail 失败不再静默空开抽屉、单标签不再被整组替换；`CustomerBlacklist` 批量移除取消后不再丢勾选；`ShopCustomers` 筛选变化回第一页；`Categories` 商品转移到顶级分类被误拦已修；`ProductGifts` 操作列与框架自带编辑/删除重复且其「编辑」为死按钮，已删冗余列。
+
+## 0.0.2 续 · 2026-11-22 批次（全站体检·管理端系统域：两孤儿页接通 + 分类接口名修正 + 菜单搜索落点修正，未部署——无迁移，随下一 admin 合并版上线）
+
+### 修复
+
+- **门店工作台接通（我方新增页存量接线缺失）**：`pages/StoreWorkbench.tsx`（论坛 597800 门店工作台）组件完整、商户端菜单叶子 `storeWorkbench` 也在，但 App.tsx 从未注册——无 import、无 knownPages、无渲染分支、pageTitles 无此键，商户点「门店工作台 → 工作台」被 normalizePageKey 回落到平台 dashboard。本批在 App.tsx 补齐 lazy import、knownPages 登记、渲染分支与 aliasMap 自映射（pageTitles 补登一行见体检报告标红项，补登后自映射可删）。
+- **账号安全设置页接通（我方新增，论坛 B 类第 6 项存量接线缺失）**：后端锁定链与 `AccountSecuritySettings.tsx` 页面俱全（接口 `/setting/config/accountSecuritySettings`、`/setting/config/saveAccountSecurity` 前后端逐字对齐，会员详情「登录安全」区块亦已落地），但页面从未接线、菜单亦无入口，管理员无法调整失败次数/锁定时长或关闭锁定。本批先在 App.tsx 接通路由（key `accountSecuritySettings`，可直达），菜单叶子与 pageTitles 补登见体检报告标红项（adminMenu.tsx 本批按冻结口径未动）。
+- **店铺团队设置「显示分类」恒空修复**：`ShopTeamSettings` 调 `/product/category/getAllCategoryList`，后端实名 `/product/category/getAllCategory`（原 Java `CategoryController.getAllCategory`），404 被 catch 吞掉致分类勾选区永远为空、存量勾选无从核对。改对接口名，并按后端分类树契约（children 嵌套）递归拍平后渲染。
+- **顶栏菜单搜索落点修正**：搜索结果命中分组/父级菜单时此前直接以分组/父级 key 导航，落回 dashboard 或「尚未迁移」占位页；改为与 AdminLayout 一级菜单点击同口径（resolveAccessibleRedirect），落到组内第一个可用叶子页（跳过 blank 新标签入口）。

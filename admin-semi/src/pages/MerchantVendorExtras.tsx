@@ -332,13 +332,20 @@ export function ShopTeamSettings() {
       })
       .catch((error) => Toast.error({ content: error?.message || t('加载店铺信息失败') }))
       .finally(() => alive && setLoading(false));
-    apiGet<any>('/product/category/getAllCategoryList')
+    apiGet<any>('/product/category/getAllCategory')
       .then((result) => {
         if (!alive) return;
         const records = Array.isArray(result) ? result : result?.records || [];
-        setCategories(
-          records.map((item: any) => ({ categoryId: item.categoryId, categoryName: item.categoryName || item.name || '' })),
-        );
+        // 后端返回分类树（children 嵌套），拍平为一维列表供勾选区渲染
+        const flat: Array<{ categoryId: number; categoryName: string }> = [];
+        const walk = (items: any[]) => {
+          items.forEach((item) => {
+            flat.push({ categoryId: item.categoryId, categoryName: item.categoryName || item.name || '' });
+            if (Array.isArray(item.children)) walk(item.children);
+          });
+        };
+        walk(records);
+        setCategories(flat);
       })
       .catch(() => undefined);
     return () => {

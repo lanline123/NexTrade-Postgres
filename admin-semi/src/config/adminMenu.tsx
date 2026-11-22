@@ -1616,6 +1616,10 @@ export const navGroups: NavGroup[] = [
             "label": "登录设置"
           },
           {
+            "key": "accountSecuritySettings",
+            "label": "账号安全"
+          },
+          {
             "key": "paymentSetting",
             "label": "支付设置"
           },
@@ -2068,6 +2072,8 @@ export const pageTitles: Record<string, string> = {
   "seoSettings": "SEO设置",
   "opsCodeSettings": "运营代码与验证",
   "loginSetting": "登录设置",
+  "accountSecuritySettings": "账号安全",
+  "storeWorkbench": "门店工作台",
   "paymentSetting": "支付设置",
   "appVersionManage": "APP版本",
   "systemUpdate": "系统更新",

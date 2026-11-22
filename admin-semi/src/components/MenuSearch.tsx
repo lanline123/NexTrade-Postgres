@@ -16,6 +16,9 @@ interface MenuSearchResult {
 interface MenuEntry {
   key: string;
   label: string;
+  /** 实际落点页：分组/父级条目按 AdminLayout 的 resolveAccessibleRedirect
+   *  口径落到组内第一个可用叶子页，避免搜到父级时跳回 dashboard/占位页。 */
+  page: string;
 }
 
 const ALIAS: Record<string, string> = {
@@ -34,10 +37,12 @@ const ALIAS: Record<string, string> = {
 function buildMenuEntries(): MenuEntry[] {
   const entries: MenuEntry[] = [];
   navGroups.forEach((group) => {
-    entries.push({ key: group.key, label: group.label });
+    const first = group.items.find((item) => !item.blank) ?? group.items[0];
+    const groupPage = first ? first.children?.[0]?.key || first.key : group.key;
+    entries.push({ key: group.key, label: group.label, page: groupPage });
     group.items.forEach((item) => {
-      entries.push({ key: item.key, label: item.label });
-      (item.children || []).forEach((child) => entries.push({ key: child.key, label: child.label }));
+      entries.push({ key: item.key, label: item.label, page: item.children?.[0]?.key || item.key });
+      (item.children || []).forEach((child) => entries.push({ key: child.key, label: child.label, page: child.key }));
     });
   });
   return entries;
@@ -47,11 +52,12 @@ const MENU_ENTRIES = buildMenuEntries();
 
 function resolvePage(item: MenuSearchResult): string | null {
   const exact = MENU_ENTRIES.find((entry) => entry.key === item.authoritySn);
-  if (exact) return exact.key;
+  if (exact) return exact.page;
   const alias = ALIAS[item.authoritySn];
-  if (alias && MENU_ENTRIES.some((entry) => entry.key === alias)) return alias;
+  const aliasEntry = alias ? MENU_ENTRIES.find((entry) => entry.key === alias) : undefined;
+  if (aliasEntry) return aliasEntry.page;
   const byLabel = MENU_ENTRIES.find((entry) => entry.label === item.authorityName && entry.key !== item.authorityName);
-  if (byLabel) return byLabel.key;
+  if (byLabel) return byLabel.page;
   const route = (item.routeLink || '').toLowerCase();
   const routeAlias: Array<[string, string]> = [
     ['product/category', 'categoryManage'],
