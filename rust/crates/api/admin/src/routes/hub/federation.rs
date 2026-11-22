@@ -4,6 +4,14 @@
 //! 全部接口先过联邦总闸（总开关关 ⇒ 404，管理端亦不例外；开关本身走
 //! `setting/config/federationSettings`，不受此闸限制以便重新打开）。
 //!
+//! 角色守卫（全站体检线 6 登记 R1 修复）：联邦端点不在权限生成表内、权限
+//! 中间件对无条目路由放行，故角色隔离靠路由层——中枢管理面（凭证/配对/
+//! 连接审批/聚合/会员映射/订单汇总/SSO 审计/配置发布/跨店主单/中央账本/
+//! 跨站结算）整域挂 `platform_only`，仅平台账号可达（与 systemUpdate、
+//! siteClone、federationSettings 先例同口径）；成员侧自助面（myLinks/*、
+//! 配置落地确认、跨店路由单、账本镜像）保持仅登录可达。`/hub/links/list`
+//! 为两面共用读端点，handler 内按 role 分流（非平台仅 role=2 本机出站）。
+//!
 //! | method | path | 说明 |
 //! |--------|------|------|
 //! | `GET`  | `/hub/overview` | 组织概览（设置摘要+计数） |
@@ -67,7 +75,7 @@
 //! | `POST` | `/hub/settle/markSettled` | 结清登记（三期⑤，只记账不动资金） |
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -91,7 +99,9 @@ use nextrade_core::models::hub::federation::{
     WalletAdminPostDTO, WalletBalanceVO, WalletPostVO,
 };
 use nextrade_core::types::PageResult;
-use nextrade_security::web::{ok, ApiResult};
+use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
+
+use crate::support::tenant::platform_only;
 
 use crate::AdminState;
 
@@ -160,7 +170,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 59] = [
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
-    Router::new()
+    // 中枢管理面（46 条）：整域挂 platform_only，仅平台账号可达。联邦端点
+    // 不在权限生成表内（/hub/ 条目为 0），权限中间件对无条目路由放行，
+    // 若不挂本层，任一店铺级管理账号在联邦开启时即可签发/重置凭证密钥、
+    // 中央账本记账、确认跨站结算（体检线 6 登记 R1）。
+    let hub_admin = Router::new()
         .route("/hub/overview", get(overview))
         .route("/hub/credentials/list", get(credential_list))
         .route("/hub/credentials/detail", get(credential_detail))
@@ -174,14 +188,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/pairing/list", get(pairing_list))
         .route("/hub/pairing/create", post(pairing_create))
         .route("/hub/pairing/revoke", post(pairing_revoke))
-        .route("/hub/links/list", get(link_list))
         .route("/hub/links/approve", post(link_approve))
         .route("/hub/links/reject", post(link_reject))
         .route("/hub/links/setStatus", post(link_set_status))
         .route("/hub/links/del", post(link_del))
-        .route("/hub/myLinks/initiate", post(my_link_initiate))
-        .route("/hub/myLinks/poll", post(my_link_poll))
-        .route("/hub/myLinks/heartbeat", post(my_link_heartbeat))
         .route("/hub/aggregation/list", get(aggregation_list))
         .route("/hub/aggregation/sync", post(aggregation_sync))
         .route("/hub/aggregation/setState", post(aggregation_set_state))
@@ -195,19 +205,12 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/config/publish", post(config_publish))
         .route("/hub/config/revoke", post(config_revoke))
         .route("/hub/config/acks", get(config_acks))
-        .route("/hub/config/applies", get(config_applies))
-        .route("/hub/config/decide", post(config_decide))
-        .route("/hub/myLinks/pullConfig", post(my_link_pull_config))
         .route("/hub/xorder/list", get(xorder_list))
         .route("/hub/xorder/routeRetry", post(xorder_route_retry))
-        .route("/hub/xorder/routes", get(xorder_routes))
-        .route("/hub/xorder/syncRouteStatus", post(xorder_sync_route_status))
         .route("/hub/wallet/accounts", get(wallet_accounts))
         .route("/hub/wallet/lines", get(wallet_lines))
         .route("/hub/wallet/postLine", post(wallet_post_line))
         .route("/hub/wallet/releaseExpired", post(wallet_release_expired))
-        .route("/hub/wallet/mirror", get(wallet_mirror))
-        .route("/hub/myLinks/mergeWallet", post(my_link_merge_wallet))
         .route("/hub/settle/accounts", get(settle_accounts))
         .route("/hub/settle/accountOpen", post(settle_account_open))
         .route("/hub/settle/accountAdjust", post(settle_account_adjust))
@@ -218,8 +221,26 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/settle/generate", post(settle_generate))
         .route("/hub/settle/confirm", post(settle_confirm))
         .route("/hub/settle/markSettled", post(settle_mark_settled))
+        .layer(axum::middleware::from_fn(platform_only));
+    // 成员侧自助面（13 条）：本机作为成员站的视角（发起配对、同步会员/订单、
+    // 配置落地确认、跨店路由单、账本镜像），保持仅登录可达、不挂平台守卫。
+    // /hub/links/list 为两面共用读端点（中枢页传 role=1、我的连接页传
+    // role=2），不整端点挂守卫，改在 link_list handler 内按 role 分流。
+    let member_side = Router::new()
+        .route("/hub/links/list", get(link_list))
+        .route("/hub/myLinks/initiate", post(my_link_initiate))
+        .route("/hub/myLinks/poll", post(my_link_poll))
+        .route("/hub/myLinks/heartbeat", post(my_link_heartbeat))
         .route("/hub/myLinks/syncMembers", post(my_link_sync_members))
         .route("/hub/myLinks/reportOrders", post(my_link_report_orders))
+        .route("/hub/myLinks/pullConfig", post(my_link_pull_config))
+        .route("/hub/myLinks/mergeWallet", post(my_link_merge_wallet))
+        .route("/hub/config/applies", get(config_applies))
+        .route("/hub/config/decide", post(config_decide))
+        .route("/hub/xorder/routes", get(xorder_routes))
+        .route("/hub/xorder/syncRouteStatus", post(xorder_sync_route_status))
+        .route("/hub/wallet/mirror", get(wallet_mirror));
+    Router::new().merge(hub_admin).merge(member_side)
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -353,9 +374,18 @@ async fn pairing_revoke(
 
 async fn link_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<HubLinkListQuery>,
 ) -> ApiResult<PageResult<HubLinkVO>> {
     state.hub.federation.gate().await?;
+    // 两面共用读端点：role=1 为中枢侧连接（对端是成员站），role=2 为本机
+    // 作为成员站的出站连接（「我的连接」页口径）。非平台账号仅可查 role=2，
+    // 查中枢侧或不带 role 的全量列表按平台守卫同文案拒绝（体检 R1）。
+    if !auth.is_platform() && q.role != Some(2) {
+        return Err(AppError(nextrade_core::Error::Forbidden(
+            "仅平台账号可访问该系统配置".into(),
+        )));
+    }
     ok(state.hub.federation.list_links(&q).await?)
 }
 

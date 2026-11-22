@@ -2365,3 +2365,9 @@
 ### 修复
 
 - **买家收货地址 list/create 越权（IDOR）修复（原版有·我方改口径；全站体检线 6 登记 R2·高）**：原 Java 口径下 `GET /api/user/address/list` 与 `POST /api/user/address/create` 不拦截游客且信任入参 `userId`（`listDTO.userId ?? getCurrentUserId()`），匿名 `GET /api/user/address/list?userId=<任意会员>` 即可枚举他人全部收货地址（姓名/手机号/详细地址），匿名 create 可往任意会员名下写地址；移植时原样带入。本批改口径：① 路由层（`api/public/src/routes/member/user_address_client.rs`）list/create 与 detail/update/del 同口径加登录拦截，未登录回既有业务错误「用户未登录」；② 服务层（`services/member/user_address_client.rs`）身份一律以令牌为准——list 不再以查询参数 `userId` 覆盖令牌身份，create 落库归属固定为令牌用户；③ 模型层（`core/models/member/user_address_client.rs`）两处 DTO 的 `userId` 字段仅保留反序列化兼容并注明被忽略。调用方排查（报告 `~/workspace/site-audit-address-idor/REPORT.md`）：PC/H5 全部合法调用点均不传 userId、身份与令牌同源，前端零改动；礼品领取链本身要求登录、H5 bannerA2 调用前自判 token，后端无其他内部调用方，无合法未登录依赖。detail/update/delete/setSelected 的归属校验经体检验明健全，未动。验收口径：上线后匿名 list/create 应回「用户未登录」、已登录传他人 userId 只见/只写本人地址、本人地址全链（列表/新增/编辑/删除/设默认/设选中）正常。
+
+## 0.0.2 续 · 2026-11-22 批次（安全修复：联邦 hub 管理端路由平台守卫，未部署——无迁移，随下一后端合并版上线）
+
+### 安全
+
+- **联邦（万象互联）管理端全域补平台守卫（全站体检线 6 登记 R1，我方新增模块的权限缺口）**：联邦端点不在权限生成表内（`/hub/` 条目为 0）、权限中间件对无条目路由放行、各 handler 的 `gate()` 只查联邦总开关不查角色——联邦开启时任一店铺级管理账号可调用凭证签发/重置密钥、中央账本记账、跨站结算确认等中枢管理面。修法（`rust/crates/api/admin/src/routes/hub/federation.rs`，路由集合 59 条与改前逐条一致、路径与 handler 零变更）：中枢管理面 46 条整域拆入独立 Router 并挂 `platform_only`（与 systemUpdate / siteClone / federationSettings 先例同口径，非平台账号一律 403「仅平台账号可访问该系统配置」）；成员侧自助面 13 条（myLinks/*、配置落地列表/确认、跨店路由单与状态同步、账本镜像）保持仅登录可达。两面共用的 `GET /hub/links/list` 不整端点挂守卫，改在 handler 内按 role 分流：非平台账号仅可查 role=2（本机作为成员站的出站连接，「我的连接」页口径），查 role=1 中枢侧或不带 role 全量一律同文案拒绝。结算单管理端 confirm 为中枢本方确认（对端确认走签名联邦 API `receive_settle_confirm` 置 peer_confirm），归中枢面不影响成员侧双确认链。报告：`~/workspace/site-audit-hub-guard/REPORT.md`。
