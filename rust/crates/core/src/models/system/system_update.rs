@@ -253,7 +253,7 @@ pub struct CreateUpdateJobParam {
     /// 选中面（P2 仅允许 admin/pc/h5 的子集，非空）。
     pub surfaces: Vec<String>,
     /// 当前登录管理员密码（再认证，不落库不进日志）。
-    pub password: <redacted>
+    pub password: String,
     /// 破坏性迁移二次确认位（目标版本含未执行的破坏性迁移时必须为 true，
     /// P2 不执行迁移，此位为审计留痕与前置知情确认；P3 起为执行门）。
     pub confirm_destructive: bool,

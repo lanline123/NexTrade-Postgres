@@ -151,7 +151,7 @@ impl UserService {
             username,
             email: email.to_string(),
             nickname: Some(nickname),
-            password: <redacted>
+            password: hash,
             status: Some(1),
             email_validated: 1,
             // reg_time 为 int unsigned 秒级时间戳（非毫秒），与手机注册同口径

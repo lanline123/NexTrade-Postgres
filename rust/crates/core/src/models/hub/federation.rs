@@ -1560,9 +1560,9 @@ pub struct SsoCallbackVO {
     #[serde(rename = "token")]
     pub token: String,
     #[serde(rename = "accessToken")]
-    pub access_token: <redacted>
+        pub access_token: String,
     #[serde(rename = "refreshToken")]
-    pub refresh_token: <redacted>
+        pub refresh_token: String,
     pub expires_in: i64,
     pub user_id: i32,
     pub global_member_id: String,
@@ -2377,13 +2377,13 @@ pub fn xorder_aggregate_status(sub_statuses: &[i32], current: i32) -> i32 {
     }
     if sub_statuses
         .iter()
-        .any(|s| matches!(s, XSUB_REJECTED | XSUB_REFUNDING | XSUB_REFUNDED))
+        .any(|s| matches!(*s, XSUB_REJECTED | XSUB_REFUNDING | XSUB_REFUNDED))
     {
         return XORDER_AFTERSALE;
     }
     if sub_statuses
         .iter()
-        .all(|s| matches!(s, XSUB_ROUTED | XSUB_SHIPPED | XSUB_COMPLETED))
+        .all(|s| matches!(*s, XSUB_ROUTED | XSUB_SHIPPED | XSUB_COMPLETED))
     {
         return XORDER_ROUTED;
     }

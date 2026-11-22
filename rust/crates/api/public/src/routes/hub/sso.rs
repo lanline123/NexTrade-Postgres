@@ -141,8 +141,8 @@ async fn callback(
             .issue_pair(user_id.to_string(), username, None, Some("member".into()))?;
     ok(SsoCallbackVO {
         token: access.clone(),
-        access_token: <redacted>
-        refresh_token: <redacted>
+        access_token: access,
+        refresh_token: refresh,
         expires_in,
         user_id,
         global_member_id,

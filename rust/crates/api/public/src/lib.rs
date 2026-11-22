@@ -359,7 +359,7 @@ struct RegisterDTO {
     /// 按「无手机号且有邮箱」推断邮箱通道。
     #[serde(default)]
     regist_type: Option<String>,
-    password: <redacted>
+    password: String,
     nickname: Option<String>,
     /// 分销归属（H5 注册页从分享链接 `bindSalesmanId` 透传；原版
     /// `RegisterController` → `UserServiceImpl.registerByMobile` 的 salesmanId）。
