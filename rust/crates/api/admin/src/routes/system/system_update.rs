@@ -57,7 +57,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     .collect()
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct StatusQuery {
     refresh: Option<String>,

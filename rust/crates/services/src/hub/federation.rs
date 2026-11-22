@@ -4061,7 +4061,7 @@ impl FederationService {
             let deal = item.deal_price * Decimal::from(item.quantity);
             if let Some(exist) = self
                 .repo()
-                .find_settle_line_by_biz(cred.link_id, cred.id, biz_sn)
+                .find_settle_line_by_biz(cred.link_id, cred.credential_id, biz_sn)
                 .await?
             {
                 if exist.supply_amount.abs() != amount {
@@ -4073,7 +4073,7 @@ impl FederationService {
             }
             let mut line = HubSettleLine {
                 link_id: cred.link_id,
-                credential_id: cred.id,
+                credential_id: cred.credential_id,
                 partner_user_id: link.partner_user_id,
                 remote_order_sn: item.remote_order_sn.trim().to_string(),
                 item_name: item.item_name.trim().to_string(),
@@ -5572,6 +5572,7 @@ async fn parse_hub_response(resp: reqwest::Response) -> Result<Value> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     /// 截取某个 `pub async fn` 的函数体（到下一个同级函数签名为止），
     /// 结构断言一律限定在函数体内，避免被文件其它位置的同名串误命中
     /// （含本测试模块自己的断言字面量——它们都在被截函数体之后）。

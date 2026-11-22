@@ -429,7 +429,7 @@ mod tests {
     fn wrap_finder_error_keeps_errcode_text_with_java_prefix() {
         let e = wrap_finder_error(Error::biz(
             1001,
-            "微信接口错误(48001): api unauthorized".into(),
+            "微信接口错误(48001): api unauthorized",
         ));
         match e {
             Error::Biz { code, msg } => {

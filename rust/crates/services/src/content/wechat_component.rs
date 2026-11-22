@@ -180,7 +180,7 @@ struct CachedToken {
 }
 
 async fn cached_token(key: &str) -> Option<String> {
-    let cached: Option<CachedToken> = get_cache().get_json(key).await.ok().flatten()?;
+    let cached: CachedToken = get_cache().get_json(key).await.ok().flatten()?;
     if cached.expires_at - TOKEN_REFRESH_MARGIN_SECS <= now_secs() {
         return None;
     }

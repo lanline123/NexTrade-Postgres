@@ -171,7 +171,7 @@ impl ProxyHallService {
             row.receiver_latitude,
         ) {
             (Some((lng1, lat1)), Some(lng2), Some(lat2)) => {
-                crate::trade::proxy_shopping_product::haversine_meters(lng1, lat1, lng2, lat2)
+                crate::trade::proxy_shopping_product::haversine_meters(Some(lng1), Some(lat1), Some(lng2), Some(lat2))
                     .round_dp(0)
                     .to_i64()
             }

@@ -68,7 +68,7 @@ struct CachedManifest {
 }
 
 /// updater 写回的 job 状态文件（`status/<job_id>.json`）。
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct UpdaterStatus {
     status: String,

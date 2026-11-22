@@ -1054,7 +1054,7 @@ impl OrderService {
                 .bind(key)
                 .bind(&order_sn)
                 .bind(utils::now_seconds() as i32)
-                .execute(&mut **tx)
+                .execute(&mut *tx)
                 .await
                 {
                     Ok(_) => {}
@@ -1150,7 +1150,7 @@ impl OrderService {
                     .bind(oid)
                     .bind(user_id)
                     .bind(key)
-                    .execute(&mut **tx)
+                    .execute(&mut *tx)
                     .await
                     {
                         result = Err(Error::Database(e.to_string()));
