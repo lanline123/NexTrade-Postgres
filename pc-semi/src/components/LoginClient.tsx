@@ -477,7 +477,7 @@ export default function LoginClient({
                     </>
                   )}
 
-                  {error ? <div className="login-card__error">{error}</div> : null}
+                  {error ? <div className="login-card__error" role="alert">{error}</div> : null}
 
                   <div className="login-card__agree">
                     <span className="login-card__agree-star">*</span>

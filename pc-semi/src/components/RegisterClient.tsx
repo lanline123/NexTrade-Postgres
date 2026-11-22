@@ -542,7 +542,7 @@ export default function RegisterClient({
                     />
                   </label>
 
-                  {error ? <div className="login-card__error">{error}</div> : null}
+                  {error ? <div className="login-card__error" role="alert">{error}</div> : null}
 
                   {/* 旧版无勾选框、视为已同意：仅一行提示文字，链接沿用 yhxy / yszc */}
                   <div className="login-card__agree">

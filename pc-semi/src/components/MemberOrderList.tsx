@@ -186,6 +186,7 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [needLogin, setNeedLogin] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [nums, setNums] = useState<NumMap>({});
   const [commentEnabled, setCommentEnabled] = useState<number | null>(null);
 
@@ -250,10 +251,14 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
         setRows(Array.isArray(result?.records) ? result.records : []);
         setTotal(Number(result?.total || 0));
         setNeedLogin(false);
+        setLoadError(false);
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : '';
-        setNeedLogin(message.includes('登录') || message.includes('401'));
+        const loginErr = message.includes('登录') || message.includes('401');
+        setNeedLogin(loginErr);
+        // 非登录类失败此前直接清成空列表，页面显示「还没有任何订单」，误导且无重试入口
+        setLoadError(!loginErr);
         setRows([]);
       })
       .finally(() => setLoading(false));
@@ -601,6 +606,11 @@ export default function MemberOrderList({ initialType }: { initialType?: string 
               );
             })}
           </>
+        ) : loadError ? (
+          <div className="mol mol--state">
+            <Empty title={t('订单加载失败')} description={t('服务暂时不可用，请稍后重试。')} />
+            <Button theme="solid" type="primary" onClick={() => load()}>{t('重新加载')}</Button>
+          </div>
         ) : (
           <div className="mol mol--state">
             <Empty title={t('当前筛选下还没有任何订单')} description={t('去看看有什么心仪的商品吧')} />

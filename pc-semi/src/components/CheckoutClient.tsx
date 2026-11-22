@@ -266,6 +266,8 @@ export default function CheckoutClient({
   /** 下单幂等键（我方新增）：进入结算页生成一次，本页内所有提交共用 */
   const idempotencyKeyRef = useRef(newIdempotencyKey());
   const [needLogin, setNeedLogin] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
   /** 账户维度余额/积分（user/user/memberCenter），旧版取 userStore.userInfo.balance/points */
   const [memberCenter, setMemberCenter] = useState<{ balance?: number; points?: number }>({});
 
@@ -322,9 +324,13 @@ export default function CheckoutClient({
         if (checkResult.item?.invoiceData && typeof checkResult.item.invoiceData === 'object') {
           setInvoiceData({ ...EMPTY_INVOICE, ...(checkResult.item.invoiceData as InvoiceData) });
         }
+        setLoadError(false);
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
-        setNeedLogin(message.includes('登录') || message.includes('401'));
+        const loginErr = message.includes('登录') || message.includes('401');
+        setNeedLogin(loginErr);
+        // 非登录类失败此前静默落到空结算页（无商品、提交禁用），用户无从分辨也无法重试
+        if (!loginErr) setLoadError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -333,7 +339,7 @@ export default function CheckoutClient({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flowType]);
+  }, [flowType, reloadTick]);
 
   const items = useMemo(
     () => (data?.cartList || []).flatMap((group) => group.carts || []).filter((item) => !cartIds.length || cartIds.includes(item.cartId)),
@@ -641,6 +647,7 @@ export default function CheckoutClient({
               <div className="form_item">
                 <div className="top_row">
                   <div className="tit">{t('结算数据加载中...')}</div>
+                  <div className="pc-state-loading" style={{ padding: '18px 24px 26px' }}><span className="pc-state-loading__spinner" aria-hidden="true" /></div>
                 </div>
               </div>
             </div>
@@ -670,6 +677,30 @@ export default function CheckoutClient({
                 <Link href="/login?redirect=/cart">
                   <button type="button" className="btn buy-btn">{t('去登录')}</button>
                 </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const retryLoad = () => {
+    setLoadError(false);
+    setLoading(true);
+    setReloadTick((n) => n + 1);
+  };
+
+  if (loadError) {
+    return (
+      <div className="order-check-page mp-check">
+        <div className="flex_csb container">
+          <div className="orderConfirmCon">
+            <div className="pc-state-error">
+              <div className="pc-state-error__title">{t('结算数据加载失败')}</div>
+              <p className="pc-state-error__desc">{t('服务暂时不可用，请稍后重试。')}</p>
+              <div className="pc-state-error__action">
+                <button type="button" className="btn buy-btn" onClick={retryLoad}>{t('重新加载')}</button>
               </div>
             </div>
           </div>

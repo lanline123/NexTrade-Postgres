@@ -176,6 +176,7 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [needLogin, setNeedLogin] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [cancelVisible, setCancelVisible] = useState(false);
   const [paidCancelVisible, setPaidCancelVisible] = useState(false);
   const [shippingVisible, setShippingVisible] = useState(false);
@@ -224,10 +225,14 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
       .then((result) => {
         const raw = (result || {}) as OrderDetail & { item?: OrderDetail };
         setDetail(raw.item ? raw.item : raw);
+        setLoadError(false);
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : '';
-        setNeedLogin(message.includes('登录') || message.includes('401'));
+        const loginErr = message.includes('登录') || message.includes('401');
+        setNeedLogin(loginErr);
+        // 非登录类失败此前与「订单不存在」共用同一文案，用户无从分辨也无法重试
+        setLoadError(!loginErr);
         setDetail(null);
       })
       .finally(() => setLoading(false));
@@ -313,7 +318,7 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
     setShippingVisible(true);
   };
 
-  if (loading) return <Card className="cart-state">{t('订单详情加载中...')}</Card>;
+  if (loading) return <Card className="cart-state"><div className="pc-state-loading"><span className="pc-state-loading__spinner" aria-hidden="true" /><span>{t('订单详情加载中...')}</span></div></Card>;
   if (needLogin) {
     return (
       <Card className="cart-state">
@@ -321,6 +326,19 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
         <Link href={`/login?redirect=/member/order/detail?id=${orderId}`}>
           <Button theme="solid" type="primary" size="large">{t('去登录')}</Button>
         </Link>
+      </Card>
+    );
+  }
+  if (loadError) {
+    return (
+      <Card className="cart-state">
+        <div className="pc-state-error">
+          <div className="pc-state-error__title">{t('订单加载失败')}</div>
+          <p className="pc-state-error__desc">{t('服务暂时不可用，请稍后重试。')}</p>
+          <div className="pc-state-error__action">
+            <Button theme="solid" type="primary" size="large" onClick={() => load()}>{t('重新加载')}</Button>
+          </div>
+        </div>
       </Card>
     );
   }

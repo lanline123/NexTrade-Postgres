@@ -137,7 +137,7 @@ export default function CouponCenterClient() {
   }
 
   if (loading) {
-    return <Card className="member-card">{t('优惠券加载中...')}</Card>;
+    return <Card className="member-card"><div className="pc-state-loading"><span className="pc-state-loading__spinner" aria-hidden="true" /><span>{t('优惠券加载中...')}</span></div></Card>;
   }
 
   if (!rows.length) {

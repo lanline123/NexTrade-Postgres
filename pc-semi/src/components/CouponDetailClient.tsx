@@ -53,7 +53,7 @@ export default function CouponDetailClient({ couponId }: { couponId: string }) {
       .finally(() => setLoading(false));
   }, [couponId]);
 
-  if (loading) return <Card className="pc-coupon-detail">{t('加载中...')}</Card>;
+  if (loading) return <Card className="pc-coupon-detail"><div className="pc-state-loading"><span className="pc-state-loading__spinner" aria-hidden="true" /><span>{t('加载中...')}</span></div></Card>;
 
   if (failed) {
     return (

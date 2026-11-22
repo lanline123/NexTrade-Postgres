@@ -107,7 +107,7 @@ export default function ProfileClient() {
     }
   };
 
-  if (loading) return <Card className="member-card">{t('资料加载中...')}</Card>;
+  if (loading) return <Card className="member-card"><div className="pc-state-loading"><span className="pc-state-loading__spinner" aria-hidden="true" /><span>{t('资料加载中...')}</span></div></Card>;
   if (needLogin) {
     return (
       <Card className="cart-state">

@@ -226,7 +226,7 @@ export default function CertificationClient() {
     }
   };
 
-  if (loading) return <Card className="member-card">{t('加载中...')}</Card>;
+  if (loading) return <Card className="member-card"><div className="pc-state-loading"><span className="pc-state-loading__spinner" aria-hidden="true" /><span>{t('加载中...')}</span></div></Card>;
   const status = Number(state?.status ?? 0);
   const hasRecord = Boolean(state);
   /** 分步指示（对照旧版 step.vue）：1 资料填写 / 2 审核及公示。 */

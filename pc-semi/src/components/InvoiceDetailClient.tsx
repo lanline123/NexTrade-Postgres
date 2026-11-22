@@ -106,7 +106,7 @@ export default function InvoiceDetailClient({ invoiceId, mode }: { invoiceId: st
     }
   };
 
-  if (loading) return <Card className="member-card">{t('加载中...')}</Card>;
+  if (loading) return <Card className="member-card"><div className="pc-state-loading"><span className="pc-state-loading__spinner" aria-hidden="true" /><span>{t('加载中...')}</span></div></Card>;
   if (!detail) return <div className="comment-empty">{t('未找到发票信息')}</div>;
 
   const status = Number(detail.status ?? 0);

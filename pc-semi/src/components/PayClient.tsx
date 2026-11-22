@@ -724,7 +724,7 @@ export default function PayClient({ orderId, defaultChannel }: { orderId: number
     }
   };
 
-  if (loading) return <Card className="cart-state">{t('订单支付信息加载中...')}</Card>;
+  if (loading) return <Card className="cart-state"><div className="pc-state-loading"><span className="pc-state-loading__spinner" aria-hidden="true" /><span>{t('订单支付信息加载中...')}</span></div></Card>;
 
   const order = info?.order || {};
   const offlineEntries = OFFLINE_TABS.filter((tab) => typeof (info?.offlinePaymentList || {})[tab.key] === 'string');
