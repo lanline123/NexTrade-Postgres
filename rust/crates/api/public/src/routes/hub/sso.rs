@@ -8,6 +8,7 @@
 //! | `POST` | `/federation/sso/consent` | 会员 JWT | 中枢侧同意/拒绝（本人操作） |
 //! | `POST` | `/federation/sso/start` | 匿名 | 成员侧发起联邦登录 |
 //! | `POST` | `/federation/sso/callback` | 匿名 | 成员侧回调落号 + 签发本地令牌 |
+//! | `GET`  | `/federation/sso/options` | 匿名 | 成员侧联邦登录可用性探针（前台接缝补线：登录页入口显隐，只读无副作用；不可用只回 available=false） |
 //!
 //! 同意必须由会员本人持本地 JWT 完成——联邦钥只登记/兑换，永不代签同意
 //! （安全红线）。回调落号后签发的就是本站普通会员令牌（typ=member）。
@@ -21,19 +22,20 @@ use axum::{
 use serde::Deserialize;
 
 use nextrade_core::models::hub::federation::{
-    SsoCallbackDTO, SsoCallbackVO, SsoConsentDTO, SsoConsentVO, SsoRequestInfoVO, SsoStartDTO,
-    SsoStartVO,
+    SsoCallbackDTO, SsoCallbackVO, SsoConsentDTO, SsoConsentVO, SsoOptionsVO, SsoRequestInfoVO,
+    SsoStartDTO, SsoStartVO,
 };
 use nextrade_security::web::{ok, require_auth, ApiResult, AppError, AuthUser};
 
 use super::super::super::PublicState;
 
 /// 本域路由（去掉 `/api` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 4] = [
+const ROUTE_TABLE: [(&str, &str, &str); 5] = [
     ("GET", "/federation/sso/requestInfo", "HubSsoApi.requestInfo"),
     ("POST", "/federation/sso/consent", "HubSsoApi.consent"),
     ("POST", "/federation/sso/start", "HubSsoApi.start"),
     ("POST", "/federation/sso/callback", "HubSsoApi.callback"),
+    ("GET", "/federation/sso/options", "HubSsoApi.options"),
 ];
 
 /// 需会员登录路由（中枢侧同意面，自套 require_auth）。
@@ -47,12 +49,13 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         ))
 }
 
-/// 匿名路由（成员侧发起/回调；回调成功即签发本地会员令牌）。
+/// 匿名路由（成员侧发起/回调/可用性探针；回调成功即签发本地会员令牌）。
 pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
         .route("/federation/sso/start", post(start))
         .route("/federation/sso/callback", post(callback))
+        .route("/federation/sso/options", get(options))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -94,6 +97,16 @@ async fn consent(
         .hub
         .federation
         .sso_consent(auth.id, &dto)
+        .await
+        .map_err(AppError)?;
+    ok(vo)
+}
+
+async fn options(State(state): State<PublicState>) -> ApiResult<SsoOptionsVO> {
+    let vo = state
+        .hub
+        .federation
+        .sso_options()
         .await
         .map_err(AppError)?;
     ok(vo)

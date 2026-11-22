@@ -810,6 +810,26 @@
   color: var(--general, #65c4aa);
 }
 
+/* 联邦登录入口（万象互联三期① 前台接缝）：与同排第三方按钮同口径的纯文字按钮 */
+.login-card__federation {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  color: #4b5563;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.login-card__federation:hover:not(:disabled) {
+  color: var(--general, #65c4aa);
+}
+
+.login-card__federation:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .login-card__wechat {
   border: 0;
   background: none;

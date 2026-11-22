@@ -19,6 +19,9 @@
  * - 短信登录：获取验证码前先过滑块，verifyToken 随发码请求提交（后端带了必校验）；
  * - 微信扫码：GET /api/user/login/getWxLoginUrl + wechatEvent 轮询（右侧社交区入口）；
  * - 第三方 OAuth（Google/Facebook/Twitter-X）按钮组。
+ * - 联邦登录（万象互联三期① 前台接缝）：探针 GET /api/federation/sso/options
+ *   确认可用才在社交区显示「联邦登录」，点击调 sso/start 跳中枢授权页，
+ *   回调落地页 /federation/callback 换本站令牌；未启用时零显示零影响。
  */
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -30,6 +33,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import VerifySlide from '@/components/VerifySlide';
 import { useOauthLogin, OauthButtons } from '@/components/oauth/useOauthLogin';
+import { useFederationSso, FederationLoginButton } from '@/components/federation/useFederationSso';
 async function getCsrf(): Promise<string> {
   const response = await fetch('/api/common/csrf/create', { credentials: 'include' });
   const json = await response.json();
@@ -172,6 +176,13 @@ export default function LoginClient({
    * 后台配置项：common/config/base → googleLoginOn / facebookLoginOn / twitterLoginOn。
    */
   const { switches: oauthSwitches, start: startOauth } = useOauthLogin();
+
+  /**
+   * 联邦登录入口（万象互联三期① 前台接缝）：探针确认本站已启用联邦
+   * 会员模块且有可用中枢连接时才渲染；未启用/探针失败不显示，
+   * 不影响本站账号登录。
+   */
+  const federationSso = useFederationSso();
 
   /** 点击获取验证码：先校验手机号，再过滑块，成功后才真正发码 */
   const requestSendCode = () => {
@@ -494,6 +505,13 @@ export default function LoginClient({
                       <img src="/assets/images/user/login/ico_wx.png" width={22} height={22} alt={t('微信扫码登录')} />
                     </button>
                     <OauthButtons switches={oauthSwitches} onStart={startOauth} />
+                    {federationSso.available ? (
+                      <FederationLoginButton
+                        peerName={federationSso.peerName}
+                        starting={federationSso.starting}
+                        onStart={federationSso.start}
+                      />
+                    ) : null}
                   </div>
                   <div className="login-card__links">
                     {tab === 'normal' ? <Link href="/member/reset">{t('忘记密码')}</Link> : null}

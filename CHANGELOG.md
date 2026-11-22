@@ -2377,3 +2377,9 @@
 ### 新增
 
 - **中枢授权页（我方新增，联邦三期① 前台接缝补线）**：补上三期① 登记的接缝——中枢 PC 前台新增授权页 `/federation/authorize?requestId=<id>`（地址形态即后端发起时回的 authorizeUrl 约定）。会员本人登录态下调既有 `GET /api/federation/sso/requestInfo` 展示申请方实例名/地址/发起时间，点同意/拒绝调既有 `POST /api/federation/sso/consent`，成功后按后端回的 redirectUrl 整页跳回成员站（同意带 code+state、拒绝带 federationSso=denied）；未登录先跳本站登录页、登录后按 redirect 参数回本页续办；请求已同意/已拒绝/已过期时只展示终态文案不出按钮。当前账号手机号未验证时后端明确拒绝（身份锚点不成立），页面如实展示原文案并引导先去会员中心完成手机验证，不伪造同意结果。fail-soft：本页为独立路由，加载失败只在本页报错，不影响商城与登录主链。后端零改动（requestInfo/consent 两端点三期①已就绪）。验收：CI build-pc 绿后随合并版上线；成员站发起 → 跳中枢未登录先登录 → 授权页显示申请方名 → 同意回跳成员站落号；拒绝回带 denied；未验证手机号点同意被拒且文案如实。
+
+## 0.0.2 续 · 2026-11-22 批次（万象互联三期前台接缝② 成员站联邦登录入口，未部署——零迁移，随下一后端 + PC 合并版上线）
+
+### 新增
+
+- **成员站联邦登录入口（我方新增，联邦三期① 前台接缝补线）**：补上三期① 登记的接缝——PC 登录页社交登录行新增「联邦登录」入口 + 回调落地页 `/federation/callback`。实证发现既有四端点缺「链接发现/可用性」面：`sso/start` 须显式传 linkId 且每次调用落一条 state 发起记录，无法兼作登录页显隐探针，故本批补最小发现面（其余全走既有端点）：新增匿名只读端点 `GET /api/federation/sso/options` → `{available, peerName}`，刻意不走模块硬闸——联邦未启用/会员模块未开/无可用连接/配置读取失败一律回 available=false，登录页据此隐藏入口（探针失败同样隐藏），fail-soft 绝不影响本站账号登录；`sso/start` 的 linkId 改为可缺省（<=0 时后端解析本站唯一可用成员连接：成员角色 + 已激活 + 会员模块已批准，零条/多条明确报错不猜；顺带修正发起记录此前按入参 linkId 落库、缺省时将落 0 的问题，改按解析出的连接落库）。入口点击调既有 `POST /api/federation/sso/start {callbackUrl}` 拿 authorizeUrl 整页跳中枢授权页；中枢同意后回跳落地页，带 code+state 时调既有 `POST /api/federation/sso/callback` 换本站普通会员令牌（存令牌口径与第三方 OAuth 回调一致：localStorage + cookie），随后进会员中心；回带 federationSso=denied 时如实提示已拒绝并给回登录页入口，参数缺失/兑换失败展示后端原文案不伪造登录态。验收：CI check-rust + build-pc 绿后随合并版上线；成员实例未启用联邦时登录页无入口且账号登录如常；启用后入口出现 → 发起跳中枢 → 同意回跳自动登录进会员中心；拒绝回跳显示已拒绝提示。

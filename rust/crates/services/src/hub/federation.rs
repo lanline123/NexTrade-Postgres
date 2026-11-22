@@ -4969,12 +4969,66 @@ impl FederationService {
         Ok(gid)
     }
 
+    /// 成员面：解析发起联邦登录所用的成员连接（前台接缝补线）。
+    /// 显式 link_id（>0）时按原口径取该连接；缺省（<=0，前台登录页
+    /// 无从枚举连接）时取唯一符合条件的连接：成员角色 + 已激活 +
+    /// 会员模块已批准。零条/多条都明确报错，不猜。
+    async fn resolve_sso_link(&self, link_id: i32) -> Result<HubLink> {
+        if link_id > 0 {
+            return self.load_link(link_id).await;
+        }
+        let q = HubLinkListQuery {
+            page: Some(1),
+            page_size: Some(100),
+            keyword: None,
+            status: Some(LINK_ACTIVE),
+            role: Some(LINK_ROLE_MEMBER),
+        };
+        let (rows, _) = self.repo().list_links(&q).await?;
+        let mut eligible = rows
+            .into_iter()
+            .filter(|l| l.approved_modules & MODULE_MEMBER != 0);
+        match (eligible.next(), eligible.next()) {
+            (Some(link), None) => Ok(link),
+            (None, _) => Err(Error::Validation("本站尚未接入联邦中枢".to_string())),
+            (Some(_), Some(_)) => Err(Error::Validation(
+                "本站存在多个中枢连接，暂不支持联邦登录".to_string(),
+            )),
+        }
+    }
+
+    /// 成员面：联邦登录可用性探针（前台接缝补线，登录页入口显隐）。
+    /// 刻意不走 gate_module 硬闸：联邦未启用 / 会员模块未开 / 无可用
+    /// 连接 / 配置读取失败一律回 available=false 而非报错——登录页
+    /// 据此隐藏入口，fail-soft，绝不影响本站登录主链。只读无副作用
+    /// （sso_start 会落 state 记录，不能兼作探针）。
+    pub async fn sso_options(&self) -> Result<SsoOptionsVO> {
+        let off = SsoOptionsVO {
+            available: false,
+            peer_name: String::new(),
+        };
+        let settings = match self.get_settings().await {
+            Ok(s) => s,
+            Err(_) => return Ok(off),
+        };
+        if !settings.enabled || settings.module_bits() & MODULE_MEMBER == 0 {
+            return Ok(off);
+        }
+        match self.resolve_sso_link(0).await {
+            Ok(link) => Ok(SsoOptionsVO {
+                available: true,
+                peer_name: link.peer_name.clone(),
+            }),
+            Err(_) => Ok(off),
+        }
+    }
+
     /// 成员面：发起联邦登录。后端生成 state（只存哈希），向上登记请求，
     /// 回中枢授权页地址供浏览器跳转。callback_url 必须以本机登记地址为
     /// 前缀（第一道闸；中枢侧再按连接登记地址复核）。
     pub async fn sso_start(&self, dto: &SsoStartDTO) -> Result<SsoStartVO> {
         let settings = self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
-        let link = self.load_link(dto.link_id).await?;
+        let link = self.resolve_sso_link(dto.link_id).await?;
         if i32::from(link.role) != LINK_ROLE_MEMBER || i32::from(link.status) != LINK_ACTIVE {
             return Err(Error::Validation("仅已激活的成员连接可发起联邦登录".to_string()));
         }
@@ -4989,7 +5043,7 @@ impl FederationService {
         let state = utils::random_hex(24);
         let now = self.now();
         self.repo()
-            .insert_sso_state(dto.link_id, &utils::sha256_hex(&state), now)
+            .insert_sso_state(link.link_id, &utils::sha256_hex(&state), now)
             .await?;
         let resp = hub_post_json_signed(
             &link.peer_base_url,

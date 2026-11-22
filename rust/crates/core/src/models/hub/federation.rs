@@ -1521,6 +1521,8 @@ pub struct SsoConsentVO {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SsoStartDTO {
+    /// 目标成员连接；<=0（前台登录页缺省）时由后端解析本站唯一可用
+    /// 的成员连接（成员角色 + 已激活 + 会员模块已批准），零条/多条报错。
     pub link_id: i32,
     /// 本机回调页地址（前端拼好回传，须以本机 instanceBaseUrl 为前缀）。
     pub callback_url: String,
@@ -1531,6 +1533,16 @@ pub struct SsoStartDTO {
 #[serde(rename_all = "camelCase")]
 pub struct SsoStartVO {
     pub authorize_url: String,
+}
+
+/// 成员面：联邦登录可用性探针响应（前台接缝补线：登录页入口显隐）。
+/// 只读、无副作用；不可用时只回 available=false，不带任何连接细节。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SsoOptionsVO {
+    pub available: bool,
+    /// 可用时回中枢实例名（连接对端名），供登录入口展示；不可用为空串。
+    pub peer_name: String,
 }
 
 /// 成员面：回调落号入参（中枢回跳带 code + state）。
