@@ -1170,7 +1170,7 @@ impl SiteCloneService {
             // 阶梯 JSON 内的 gift_id 按赠品映射重写（对不齐置 0）。
             let mut type_data: Value =
                 serde_json::from_str(&p.promotion_type_data).unwrap_or(Value::Array(Vec::new()));
-            if let Some tiers) = type_data.as_array_mut() {
+            if let Some(tiers) = type_data.as_array_mut() {
                 for tier in tiers.iter_mut() {
                     if let Some(obj) = tier.as_object_mut() {
                         if let Some(gid) = obj.get("giftId").and_then(Value::as_i64) {

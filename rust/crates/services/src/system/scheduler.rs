@@ -133,6 +133,10 @@ async fn proxy_hall_timeout_loop(repos: Arc<Repositories>) {
             Ok(0) => {}
             Ok(n) => tracing::info!("定时任务：接单大厅超时/取消兜底处置 {n} 笔"),
             Err(e) => tracing::warn!("定时任务：接单大厅兜底扫描失败: {e}"),
+        }
+    }
+}
+
 /// 店铺标签自动授标循环（`NEXTTRADE_SCHEDULER__SHOP_LABEL_SECS`，默认 3600s）。
 ///
 /// 每轮把全部启用中的自动授标规则（`shop_label_rule`）各重算一次：按
