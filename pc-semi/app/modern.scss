@@ -1,17 +1,17 @@
 /* =============================================================================
  * modern.scss — PC 商城现代化视觉层（最后加载，覆盖旧样式）
  * 设计语言：
- *   · 大圆角（16 / 20 / 24）+ 柔和多层投影
+ *   · 小圆角（0 / 2 / 4 / 6 全站统一刻度）+ 柔和多层投影
  *   · 中性灰阶 + 主题色点缀（--pc-primary，跟随装修主题）
  *   · 玻璃拟态头部 / 悬浮卡片 / 悬停抬升 / 图片缓慢放大
  *   · 排版：字重分层（700 标题 / 500 正文 / 400 辅助），行高 1.5~1.6
  * ========================================================================== */
 
 :root {
-  --ui-r-sm: 12px;
-  --ui-r: 16px;
-  --ui-r-lg: 20px;
-  --ui-r-xl: 24px;
+  --ui-r-sm: 6px;
+  --ui-r: 6px;
+  --ui-r-lg: 6px;
+  --ui-r-xl: 6px;
   --ui-line: #eceef2;
   --ui-line-soft: #f4f5f7;
   --ui-bg: #f6f7f9;
@@ -29,7 +29,7 @@
 html, body { background: var(--ui-bg); }
 body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
 
-/* ---------- 头部：玻璃质感 + 胶囊搜索 ---------- */
+/* ---------- 头部：玻璃质感 + 搜索 ---------- */
 .benefit-bar-wrap { border-bottom: 0 !important; }
 .pc-header-runtime .page-container,
 .pc-header-runtime .page-container.pc-header-divider--shadow,
@@ -45,7 +45,7 @@ body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
 .pc-shop-search .top-search {
   border: 1px solid transparent !important;
   background: var(--ui-bg) !important;
-  border-radius: 999px !important;
+  border-radius: 6px !important;
   padding: 3px !important;
   transition: background-color .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
@@ -57,18 +57,18 @@ body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
   border-color: color-mix(in srgb, var(--pc-primary, #1456f0) 40%, transparent) !important;
   box-shadow: var(--ui-ring);
 }
-.pc-header-runtime .top-search .search-form { height: 42px; border-radius: 999px; background: transparent !important; }
+.pc-header-runtime .top-search .search-form { height: 42px; border-radius: 6px; background: transparent !important; }
 .pc-header-runtime .top-search .search-input { background: transparent !important; }
 .pc-header-runtime .top-search .search-submit {
   height: 36px !important; padding: 0 22px !important;
-  border-radius: 999px !important;
+  border-radius: 6px !important;
   background: var(--ui-grad) !important;
   font-weight: 600;
   transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
 }
 .pc-header-runtime .top-search .search-submit:hover { transform: translateY(-1px); box-shadow: var(--ui-shadow-2); filter: brightness(1.04); }
 
-.pc-header-runtime .sub-nav li a { border-radius: 10px; padding: 2px 6px; transition: color .18s ease, background-color .18s ease; }
+.pc-header-runtime .sub-nav li a { border-radius: 6px; padding: 2px 6px; transition: color .18s ease, background-color .18s ease; }
 .pc-header-runtime .sub-nav li a:hover { background: var(--ui-bg); }
 .pc-header-runtime .page-header-home__right .mine-bar .bar-wrap .content,
 .pc-header-runtime .page-header-home__right .car-bar .content {
@@ -125,8 +125,8 @@ body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
 .pc-list-sorts a { padding: 6px 14px !important; border-radius: 999px !important; }
 .pc-list-sorts a.is-active { background: var(--ui-text) !important; color: #fff !important; }
 
-.pc-search-price-input { height: 36px !important; border-radius: 10px !important; border-color: var(--ui-line) !important; background: var(--ui-bg-soft); }
-.pc-search-price-form button { height: 36px !important; border-radius: 10px !important; background: var(--ui-text) !important; color: #fff !important; border: 0 !important; }
+.pc-search-price-input { height: 36px !important; border-radius: 6px !important; border-color: var(--ui-line) !important; background: var(--ui-bg-soft); }
+.pc-search-price-form button { height: 36px !important; border-radius: 6px !important; background: var(--ui-text) !important; color: #fff !important; border: 0 !important; }
 
 /* ---------- 会员中心：渐变用户卡 + 立体数字 ---------- */
 .mc-wrap { padding: 28px 0 56px !important; }
@@ -191,7 +191,7 @@ body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
 .pc-product-detail__thumbs button { border-radius: var(--ui-r-sm) !important; }
 .pc-product-detail__thumbs button.is-active { outline: 2px solid var(--pc-primary, #1456f0); outline-offset: 1px; }
 
-.pdp-stepper { border-radius: 999px !important; background: var(--ui-bg-soft); border: 0 !important; }
+.pdp-stepper { border-radius: 6px !important; background: var(--ui-bg-soft); border: 0 !important; }
 .pdp-stepper button { background: transparent !important; }
 .pdp-stepper input { border-left: 0 !important; border-right: 0 !important; background: transparent; }
 
@@ -204,13 +204,13 @@ body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
 
 .pdp-buybar { padding: 12px 16px !important; border-top: 1px solid var(--ui-line-soft) !important; background: rgba(255, 255, 255, .92) !important; }
 .pdp-buybar .semi-button-primary { background: var(--ui-grad) !important; border: 0 !important; box-shadow: var(--ui-shadow-2); }
-.pdp-buybar .semi-button { border-radius: 999px !important; height: 44px !important; }
+.pdp-buybar .semi-button { border-radius: 6px !important; height: 44px !important; }
 
 /* ---------- 按钮 / 输入统一 ---------- */
-.semi-button { border-radius: 12px; font-weight: 500; }
+.semi-button { border-radius: 6px; font-weight: 500; }
 .semi-button-primary { box-shadow: var(--ui-shadow-1); }
 .semi-button-primary:hover { box-shadow: var(--ui-shadow-2); }
-.semi-input-wrapper, .semi-select, .semi-inputnumber { border-radius: 12px; }
+.semi-input-wrapper, .semi-select, .semi-inputnumber { border-radius: 6px; }
 
 /* ---------- 页脚 ---------- */
 .pc-footer, footer { background: #fff; border-top: 1px solid var(--ui-line-soft); }
@@ -237,11 +237,11 @@ body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
  * 增票资质（member/userinvoice/info）
  * 结构：卡内顶栏页签（发票申请 / 增票资质）→ 头卡（状态徽标）→ 温馨提示
  *       → 驳回原因 → 资质信息 / 编辑表单
- * 圆角策略：统一小圆角（卡片 8 / 区块 8 / 表单控件 6），不使用 16~24px 大圆角与胶囊形
+ * 圆角策略：全站统一刻度（卡片 6 / 区块 6 / 表单控件 6），不使用大圆角与胶囊形
  * ========================================================================== */
 
 /* 卡片外壳：去掉 Semi 默认内边距，由内部区块各自控制 */
-.invq { padding: 0 !important; border: 0 !important; border-radius: 8px !important; box-shadow: var(--ui-shadow-2); }
+.invq { padding: 0 !important; border: 0 !important; border-radius: 6px !important; box-shadow: var(--ui-shadow-2); }
 .invq > .semi-card-body { padding: 0 !important; }
 
 /* ---------- 卡内顶栏：页签与内容同属一张卡片 ---------- */
@@ -251,10 +251,10 @@ body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
   gap: 10px;
   padding: 10px 28px;
   border-bottom: 1px solid var(--ui-line-soft);
-  border-radius: 8px 8px 0 0;
+  border-radius: 6px 6px 0 0;
   background: #fff;
 }
-.invq-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 8px; background: var(--ui-bg); }
+.invq-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 6px; background: var(--ui-bg); }
 .invq-tabs__item {
   padding: 6px 16px;
   border-radius: 6px;
@@ -323,7 +323,7 @@ body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
   margin: 0 28px;
   padding: 15px 18px;
   border: 1px solid #f3e6c9;
-  border-radius: 8px;
+  border-radius: 6px;
   background: linear-gradient(180deg, #fffcf4, #fffdf9);
 }
 .invq-notice__badge {
@@ -352,7 +352,7 @@ body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
   margin: 14px 28px 0;
   padding: 13px 16px;
   border: 1px solid #fbd5d1;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fef5f4;
 }
 .invq-alert__label { display: block; margin-bottom: 4px; color: #b42318; font-size: 12.5px; font-weight: 600; letter-spacing: .02em; }

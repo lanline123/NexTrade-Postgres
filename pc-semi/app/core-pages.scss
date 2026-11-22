@@ -166,7 +166,7 @@
                   }
                   &::-webkit-scrollbar-thumb {
                       background: #e0e0e0;
-                      border-radius: 3px;
+                      border-radius: 4px;
                   }
                   &::-webkit-scrollbar-track {
                       background: transparent;
@@ -543,7 +543,7 @@
               left: 50%;
               background: var(--general);
               color: var(--general);
-              border-radius: 10px;
+              border-radius: 6px;
               transform: translate(-50%);
           }
 
@@ -646,7 +646,7 @@
       height: 45px;
       background: #fff;
       border: 2px solid #e5e8ec;
-      border-radius: 8px;
+      border-radius: 6px;
       display: flex;
       overflow: hidden;
       flex-shrink: 0;
@@ -856,12 +856,12 @@
               min-height: 78px;
               margin: 12px 0;
               padding: 16px;
-              border-radius: 12px;
+              border-radius: 6px;
               overflow: hidden;
 
               &.isActive {
                   margin-top: 0 !important;
-                  border-radius: 0 0 12px 12px;
+                  border-radius: 0 0 6px 6px;
               }
 
               // 批发态（含阶梯报价表）：与标准版一致，去掉全部内边距
@@ -1005,7 +1005,7 @@
 
                       .promotion {
                           color: var(--tag-text, #cf0000);
-                          border-radius: 8px;
+                          border-radius: 6px;
                           height: 32px;
                           line-height: 32px;
                           padding: 0 12px;
@@ -1081,13 +1081,13 @@
           .active-box {
               margin-top: 12px !important;
               // max-width: 490px;
-              border-radius: 12px 12px 0 0 !important;
+              border-radius: 6px 6px 0 0 !important;
           }
 
           .presalePrice {
               // max-width: 490px;
               margin-bottom: 24px;
-              border-radius: 0 0 12px 12px !important;
+              border-radius: 0 0 6px 6px !important;
           }
 
           .serviceAction {
@@ -2016,7 +2016,7 @@
               gap: 10px;
               padding: 0 12px 0 4px;
               border: 1px solid rgba(31, 31, 51, 0.1);
-              border-radius: 8px;
+              border-radius: 6px;
               background-color: #fff;
               cursor: pointer;
               position: relative;
@@ -2026,7 +2026,7 @@
                   flex-shrink: 0;
                   width: 32px;
                   height: 32px;
-                  border-radius: 8px;
+                  border-radius: 6px;
                   overflow: hidden;
                   background-color: #f5f5f5;
 
@@ -2061,7 +2061,7 @@
               align-items: stretch;
               background-color: #fff;
               border: none;
-              border-radius: 8px;
+              border-radius: 6px;
               box-sizing: border-box;
               color: rgba(9, 9, 10, 0.92);
               cursor: pointer;
@@ -2079,7 +2079,7 @@
                   position: absolute;
                   inset: 0;
                   border: 1px solid rgba(31, 31, 51, 0.1);
-                  border-radius: 8px;
+                  border-radius: 6px;
                   pointer-events: none;
                   transition: border-color 0.2s;
               }
@@ -2158,7 +2158,7 @@
               align-items: center;
               background-color: #fff;
               border: 1px solid rgba(31, 31, 51, 0.1);
-              border-radius: 8px;
+              border-radius: 6px;
               box-sizing: border-box;
               color: rgba(9, 9, 10, 0.92);
               cursor: pointer;
@@ -2364,7 +2364,7 @@
               align-items: center;
               background-color: #fff;
               border: 1px solid rgba(31, 31, 51, 0.1);
-              border-radius: 8px;
+              border-radius: 6px;
               box-sizing: border-box;
               color: rgba(9, 9, 10, 0.92);
               cursor: pointer;
@@ -2544,7 +2544,7 @@
           .product-total-content {
               background: #f5f5f7;
               padding-left: 16px;
-              border-radius: 12px;
+              border-radius: 6px;
               overflow: hidden;
           }
 
@@ -2785,7 +2785,7 @@
           padding: 4px;
           // max-width: 490px;
           background: #f5f5f7;
-          border-radius: 12px;
+          border-radius: 6px;
           font-family: Inter, "SF Pro Text", Roboto, "Helvetica Neue", Helvetica, Tahoma, Arial, "PingFang SC", "Microsoft YaHei";
 
           .line,
@@ -2795,7 +2795,7 @@
 
           .tab-item {
               height: 36px;
-              border-radius: 8px;
+              border-radius: 6px;
               color: #999;
               font-size: 14px;
               font-weight: 500;
@@ -2834,7 +2834,7 @@
                   width: 100%;
                   height: 4px;
                   background-color: #000;
-                  border-radius: 10px;
+                  border-radius: 6px;
               }
           }
           .font-style {
@@ -2868,7 +2868,7 @@
           gap: 12px;
           padding: 16px;
           background: #fff;
-          border-radius: 16px;
+          border-radius: 6px;
           box-shadow: 0 12px 36px 0 rgba(31, 31, 51, .12);
 
           &--docked {
@@ -2887,7 +2887,7 @@
           display: flex;
           align-items: center;
           height: 46px;
-          border-radius: 12px;
+          border-radius: 6px;
           overflow: hidden;
           cursor: pointer;
           font-size: 16px;
@@ -2961,7 +2961,7 @@
           align-items: center;
           justify-content: center;
           height: 46px;
-          border-radius: 12px;
+          border-radius: 6px;
           font-size: 16px;
           font-weight: 600;
           color: #606266;
@@ -3076,7 +3076,7 @@
           overflow: hidden;
           cursor: pointer;
           border: 2px solid #ebebeb;
-          border-radius: 12px;
+          border-radius: 6px;
           .shop-link {
               display: block;
               width: 100%;
@@ -3183,7 +3183,7 @@
               height: 40px;
               padding: 0 18px;
               border: 1px solid rgba(0, 0, 0, 0.08);
-              border-radius: 20px;
+              border-radius: 6px;
               background: #fff;
               color: rgba(9, 9, 10, 0.92);
               font-size: 14px;
@@ -3449,7 +3449,7 @@
               bottom: -4px;
               height: 16px;
               background: #fff;
-              border-radius: 12px 12px 0 0;
+              border-radius: 6px 6px 0 0;
           }
 
           .active-ico {
@@ -4196,13 +4196,13 @@
       justify-content: center;
       width: 100%;
       height: 100%;
-      border-radius: 12px;
+      border-radius: 6px;
       position: relative;
 
       .video-box {
           width: 100%;
           height: 100%;
-          border-radius: 12px;
+          border-radius: 6px;
           overflow: hidden;
       }
 
@@ -4225,7 +4225,7 @@
       .middle {
           width: 100%;
           height: 100%;
-          border-radius: 12px;
+          border-radius: 6px;
           overflow: hidden;
       }
   }
@@ -4323,7 +4323,7 @@
           object-fit: cover;
           cursor: pointer;
           background-color: rgba(31, 31, 51, 0.04);
-          border-radius: 12px;
+          border-radius: 6px;
           box-sizing: border-box;
       }
 
@@ -4876,7 +4876,7 @@
       /* ---------------- 商品详情参数 ---------------- */
       .param-cards {
           background: #f5f6fa;
-          border-radius: 8px;
+          border-radius: 6px;
           box-sizing: border-box;
           padding: 32px 24px;
           margin-bottom: 12px;
@@ -4991,7 +4991,7 @@
 
   /* 全部评价弹窗圆角（append-to-body 渲染到 body 外，需非 scoped 样式命中） */
   .comment-dialog.el-dialog {
-      border-radius: 12px;
+      border-radius: 6px;
       overflow: hidden;
       max-height: 950px;
       display: flex;
@@ -5061,7 +5061,7 @@
       .pay_type_box {
           // border: 1px solid #ccc;
           background: #fff;
-          border-radius: 8px;
+          border-radius: 6px;
           padding: 30px 30px;
           .tit_row {
               display: flex;
@@ -5087,7 +5087,7 @@
                   overflow: hidden;
                   width: 146px;
                   margin-right: 20px;
-                  border-radius: 8px;
+                  border-radius: 6px;
                   margin-top: 25px;
                   .cont {
                       height: 35px;
@@ -5183,7 +5183,7 @@
               box-sizing: border-box;
               white-space: nowrap;
               border: 1px solid #d9d9d9;
-              border-radius: 8px;
+              border-radius: 6px;
               background: #fff;
 
               .balance-payment__title {
@@ -5217,7 +5217,7 @@
       .premium-payment-result {
           margin-top: 20px;
           padding: 24px;
-          border-radius: 8px;
+          border-radius: 6px;
           background: #fff;
           text-align: center;
 
@@ -5378,7 +5378,7 @@
       .pay_type_box {
           // border: 1px solid #ccc;
           background: #fff;
-          border-radius: 8px;
+          border-radius: 6px;
           padding: 30px 30px;
           .tit_row {
               display: flex;
@@ -5404,7 +5404,7 @@
                   overflow: hidden;
                   width: 146px;
                   margin-right: 20px;
-                  border-radius: 8px;
+                  border-radius: 6px;
                   margin-top: 25px;
                   .cont {
                       height: 35px;
@@ -5500,7 +5500,7 @@
               box-sizing: border-box;
               white-space: nowrap;
               border: 1px solid #d9d9d9;
-              border-radius: 8px;
+              border-radius: 6px;
               background: #fff;
 
               .balance-payment__title {
@@ -5534,7 +5534,7 @@
       .premium-payment-result {
           margin-top: 20px;
           padding: 24px;
-          border-radius: 8px;
+          border-radius: 6px;
           background: #fff;
           text-align: center;
 
@@ -5659,7 +5659,7 @@
       color: #dd6b20;
       background: #fff8f1;
       border: 1px solid #ffd9b3;
-      border-radius: 3px;
+      border-radius: 4px;
       padding: 8px 10px;
       margin-bottom: 12px;
       font-size: 12px;
@@ -5692,7 +5692,7 @@
       .pickup-card {
           background: #f7f8fa;
           border: 1px solid #f0f0f0;
-          border-radius: 8px;
+          border-radius: 6px;
           padding: 16px 20px;
 
           .pickup-card-header {
@@ -5770,7 +5770,7 @@
       height: 18px;
       width: 18px;
       border: 2px solid #888b94;
-      border-radius: 2.5px;
+      border-radius: 2px;
   }
   .el-checkbox__inner::after {
       //top: -1.5px;
@@ -5921,7 +5921,7 @@
           padding-bottom: 8px;
           position: relative;
           background-color: var(--tag-bg);
-          border-radius: 10px;
+          border-radius: 6px;
 
           .gift-item-left {
               width: 60px;
@@ -6229,7 +6229,7 @@
       // border: 1px solid #ddd;
       color: #333333;
       // margin: 0 auto;
-      border-radius: 3px;
+      border-radius: 4px;
       flex: 1;
       min-width: 0;
 
@@ -6631,7 +6631,7 @@
               }
 
               .el-input__wrapper {
-                  border-radius: 5px;
+                  border-radius: 4px;
               }
 
 
@@ -6643,7 +6643,7 @@
   .orderConfirmConTop {
       padding: 15px;
       background: #fff;
-      border-radius: 8px;
+      border-radius: 6px;
       margin-bottom: 16px;
   }
 
@@ -6659,7 +6659,7 @@
       width: 368px;
       height: fit-content;
       padding: 16px;
-      border-radius: 8px;
+      border-radius: 6px;
       margin-left: 16px;
       top: 0;
       position: sticky;
@@ -6707,7 +6707,7 @@
                   right: 68px;
                   margin-left: -300px;
                   text-align: left;
-                  border-radius: 8px;
+                  border-radius: 6px;
 
                   .ui-tips-arrow {
                       z-index: 100119;
@@ -6734,7 +6734,7 @@
 
                       .goods_list {
                           position: relative;
-                          border-radius: 8px;
+                          border-radius: 6px;
                           margin-bottom: 10px;
 
                           .goods_col {
@@ -6757,7 +6757,7 @@
                                       background: #f2f3f5;
                                       padding: 10px 0 10px 0px;
                                       position: relative;
-                                      border-radius: 3px;
+                                      border-radius: 4px;
 
                                       .img_box {
                                           display: flex;
@@ -6788,7 +6788,7 @@
           font-size: 14px;
           line-height: 28px;
           text-align: end;
-          border-radius: 3px;
+          border-radius: 4px;
           padding: 0 5px;
       }
 
@@ -6904,7 +6904,7 @@
               flex: 1;
 
               .el-input__wrapper {
-                  border-radius: 5px;
+                  border-radius: 4px;
               }
           }
       }
@@ -7183,7 +7183,7 @@
   }
   .from_list {
       position: relative;
-      border-radius: 3px;
+      border-radius: 4px;
       background-color: #fafafa;
       border: 1px solid #e6e6e6;
       padding: 20px 20px;
@@ -7350,7 +7350,7 @@
               }
 
               &::-webkit-scrollbar-thumb {
-                  border-radius: 10px;
+                  border-radius: 6px;
                   background-color: #999;
               }
 

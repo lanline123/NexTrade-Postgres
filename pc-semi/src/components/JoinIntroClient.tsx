@@ -400,7 +400,7 @@ export default function JoinIntroClient() {
     const stepLabels = isBusiness
       ? ['1. 法定代表人信息', '2. 经营信息', '3. 企业信息', '4. 审核及公示', '5. 完成入驻']
       : ['1. 个人信息', '2. 经营信息', '3. 审核及公示', '4. 完成入驻'];
-    const cardStyle: CSSProperties = { border: '1px solid #ebedf0', borderRadius: 8, padding: 20 };
+    const cardStyle: CSSProperties = { border: '1px solid #ebedf0', borderRadius: 6, padding: 20 };
     const h2Style: CSSProperties = { fontSize: 26, fontWeight: 400, margin: '0 0 16px' };
     return (
       <div className="join-intro" style={{ background: '#fff' }}>

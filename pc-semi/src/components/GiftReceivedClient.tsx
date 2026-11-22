@@ -65,7 +65,7 @@ export default function GiftReceivedClient() {
                   <img
                     src={item.picThumb}
                     alt={item.productName}
-                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, background: '#f7f8fa' }}
+                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, background: '#f7f8fa' }}
                   />
                   <div style={{ flex: 1 }}>
                     <div>{item.productName}</div>

@@ -118,7 +118,7 @@ function ClaimInner() {
             <img
               src={item.picThumb}
               alt={item.productName}
-              style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, background: '#f7f8fa' }}
+              style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 6, background: '#f7f8fa' }}
             />
             <div>
               <div>{item.productName}</div>

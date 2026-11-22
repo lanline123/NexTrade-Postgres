@@ -125,7 +125,7 @@ export default function MyGiftCardsClient() {
                 gap: 16,
                 alignItems: 'center',
                 border: '1px solid #eaecf0',
-                borderRadius: 8,
+                borderRadius: 6,
                 padding: 16,
                 cursor: 'pointer',
                 opacity: card.isValid ? 1 : 0.6,

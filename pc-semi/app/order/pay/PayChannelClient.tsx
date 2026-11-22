@@ -383,7 +383,7 @@ export default function PayChannelClient({ brand }: { brand: Brand }) {
             </div>
             {/* 源码 yunpay.vue / yunpay.vue：二维码右侧 right-image 渠道示意图（按 brand 文案占位） */}
             <div className="right-image" style={{ flex: 1, display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
-              <div className="image" style={{ width: 270, height: 270, border: '1px dashed #d9d9d9', borderRadius: 12, background: '#fafafa', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#8a919f' }}>
+              <div className="image" style={{ width: 270, height: 270, border: '1px dashed #d9d9d9', borderRadius: 6, background: '#fafafa', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#8a919f' }}>
                 <span style={{ fontSize: 48 }}>▣</span>
                 <span style={{ fontSize: 16, fontWeight: 600, color: '#555' }}>{rightImageLabel}</span>
                 <span style={{ fontSize: 12 }}>{t('扫码支付示意图')}</span>

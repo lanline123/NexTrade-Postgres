@@ -18,7 +18,7 @@
             background-color: #f1f2f5;
             display: flex;
             box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
+            border-radius: 6px;
             overflow: hidden;
 
             .chat-main {
@@ -51,7 +51,7 @@
                         color: #ff4d4f;
                         border: 1px solid #ff4d4f;
                         padding: 2px 6px;
-                        border-radius: 3px;
+                        border-radius: 4px;
                         background-color: rgba(255, 77, 79, 0.05);
                     }
                 }
@@ -141,7 +141,7 @@
             left: 20px;
             background-color: #fff;
             border: 1px solid #e0e0e0;
-            border-radius: 8px;
+            border-radius: 6px;
             box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
             z-index: 100;
             width: 420px;
@@ -241,7 +241,7 @@
             .search-input-wrapper {
                 background-color: #f5f6fa;
                 color: #c2c4cc;
-                border-radius: 8px;
+                border-radius: 6px;
                 padding: 8px;
                 display: flex;
                 align-items: center;
@@ -306,18 +306,18 @@
                 display: flex;
                 cursor: pointer;
                 transition: background-color 0.2s;
-                border-radius: 8px;
+                border-radius: 6px;
 
 
 
                 &:hover {
                     background-color: #edf3fa;
-                    border-radius: 8px;
+                    border-radius: 6px;
                 }
 
                 &.active {
                     background-color: #fff5e8;
-                    border-radius: 8px;
+                    border-radius: 6px;
                 }
 
                 .avatar-wrapper {
@@ -327,7 +327,7 @@
                     .avatar {
                         width: 44px;
                         height: 44px;
-                        border-radius: 8px;
+                        border-radius: 6px;
                         object-fit: cover;
 
                         &.self-operated {
@@ -343,7 +343,7 @@
                         color: #fff;
                         font-size: 10px;
                         padding: 2px 5px;
-                        border-radius: 10px;
+                        border-radius: 6px;
                         min-width: 16px;
                         text-align: center;
                     }
@@ -405,7 +405,7 @@
         background-color: #fff;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         padding: 0 15px;
-        border-radius: 10px;
+        border-radius: 6px;
         overflow-y: auto;
         .search-item {
             .title {
@@ -499,7 +499,7 @@
         }
         &::-webkit-scrollbar-thumb {
             background: #ccc;
-            border-radius: 3px;
+            border-radius: 4px;
         }
 
         .loading-more,
@@ -511,7 +511,7 @@
                 color: #888b94;
 
                 padding: 4px 12px;
-                border-radius: 10px;
+                border-radius: 6px;
             }
         }
 
@@ -523,7 +523,7 @@
                 color: #999;
                 background-color: #e5e5e5;
                 padding: 4px 12px;
-                border-radius: 10px;
+                border-radius: 6px;
             }
         }
 
@@ -544,7 +544,7 @@
             .avatar {
                 width: 32px;
                 height: 32px;
-                border-radius: 8px;
+                border-radius: 6px;
                 flex-shrink: 0;
                 object-fit: cover;
             }
@@ -584,7 +584,7 @@
                 }
 
                 .bubble {
-                    border-radius: 8px;
+                    border-radius: 6px;
                     padding: 12px 9px;
                     font-size: 14px;
                     line-height: 1.2;
@@ -668,7 +668,7 @@
                 .order-card {
                     max-width: 200px;
                     background-color: #fff;
-                    border-radius: 8px;
+                    border-radius: 6px;
                     padding: 12px;
                     min-width: 240px;
                     cursor: pointer;
@@ -803,7 +803,7 @@
         .pending-product-card,
         .pending-order-card {
             background-color: #fff;
-            border-radius: 8px;
+            border-radius: 6px;
             margin: 20px 40px 0;
             overflow: hidden;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
@@ -1267,7 +1267,7 @@
         }
         &::-webkit-scrollbar-thumb {
             background: #e0e0e0;
-            border-radius: 3px;
+            border-radius: 4px;
         }
 
         .emoji-list {

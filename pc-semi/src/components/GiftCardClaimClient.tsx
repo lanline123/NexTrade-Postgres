@@ -98,7 +98,7 @@ async function copyText(text: string) {
 
 const sectionStyle: CSSProperties = {
   border: '1px solid #ebedf0',
-  borderRadius: 8,
+  borderRadius: 6,
   background: '#fff',
   padding: 20,
   marginTop: 16,
@@ -244,7 +244,7 @@ export default function GiftCardClaimClient({ giftCardSn, isExchange, status }: 
         className="giftcard-claim__face"
         style={{
           position: 'relative',
-          borderRadius: 12,
+          borderRadius: 6,
           padding: 20,
           color: '#fff',
           background: cardImage ? `url(${cardImage}) center/cover no-repeat` : 'linear-gradient(135deg, #bd983d, #a9781b)',
@@ -259,12 +259,12 @@ export default function GiftCardClaimClient({ giftCardSn, isExchange, status }: 
           <div style={{ marginTop: 12, fontSize: 12, opacity: 0.85 }}>{t('卡号')}</div>
           <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
             <span>{showCode ? cardNumber : masked(cardNumber)}</span>
-            <button type="button" onClick={() => void copyText(cardNumber)} style={{ fontSize: 12, padding: '2px 8px', cursor: 'pointer', borderRadius: 10, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(0,0,0,0.25)', color: '#fff' }}>{t('复制')}</button>
+            <button type="button" onClick={() => void copyText(cardNumber)} style={{ fontSize: 12, padding: '2px 8px', cursor: 'pointer', borderRadius: 6, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(0,0,0,0.25)', color: '#fff' }}>{t('复制')}</button>
           </div>
           <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>{t('密码')}</div>
           <div style={{ fontSize: 18, letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
             <span>{showCode ? (cardPassword || String(detail?.cardPassword || '****')) : masked(cardPassword || String(detail?.cardPassword || ''))}</span>
-            <button type="button" onClick={() => void copyText(cardPassword || String(detail?.cardPassword || ''))} style={{ fontSize: 12, padding: '2px 8px', cursor: 'pointer', borderRadius: 10, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(0,0,0,0.25)', color: '#fff' }}>{t('复制')}</button>
+            <button type="button" onClick={() => void copyText(cardPassword || String(detail?.cardPassword || ''))} style={{ fontSize: 12, padding: '2px 8px', cursor: 'pointer', borderRadius: 6, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(0,0,0,0.25)', color: '#fff' }}>{t('复制')}</button>
           </div>
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 8 }}>
             <div>
@@ -277,8 +277,8 @@ export default function GiftCardClaimClient({ giftCardSn, isExchange, status }: 
             </div>
           </div>
           <div style={{ marginTop: 14, display: 'flex', gap: 12 }}>
-            <button type="button" onClick={() => void copyAllCode()} style={{ flex: 1, padding: '8px 0', cursor: 'pointer', borderRadius: 8, border: 'none', background: 'rgba(0,0,0,0.55)', color: '#fff' }}>{t('复制券码')}</button>
-            <button type="button" onClick={() => void revealCode()} style={{ flex: 1, padding: '8px 0', cursor: 'pointer', borderRadius: 8, border: 'none', background: 'rgba(0,0,0,0.55)', color: '#fff' }}>{showCode ? t('隐藏券码') : '显示券码'}</button>
+            <button type="button" onClick={() => void copyAllCode()} style={{ flex: 1, padding: '8px 0', cursor: 'pointer', borderRadius: 6, border: 'none', background: 'rgba(0,0,0,0.55)', color: '#fff' }}>{t('复制券码')}</button>
+            <button type="button" onClick={() => void revealCode()} style={{ flex: 1, padding: '8px 0', cursor: 'pointer', borderRadius: 6, border: 'none', background: 'rgba(0,0,0,0.55)', color: '#fff' }}>{showCode ? t('隐藏券码') : '显示券码'}</button>
           </div>
         </div>
         <div style={{ position: 'absolute', right: 0, top: 0, zIndex: 1, background: '#f8e0c8', color: '#996500', fontSize: 12, padding: '5px 10px', borderBottomLeftRadius: 10 }}>{displayStatus}</div>
@@ -319,7 +319,7 @@ export default function GiftCardClaimClient({ giftCardSn, isExchange, status }: 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 16 }}>
             {products.map((product, index) => (
               <Link key={product.productId || index} href={`/product/${product.productId || ''}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                <div style={{ border: '1px solid #ebedf0', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ border: '1px solid #ebedf0', borderRadius: 6, overflow: 'hidden' }}>
                   <div style={{ height: 120, background: '#f7f8fa' }}>
                     {product.picUrl ? <img src={product.picUrl} alt={product.productName || ''} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : null}
                   </div>

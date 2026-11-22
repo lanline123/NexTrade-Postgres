@@ -109,7 +109,7 @@
     .search-page-skeleton__goods-card {
         background: #fff;
         border: 1px solid #f0f0f0;
-        border-radius: 12px;
+        border-radius: 6px;
     }
 
     .search-page-skeleton__category-card::after,
@@ -142,7 +142,7 @@
     .search-page-skeleton__category-image {
         width: 40px;
         height: 40px;
-        border-radius: 8px;
+        border-radius: 6px;
         flex-shrink: 0;
     }
 
@@ -189,7 +189,7 @@
 
     .search-page-skeleton__sort-chip {
         height: 32px;
-        border-radius: 8px;
+        border-radius: 6px;
     }
 
     .search-page-skeleton__goods-grid {

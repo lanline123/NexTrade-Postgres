@@ -132,7 +132,7 @@
           right: 0;
           bottom: 0;
           height: 2px;
-          border-radius: 999px;
+          border-radius: 6px;
           background: var(--general);
       }
   }
@@ -198,7 +198,7 @@
   .filter-box {
       width: 220px;
       border: 1px solid #e0e1e5;
-      border-radius: 8px;
+      border-radius: 6px;
       padding: 12px;
       align-self: flex-start;
       position: sticky;
@@ -442,7 +442,7 @@
           align-items: center;
           background: #fff;
           border: 1px solid #ebebeb;
-          border-radius: 12px;
+          border-radius: 6px;
           display: flex;
           height: 48px;
           max-width: 328px;
@@ -453,7 +453,7 @@
           }
 
           .category-pic {
-              border-radius: 8px;
+              border-radius: 6px;
               height: 40px;
               margin-right: 8px;
               object-fit: contain;
@@ -543,7 +543,7 @@
           transition: all 0.2s;
           align-items: center;
           border: 1px solid #ebebeb;
-          border-radius: 8px;
+          border-radius: 6px;
           display: flex;
           font-size: 14px !important;
           height: 32px;
@@ -664,11 +664,11 @@
       left: 0;
       margin-top: 4px;
       padding: 8px 0;
-      border-radius: 14px;
+      border-radius: 6px;
       background: #fff;
       z-index: 30;
       border: 1px solid rgba(0, 17, 51, 0.05);
-      border-radius: 8px;
+      border-radius: 6px;
       box-shadow: 0 0 6px 0 rgba(0, 17, 51, 0.1);
       padding: 4px;
   }
@@ -682,7 +682,7 @@
       z-index: 30;
       box-sizing: border-box;
       background: #fff;
-      border-radius: 12px;
+      border-radius: 6px;
       box-shadow:
           0 0 16px 0 rgba(10, 10, 51, 0.08),
           0 0 8px 0 rgba(0, 0, 0, 0.04);
@@ -698,7 +698,7 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 4px;
       background: #fff;
-      border-radius: 16px;
+      border-radius: 6px;
       box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2);
       border: 1px solid rgba(0, 0, 0, 0.02);
       z-index: 35;
@@ -712,7 +712,7 @@
       cursor: pointer;
       transition: color 0.2s ease;
       height: 48px;
-      border-radius: 8px;
+      border-radius: 6px;
       padding: 5px 8px;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -757,7 +757,7 @@
       align-items: center;
       padding: 5px 12px;
       border: 1px solid #ebebeb;
-      border-radius: 8px;
+      border-radius: 6px;
       background: #fff;
       transition: border-color 0.2s ease;
       height: 32px;
@@ -800,7 +800,7 @@
 
   .interval-sort__preset-item {
       border: 1px solid #ebebeb;
-      border-radius: 8px;
+      border-radius: 6px;
       height: 48px;
       display: flex;
       flex-direction: column;
@@ -844,7 +844,7 @@
   }
 
   .interval-sort__btn {
-      border-radius: 8px;
+      border-radius: 6px;
       font-size: 16px;
       font-weight: 600;
       border: 1px solid transparent;
@@ -1093,7 +1093,7 @@
       max-width: calc(100vw - 32px);
       background: #fff;
       border: 1px solid rgba(0, 0, 0, 0.08);
-      border-radius: 16px;
+      border-radius: 6px;
       // box-shadow:
       //     0 16px 40px rgba(15, 23, 42, 0.1),
       //     0 4px 12px rgba(15, 23, 42, 0.06);
@@ -1185,7 +1185,7 @@
               right: 0;
               bottom: 0;
               height: 3px;
-              border-radius: 999px;
+              border-radius: 6px;
               background: var(--general);
           }
       }
@@ -1272,7 +1272,7 @@
       min-height: 48px;
       padding: 0 12px;
       border: 1px solid #ebebeb;
-      border-radius: 12px;
+      border-radius: 6px;
       background: #fff;
       color: rgba(0, 0, 0, 0.92);
       font-size: 14px;
@@ -1314,7 +1314,7 @@
       width: 100%;
       height: 40px;
       border: none;
-      border-radius: 8px;
+      border-radius: 6px;
       background: var(--general);
       color: #fff;
       font-size: 16px;
@@ -1914,7 +1914,7 @@
   .search-page-skeleton__goods-card {
       background: #fff;
       border: 1px solid #f0f0f0;
-      border-radius: 12px;
+      border-radius: 6px;
   }
 
   .search-page-skeleton__category-card::after,
@@ -1947,7 +1947,7 @@
   .search-page-skeleton__category-image {
       width: 40px;
       height: 40px;
-      border-radius: 8px;
+      border-radius: 6px;
       flex-shrink: 0;
   }
 
@@ -1994,7 +1994,7 @@
 
   .search-page-skeleton__sort-chip {
       height: 32px;
-      border-radius: 8px;
+      border-radius: 6px;
   }
 
   .search-page-skeleton__goods-grid {

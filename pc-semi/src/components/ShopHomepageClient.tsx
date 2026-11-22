@@ -109,7 +109,7 @@ function ShopRefHeaderBlock({ shop, shopId }: { shop: ShopDetail | null; shopId:
   const hasLicense = Boolean((shop as any)?.businessLicensePic);
   const tips: string[] = Array.isArray((shop as any)?.tipNames) ? (shop as any).tipNames : [];
   return (
-    <div className="shop-decoration__ref-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, background: '#fff', padding: 16, borderRadius: 12, marginBottom: 16 }}>
+    <div className="shop-decoration__ref-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, background: '#fff', padding: 16, borderRadius: 6, marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
         <div style={{ width: 88, height: 88, border: '1px solid #eee', borderRadius: 6, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb' }}>
           {shop?.shopLogo ? <img src={shop.shopLogo} alt={shop.shopTitle || ''} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{t('店')}</span>}
@@ -134,8 +134,8 @@ function ShopRefHeaderBlock({ shop, shopId }: { shop: ShopDetail | null; shopId:
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        <Link href={`/chat?shopId=${shopId}`} style={{ fontSize: 14, color: '#333', border: '1px solid #e2e4e6', borderRadius: 8, padding: '8px 14px', textDecoration: 'none' }}>{t('客服')}</Link>
-        <Link href="/member/collectshop" style={{ fontSize: 14, color: '#fff', background: 'var(--pc-primary, #e01222)', borderRadius: 8, padding: '8px 14px', textDecoration: 'none' }}>
+        <Link href={`/chat?shopId=${shopId}`} style={{ fontSize: 14, color: '#333', border: '1px solid #e2e4e6', borderRadius: 6, padding: '8px 14px', textDecoration: 'none' }}>{t('客服')}</Link>
+        <Link href="/member/collectshop" style={{ fontSize: 14, color: '#fff', background: 'var(--pc-primary, #e01222)', borderRadius: 6, padding: '8px 14px', textDecoration: 'none' }}>
           {(shop as any)?.collectShop ? t('已关注') : '+ 关注'}
         </Link>
       </div>
@@ -245,7 +245,7 @@ export default function ShopHomepageClient({ shopId, shop, data }: { shopId: num
 
   return (
     <div className="shop-decoration" style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-      <aside className="shop-decoration__side" style={{ width: 220, flexShrink: 0, background: '#fff', padding: 12, borderRadius: 8 }}>
+      <aside className="shop-decoration__side" style={{ width: 220, flexShrink: 0, background: '#fff', padding: 12, borderRadius: 6 }}>
         <ShopCategoryMenu shopId={shopId} categories={categories as any} />
       </aside>
       <div className="shop-decoration__modules" style={{ flex: 1, minWidth: 0 }}>

@@ -182,7 +182,7 @@ export default async function ShopSearchRedirect({
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <span style={{ fontSize: 13, color: '#888' }}>{t('属性：')}</span>
         {attrPairs.length ? attrPairs.map((pair) => (
-          <span key={pair} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '3px 8px', border: '1px solid var(--pc-primary, #e01222)', borderRadius: 12, color: 'var(--pc-primary, #e01222)' }}>
+          <span key={pair} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '3px 8px', border: '1px solid var(--pc-primary, #e01222)', borderRadius: 6, color: 'var(--pc-primary, #e01222)' }}>
             {pair}
             <Link href={removeAttrHref(pair)} style={{ color: 'inherit', textDecoration: 'none' }}>×</Link>
           </span>
@@ -276,7 +276,7 @@ export default async function ShopSearchRedirect({
         <ShopHeader shopInfo={shopInfo} siteLogo={undefined} />
 
         {/* 关注 / 客服入口 + 店内搜索关键词 + 新旧布局切换（全部走 URL query） */}
-        <div className="shop-search-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, background: '#fff', padding: '10px 16px', borderRadius: 12, marginBottom: 16 }}>
+        <div className="shop-search-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, background: '#fff', padding: '10px 16px', borderRadius: 6, marginBottom: 16 }}>
           <Link href={`/shop/${shopId}`} style={{ fontSize: 13, color: '#333', textDecoration: 'none' }}>{t('店铺首页')}</Link>
           <Link href={`/chat?shopId=${shopId}`} style={{ fontSize: 13, color: '#333', textDecoration: 'none' }}>{t('客服')}</Link>
           <Link href="/member/collectshop" style={{ fontSize: 13, color: 'var(--pc-primary, #e01222)', textDecoration: 'none' }}>{shopInfo.collectShop ? t('已关注') : '+ 关注'}</Link>
@@ -294,13 +294,13 @@ export default async function ShopSearchRedirect({
         <div className="shop-search-body" style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
           {/* Classic：左侧店铺分类树（源码 ShopSearchLayoutClassic + ShopCategoryMenu） */}
           {isClassic ? (
-            <aside className="shop-search-side" style={{ width: 220, flexShrink: 0, background: '#fff', padding: 12, borderRadius: 12 }}>
+            <aside className="shop-search-side" style={{ width: 220, flexShrink: 0, background: '#fff', padding: 12, borderRadius: 6 }}>
               <ShopCategoryMenu shopId={shopId} categories={categories as any} currentCategoryId={cat} />
             </aside>
           ) : null}
 
           {/* Modern：右侧全宽内容；Classic：右侧商品区 */}
-          <section className="shop-search-content" style={{ flex: 1, minWidth: 0, background: '#fff', padding: 16, borderRadius: 16, overflow: 'hidden' }}>
+          <section className="shop-search-content" style={{ flex: 1, minWidth: 0, background: '#fff', padding: 16, borderRadius: 6, overflow: 'hidden' }}>
             {sortBar}
             {attrsBar}
             {/* 源码 CatGoodsList.vue 商品卡：统一复用 ProductGrid */}

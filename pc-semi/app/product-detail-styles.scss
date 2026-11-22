@@ -218,7 +218,7 @@
        成品色没有任何可被弱内核丢弃的函数声明。变量缺失（主题配置无 --general 等）
        时用按当前主题色 #65c4aa 算出的等值静态色兜底（#d1ede6 / #f4fbf9）。 */
     border: 1px solid var(--pds-coupon-border, #d1ede6);
-    border-radius: 8px;
+    border-radius: 6px;
     background: var(--pds-coupon-bg, #f4fbf9);
     &.is-received { border-color: var(--pds-line); background: var(--pds-soft); }
     &__value { flex: 0 0 auto; min-width: 74px; color: var(--pds-primary); font-size: 17px; font-weight: 700; white-space: nowrap; }
@@ -283,14 +283,14 @@
     margin-top: 12px;
     padding: 4px;
     background: #f5f5f7;
-    border-radius: 12px;
+    border-radius: 6px;
     gap: 4px;
     .pds-b2b-tab__item {
       min-width: 96px;
       height: 34px;
       padding: 0 16px;
       border: 0;
-      border-radius: 8px;
+      border-radius: 6px;
       background: transparent;
       color: #999;
       font-size: 14px;
@@ -479,7 +479,7 @@
   .pds-consult { padding: 14px 0; border-bottom: 1px solid #f7f8fa; }
   .pds-consult__head { display: flex; align-items: center; gap: 10px; font-size: 13px; span { color: #98a2b3; font-size: 12px; } }
   .pds-consult__text { margin-top: 8px; color: #344054; font-size: 14px; white-space: pre-wrap; }
-  .pds-reply { margin-top: 8px; padding: 8px 12px; border-radius: 8px; background: var(--pds-soft); color: #667085; font-size: 13px; }
+  .pds-reply { margin-top: 8px; padding: 8px 12px; border-radius: 6px; background: var(--pds-soft); color: #667085; font-size: 13px; }
   .pds-more { padding-top: 16px; text-align: center; }
   .pds-articles { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
 
@@ -523,8 +523,8 @@
   .pds-buybar__inner { display: flex; gap: 10px; width: 1190px; max-width: calc(100% - 32px); margin: 0 auto; }
 
   .pds-share-modal { display: flex; flex-direction: column; gap: 12px;
-    textarea { width: 100%; min-height: 64px; padding: 8px; border: 1px solid #e5e6eb; border-radius: 8px; resize: vertical; }
-    input { flex: 1; height: 32px; padding: 0 8px; border: 1px solid #e5e6eb; border-radius: 8px; }
+    textarea { width: 100%; min-height: 64px; padding: 8px; border: 1px solid #e5e6eb; border-radius: 6px; resize: vertical; }
+    input { flex: 1; height: 32px; padding: 0 8px; border: 1px solid #e5e6eb; border-radius: 6px; }
   }
   .pds-share-modal__row { display: flex; gap: 8px; }
   .pds-share-modal__qr { width: 160px; height: 160px; align-self: center; }
@@ -578,7 +578,7 @@
 // -----------------------------------------------------------------------------
 .pdp-style-new {
   --pds-primary: var(--pc-primary, #1456f0);
-  --pds-radius: 14px;
+  --pds-radius: 6px;
   --pds-line: #eef0f4;
   --pds-soft: #f5f7fb;
 
@@ -610,8 +610,8 @@
     border-radius: var(--pds-radius);
     background: #fff;
     box-shadow: 0 2px 12px rgba(16, 24, 40, .04);
-    &__main { border: 0; border-radius: 12px; max-height: 560px; }
-    &__thumbs button { border-radius: 8px; }
+    &__main { border: 0; border-radius: 6px; max-height: 560px; }
+    &__thumbs button { border-radius: 6px; }
   }
 
   .pds-new__product {
@@ -654,16 +654,16 @@
   .pds-heading h1 { font-size: 24px; letter-spacing: -.02em; }
   .pds-price__value { font-size: 34px; letter-spacing: -.03em; }
   .pds-pill { border: 0; border-radius: 999px; background: rgba(var(--general-rgb), 0.09); }
-  .pds-stepper { border: 0; border-radius: 999px; background: var(--pds-soft);
+  .pds-stepper { border: 0; border-radius: 6px; background: var(--pds-soft);
     button { background: transparent; }
     input { border-left: 0; border-right: 0; background: transparent; }
   }
   .pds-accordion { border-top: 0; }
-  .pds-accordion__row { border-bottom: 0; border-radius: 8px;
+  .pds-accordion__row { border-bottom: 0; border-radius: 6px;
     &:hover { background: var(--pds-soft); }
   }
   .pds-tabs__nav button { font-size: 15px; }
-  .pds-card { border-color: var(--pds-line); border-radius: 12px; }
+  .pds-card { border-color: var(--pds-line); border-radius: 6px; }
   .pds-buybar__inner { width: 1440px; }
 
   // 右栏已有固定购买区，全局浮动栏仅在窄屏出现
@@ -676,7 +676,7 @@
 // -----------------------------------------------------------------------------
 .pdp-style-overseas {
   --pds-primary: var(--pc-primary, #0064fa);
-  --pds-radius: 8px;
+  --pds-radius: 6px;
   --pds-line: #ebebeb;
   // 组件主题色保持 Semi 默认蓝，不覆盖 --semi-color-*；红色仅用于价格 / 促销标签（沿用原版）。
 
@@ -743,7 +743,7 @@
     max-height: calc(100vh - 140px);
     /* 现代化：右栏整体卡片化（白色买盒，细边 + 轻阴影） */
     border: 1px solid #eef0f3;
-    border-radius: 16px;
+    border-radius: 6px;
     background: #fff;
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -18px rgba(16, 24, 40, 0.12);
     padding-top: 18px;
@@ -838,7 +838,7 @@
   padding: 2px 1px 2px 3px;
   box-sizing: content-box;
 }
-.pds-joining { margin-top: 14px; padding: 12px 14px; border: 1px solid #f2e8dc; border-radius: 8px; background: #fffaf4; }
+.pds-joining { margin-top: 14px; padding: 12px 14px; border: 1px solid #f2e8dc; border-radius: 6px; background: #fffaf4; }
 .pds-joining__head { margin-bottom: 8px; color: #666; font-size: 13px; }
 .pds-joining__head b { color: var(--pc-primary, #ff5000); font-size: 16px; }
 .pds-joining__list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
@@ -1108,7 +1108,7 @@
       margin: 0 0 16px;
       padding: 14px 16px;
       background: var(--pds-soft, #f7f8fa);
-      border-radius: 12px;
+      border-radius: 6px;
       box-sizing: border-box;
 
       .item { margin: 0; padding: 0; }
@@ -1170,7 +1170,7 @@
       .con .semi-input-wrapper {
         width: 128px;
         border: 1px solid #e5e7eb;
-        border-radius: 8px;
+        border-radius: 6px;
         background: #fff;
 
         &:hover { border-color: var(--general, var(--pds-primary)); }
@@ -1184,7 +1184,7 @@
       .goods_desc.shouhou {
         padding: 10px 14px;
         background: var(--pds-soft, #f7f8fa);
-        border-radius: 10px;
+        border-radius: 6px;
 
         .item .tit {
           color: #4b4b4b;
@@ -1224,7 +1224,7 @@
     .buy { flex: 1 1 0; min-width: 0; }
     .buy-btn {
       height: 48px;
-      border-radius: 10px;
+      border-radius: 6px;
       font-size: 16px;
       font-weight: 700;
       transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;

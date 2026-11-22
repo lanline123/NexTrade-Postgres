@@ -31,7 +31,7 @@
   gap: 32px;
   padding: 30px 40px;
   box-sizing: border-box;
-  border-radius: 18px;
+  border-radius: 6px;
   overflow: hidden;
   color: #fff;
   background: linear-gradient(120deg, color-mix(in srgb, var(--general) 92%, #ffffff) 0%, var(--general) 48%, color-mix(in srgb, var(--general) 60%, #04241a) 100%);
@@ -224,7 +224,7 @@
 /* ---------------- 白卡（我的订单 / 常用服务） ---------------- */
 .mh-card {
   padding: 20px 24px 18px;
-  border-radius: 16px;
+  border-radius: 6px;
   background: #fff;
   box-shadow: 0 4px 18px rgba(31, 35, 41, 0.06);
 }
@@ -275,7 +275,7 @@
   align-items: center;
   gap: 14px;
   padding: 16px 18px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: #f7f8fa;
   text-decoration: none;
   transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
@@ -295,7 +295,7 @@
   justify-content: center;
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--general) 12%, #ffffff);
   color: var(--general);
 
@@ -306,7 +306,7 @@
     min-width: 18px;
     height: 18px;
     padding: 0 5px;
-    border-radius: 9px;
+    border-radius: 6px;
     background: #ff5c5c;
     color: #fff;
     font-size: 11px;
@@ -336,7 +336,7 @@
   align-items: center;
   gap: 10px;
   padding: 18px 8px 16px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: #f7f8fa;
   text-decoration: none;
   transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
@@ -395,7 +395,7 @@
     align-items: center;
     gap: 18px;
     padding: 30px 40px;
-    border-radius: 18px;
+    border-radius: 6px;
     background: #f7f8fa;
   }
 
@@ -420,7 +420,7 @@
   &__btn {
     display: inline-block;
     padding: 10px 42px;
-    border-radius: 10px;
+    border-radius: 6px;
     background: var(--general);
     color: #fff;
     font-size: 15px;

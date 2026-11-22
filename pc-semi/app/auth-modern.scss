@@ -108,7 +108,7 @@
     max-width: 100%;
     box-sizing: border-box;
     padding: 36px 36px 32px;
-    border-radius: 20px;
+    border-radius: 6px;
     background: rgba(255, 255, 255, 0.62);
     backdrop-filter: blur(22px) saturate(160%);
     -webkit-backdrop-filter: blur(22px) saturate(160%);
@@ -183,7 +183,7 @@
     margin-top: 16px;
     padding: 0 14px;
     box-sizing: border-box;
-    border-radius: 10px;
+    border-radius: 6px;
     background: rgba(255, 255, 255, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.75);
     cursor: text;
@@ -257,7 +257,7 @@
   .login-glass__error {
     margin-top: 14px;
     padding: 9px 12px;
-    border-radius: 8px;
+    border-radius: 6px;
     background: color-mix(in srgb, #e5484d 10%, #ffffff);
     color: #e5484d;
     font-size: 13px;
@@ -321,7 +321,7 @@
     height: 46px;
     margin-top: 22px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 6px;
     background: linear-gradient(90deg, var(--general), color-mix(in srgb, var(--general) 78%, #000));
     color: #fff;
     font-size: 16px;
@@ -414,7 +414,7 @@
       height: 36px;
       padding: 0 14px;
       border: 1px solid rgba(255, 255, 255, 0.75);
-      border-radius: 18px;
+      border-radius: 6px;
       background: rgba(255, 255, 255, 0.55);
       font-size: 13px;
       color: #4e5969;
@@ -442,7 +442,7 @@
     padding: 12px;
     box-sizing: border-box;
     border: 1px solid rgba(255, 255, 255, 0.75);
-    border-radius: 12px;
+    border-radius: 6px;
     background: rgba(255, 255, 255, 0.72);
     object-fit: contain;
 
@@ -466,7 +466,7 @@
     height: 40px;
     padding: 0 18px;
     border: 1px solid rgba(255, 255, 255, 0.75);
-    border-radius: 10px;
+    border-radius: 6px;
     background: rgba(255, 255, 255, 0.6);
     color: #4e5969;
     font-size: 14px;
@@ -557,7 +557,7 @@
   width: 910px;
   max-width: 100%;
   background: #fff;
-  border-radius: 16px;
+  border-radius: 6px;
   box-shadow: 0 12px 40px rgba(28, 31, 35, 0.1);
   padding: 56px 0 48px;
   box-sizing: border-box;
@@ -593,7 +593,7 @@
   width: 216px;
   height: 216px;
   border: 1px solid #eceef0;
-  border-radius: 8px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -676,7 +676,7 @@
   width: 100%;
   height: 48px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #f4f5f7;
   padding: 0 14px;
   font-size: 14.5px;
@@ -695,7 +695,7 @@
   width: 96px;
   height: 48px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #f4f5f7;
   padding: 0 8px;
   font-size: 14px;
@@ -758,7 +758,7 @@
 .login-card__submit {
   height: 48px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--general, #65c4aa);
   color: #fff;
   font-size: 16.5px;
@@ -878,7 +878,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid #eceef0;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 13px;
   color: #9aa1ab;
 }
@@ -894,7 +894,7 @@
   height: 36px;
   padding: 0 18px;
   border: 1px solid #dfe3e8;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
   font-size: 13.5px;
   color: #374151;

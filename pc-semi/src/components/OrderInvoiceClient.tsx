@@ -309,7 +309,7 @@ export default function OrderInvoiceClient() {
                         title={img.productName || ''}
                         target="_blank"
                       >
-                        <Image width={64} height={64} src={thumbOf(img)} alt={img.productName || ''} style={{ borderRadius: 8 }} />
+                        <Image width={64} height={64} src={thumbOf(img)} alt={img.productName || ''} style={{ borderRadius: 6 }} />
                       </Link>
                     ))}
                   </div>
@@ -426,7 +426,7 @@ export default function OrderInvoiceClient() {
                       <div className="moi-meta-label">{t('发票图片')}</div>
                       <div className="moi-imgs__row">
                         {invoiceImages.map((image, index) => (
-                          <Image key={index} width={96} height={96} src={image.picUrl} alt="" style={{ borderRadius: 8 }} />
+                          <Image key={index} width={96} height={96} src={image.picUrl} alt="" style={{ borderRadius: 6 }} />
                         ))}
                       </div>
                     </div>

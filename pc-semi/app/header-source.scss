@@ -471,7 +471,7 @@
   z-index: 4001;
   padding: 6px;
   border: 1px solid #ebebeb;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
   white-space: nowrap;
@@ -480,7 +480,7 @@
 
 .benefit-bar .pc-header-popover--member {
   padding: 0;
-  border-radius: 16px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
@@ -752,7 +752,7 @@
 .pc-header-cart-content .top-search,
 .pc-shop-search .top-search {
   position: relative;
-  border-radius: 7px;
+  border-radius: 6px;
   width: 100%;
   border: 1px solid #fff;
   padding: 1px;
@@ -781,7 +781,7 @@
   overflow: visible;
   height: 37px;
   width: 100%;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .pc-header-runtime .top-search .search-form-focus .search-input,
@@ -797,7 +797,7 @@
   height: 37px;
   display: inline-flex;
   align-items: center;
-  border-radius: 8px;
+  border-radius: 6px;
   user-select: none;
   cursor: pointer;
   background-color: #fff;
@@ -839,7 +839,7 @@
       width: 100%;
       height: calc(37px * 2);
       background: #fff;
-      border-radius: 8px;
+      border-radius: 6px;
       box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
       z-index: 0;
     }
@@ -896,7 +896,7 @@
   line-height: 26px;
   padding: 6px 10px;
   outline: medium none;
-  border-radius: 8px;
+  border-radius: 6px;
   min-width: 0;
 
   &::placeholder {
@@ -1017,7 +1017,7 @@
   z-index: 9000;
   background: #fff;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.14);
   padding: 0;
 
@@ -1251,7 +1251,7 @@
   width: 254px;
   padding: 12px 16px;
   border: 1px solid #ebebeb;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
   box-sizing: border-box;
@@ -2293,7 +2293,7 @@
     font-weight: bold;
     transition: all 0.3s;
     outline: none;
-    border-radius: 5px;
+    border-radius: 4px;
     white-space: nowrap;
 
     &.shop-search {
@@ -2388,7 +2388,7 @@
 .pc-header-cart-content .top-search,
 .pc-shop-search .top-search {
   border: 1px solid #e4e7ec;
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 0;
   background: #fff;
   transition: border-color .18s ease, box-shadow .18s ease;
@@ -2406,12 +2406,12 @@
 
 .pc-header-runtime .top-search .search-form,
 .pc-header-cart-content .top-search .search-form,
-.pc-shop-search .top-search .search-form { height: 40px; border-radius: 10px; }
+.pc-shop-search .top-search .search-form { height: 40px; border-radius: 6px; }
 
 .pc-header-runtime .top-search .search-type-select,
 .pc-shop-search .top-search .search-type-select {
   height: 40px;
-  border-radius: 10px 0 0 10px;
+  border-radius: 6px 0 0 6px;
   padding-left: 12px;
   color: #475467;
   font-size: 13px;
@@ -2432,7 +2432,7 @@
   height: 32px;
   margin-right: 4px;
   padding: 0 18px;
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--pc-primary, #165dff);
   color: #fff;
   border: 0;

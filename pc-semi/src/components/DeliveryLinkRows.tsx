@@ -86,7 +86,7 @@ export default function DeliveryLinkRows({ html }: { html?: string | null }) {
               padding: '2px 10px',
               fontSize: 12,
               cursor: 'pointer',
-              borderRadius: 10,
+              borderRadius: 6,
               border: '1px solid var(--semi-color-border, #d9d9d9)',
               background: 'var(--semi-color-bg-2, #fff)',
             }}

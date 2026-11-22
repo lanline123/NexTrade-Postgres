@@ -106,7 +106,7 @@ function DetailInner() {
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
             {card.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={card.imageUrl} alt={card.cardGroupName} style={{ width: 160, height: 96, objectFit: 'cover', borderRadius: 8 }} />
+              <img src={card.imageUrl} alt={card.cardGroupName} style={{ width: 160, height: 96, objectFit: 'cover', borderRadius: 6 }} />
             ) : null}
             <div style={{ display: 'grid', gap: 6 }}>
               <div style={{ fontSize: 16, fontWeight: 600 }}>

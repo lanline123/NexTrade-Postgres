@@ -150,7 +150,7 @@ function SelectInner() {
             return (
               <div
                 key={key}
-                style={{ display: 'flex', gap: 16, alignItems: 'center', border: '1px solid #eaecf0', borderRadius: 8, padding: 12 }}
+                style={{ display: 'flex', gap: 16, alignItems: 'center', border: '1px solid #eaecf0', borderRadius: 6, padding: 12 }}
               >
                 {product.picUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element

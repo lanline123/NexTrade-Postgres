@@ -121,7 +121,7 @@ export default function FeedbackClient() {
           <Typography.Paragraph style={{ margin: '8px 0' }}>{item.content}</Typography.Paragraph>
           <Typography.Text type="tertiary">{item.addTime || ''} · {item.statusText || ''}</Typography.Text>
           {item.reply?.content ? (
-            <div style={{ marginTop: 10, padding: 10, background: '#f8fafc', borderRadius: 8 }}>
+            <div style={{ marginTop: 10, padding: 10, background: '#f8fafc', borderRadius: 6 }}>
               <b>客服回复{item.reply.addTime ? `（${item.reply.addTime}）` : ''}：</b>{item.reply.content}
             </div>
           ) : null}

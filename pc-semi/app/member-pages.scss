@@ -27,7 +27,7 @@
           height: 18px;
           width: 18px;
           border-width: 2px;
-          border-radius: 2.5px;
+          border-radius: 2px;
       }
       .el-checkbox__inner::after {
           width: 4px;
@@ -407,7 +407,7 @@
               width: 40px; /* 半圆的宽度 */
               height: 40px; /* 半圆的高度 */
               margin-left: -20px; /* 将半圆向左移动，以便它居中 */
-              border-radius: 20px; /* 顶部圆角形成半圆 */
+              border-radius: 6px; /* 顶部圆角形成半圆 */
               background-color: white; /* 与页面背景相同的颜色 */
 
               border-bottom: none; /* 移除半圆底部的边框 */
@@ -2170,7 +2170,7 @@
 
                               color: white;
                               line-height: 22px;
-                              border-radius: 22px;
+                              border-radius: 6px;
                               background-color: #f98825;
                           }
 
@@ -2942,8 +2942,8 @@
                       margin: 5px 0 5px 0;
                       padding: 10px;
                       background: none repeat scroll 0 0 var(--tag-bg);
-                      border-radius: 8px;
-                      -moz-border-radius: 8px;
+                      border-radius: 6px;
+                      -moz-border-radius: 6px;
                       -webkit-border-radius: 6px;
                       clear: both;
                       color: var(--tag-text);
@@ -3248,7 +3248,7 @@
           flex-shrink: 0;
           margin-right: 16px;
           background-color: #fff;
-          border-radius: 8px;
+          border-radius: 6px;
           padding: 12px 0;
           .nav_card {
               .nav_group__title {
@@ -3286,7 +3286,7 @@
           flex: 1;
           min-width: 0;
           background-color: #fff;
-          border-radius: 8px;
+          border-radius: 6px;
           padding: 20px;
           .msg_list__toolbar {
               gap: 10px;
@@ -3300,7 +3300,7 @@
                       cursor: pointer;
                       padding: 16px 20px;
                       border: 1px solid #eee;
-                      border-radius: 8px;
+                      border-radius: 6px;
                       background-color: #fff;
                       transition: box-shadow 0.2s;
                       &:hover {
@@ -3320,7 +3320,7 @@
                           .msg_card__icon {
                               width: 26px;
                               height: 26px;
-                              border-radius: 8px;
+                              border-radius: 6px;
                               background-color: var(--general);
                               display: flex;
                               align-items: center;
@@ -3407,7 +3407,7 @@
 
           .col {
               height: 60px;
-              border-radius: 8px;
+              border-radius: 6px;
               background-color: rgb(247, 248, 252);
               margin-bottom: 10px;
               display: flex;
@@ -3484,7 +3484,7 @@
       height: fit-content;
       background: #fff;
       padding: 0 32px 16px;
-      border-radius: 8px;
+      border-radius: 6px;
       overflow: hidden;
       .title-or-tabs {
           display: flex;
@@ -3520,7 +3520,7 @@
 
           .col {
               height: 60px;
-              border-radius: 8px;
+              border-radius: 6px;
               background-color: rgb(247, 248, 252);
               margin-bottom: 10px;
               display: flex;
@@ -3597,7 +3597,7 @@
       height: fit-content;
       background: #fff;
       padding: 0 16px 16px;
-      border-radius: 8px;
+      border-radius: 6px;
       overflow: hidden;
       .title-or-tabs {
           display: flex;

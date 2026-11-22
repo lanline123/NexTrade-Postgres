@@ -97,7 +97,7 @@ export default function MemberCommentList({ comments }: { comments: MemberCommen
               {pics.length ? (
                 <div className="mcl-card__pics">
                   {pics.map((src, picIndex) => (
-                    <Image key={`${src}-${picIndex}`} width={80} height={80} src={src} alt="" style={{ borderRadius: 8 }} />
+                    <Image key={`${src}-${picIndex}`} width={80} height={80} src={src} alt="" style={{ borderRadius: 6 }} />
                   ))}
                 </div>
               ) : null}

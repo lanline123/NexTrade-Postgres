@@ -20,7 +20,7 @@
   gap: 16px;
   min-height: 320px;
   background: var(--semi-color-bg-2, #fff);
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 /* ---------- 工具条 ---------- */
@@ -44,7 +44,7 @@
   }
 
   .mol-search .semi-input-wrapper {
-    border-radius: 8px;
+    border-radius: 6px;
   }
 }
 
@@ -58,7 +58,7 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: 9px;
+  border-radius: 6px;
   background: var(--semi-color-fill-2);
   color: var(--semi-color-text-2);
   font-size: 12px;
@@ -89,7 +89,7 @@
 .mol-skeleton__card {
   background: var(--semi-color-bg-2, #fff);
   border: 1px solid var(--semi-color-border, #e8e8e8);
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
@@ -97,7 +97,7 @@
 .mol-card {
   background: var(--semi-color-bg-2, #fff);
   border: 1px solid #eef0f3;
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
   transition: box-shadow 0.2s ease;
 
@@ -167,7 +167,7 @@
 
 .mol-item__picwrap {
   flex: none;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   border: 1px solid #f2f3f5;
 }
@@ -241,7 +241,7 @@
 .mol-card__note {
   margin: 0 16px;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--semi-color-fill-0);
   color: var(--semi-color-text-2);
   font-size: 12px;
