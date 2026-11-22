@@ -67,31 +67,3 @@ export function useFederationSso(): {
 
   return { available: options.available, peerName: options.peerName, starting, start };
 }
-
-/**
- * 联邦登录入口按钮（登录页社交登录行）。纯文字按钮（联邦无品牌图标
- * 资产），样式与同排第三方图标按钮同口径（auth-modern.scss
- * .login-card__federation）；中枢名进 title 悬停提示。
- */
-export function FederationLoginButton({
-  peerName,
-  starting,
-  onStart,
-}: {
-  peerName: string;
-  starting: boolean;
-  onStart: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <button
-      type="button"
-      className="login-card__federation"
-      disabled={starting}
-      onClick={onStart}
-      title={peerName ? t('使用{peerName}账号登录', { peerName }) : t('联邦登录')}
-    >
-      {starting ? t('正在跳转...') : t('联邦登录')}
-    </button>
-  );
-}

@@ -33,7 +33,8 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import VerifySlide from '@/components/VerifySlide';
 import { useOauthLogin, OauthButtons } from '@/components/oauth/useOauthLogin';
-import { useFederationSso, FederationLoginButton } from '@/components/federation/useFederationSso';
+import { useFederationSso } from '@/components/federation/useFederationSso';
+import { FederationLoginButton } from '@/components/federation/FederationLoginButton';
 async function getCsrf(): Promise<string> {
   const response = await fetch('/api/common/csrf/create', { credentials: 'include' });
   const json = await response.json();

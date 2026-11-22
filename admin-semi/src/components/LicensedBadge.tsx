@@ -61,15 +61,16 @@ export default function LicensedBadge({ status: statusProp }: { status?: License
 
   return (
     <>
-      <Tag
-        color={color}
-        size="large"
-        onClick={() => setVisible(true)}
-        style={{ cursor: 'pointer' }}
-        title={t('授权信息')}
-      >
-        {label}
-      </Tag>
+      <span title={t('授权信息')}>
+        <Tag
+          color={color}
+          size="large"
+          onClick={() => setVisible(true)}
+          style={{ cursor: 'pointer' }}
+        >
+          {label}
+        </Tag>
+      </span>
       <Modal title={t('授权信息')} visible={visible} onCancel={() => setVisible(false)} footer={null} width={480}>
         <div className="licensed-info">
           {!isAuthorized && !isUnknown && (

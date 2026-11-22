@@ -6,7 +6,7 @@
 // 我方商品，长期运维项）、外部订单（汇入落库的履约单与兜底状态，含手动
 // 确认接单 / 物流同步 / 退款应答 / 重新处理）。未配置凭据时后端诚实
 // 返回未启用，页面如实展示，不假成功。
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ComponentProps } from 'react';
 import {
   Button,
   Card,
@@ -107,7 +107,7 @@ type VerifyOutcome =
   | { ok: true; res: DouyinVerifyResult }
   | { ok: false; message: string };
 
-const STATUS_TAG: Record<string, { color: string; label: string }> = {
+const STATUS_TAG: Record<string, { color: ComponentProps<typeof Tag>['color']; label: string }> = {
   paid: { color: 'blue', label: '待确认' },
   confirmed: { color: 'cyan', label: '已确认' },
   completed: { color: 'green', label: '已完成' },
