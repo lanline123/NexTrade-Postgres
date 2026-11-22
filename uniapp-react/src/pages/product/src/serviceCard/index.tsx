@@ -42,7 +42,7 @@ export default function ServiceCard({ serviceList = [], separated = false }: Pro
                 onClose={() => {
                     setShow(false);
                 }}
-                style={{ background: "#fff", borderRadius: "20rpx 20rpx 0 0" }}
+                style={{ background: "#fff", borderRadius: "12rpx 12rpx 0 0" }}
             >
                 <View className="service-popup">
                     <View className="popup-title-box">

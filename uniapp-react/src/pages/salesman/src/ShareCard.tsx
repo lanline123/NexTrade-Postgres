@@ -73,7 +73,7 @@ export default function ShareCard({
             position="bottom"
             zIndex={999}
             closeable={false}
-            style={{ backgroundColor: "#fff", borderRadius: "20rpx 20rpx 0 0" }}
+            style={{ backgroundColor: "#fff", borderRadius: "12rpx 12rpx 0 0" }}
             onClose={handleClose}
         >
             <View className="salesman-share-box">

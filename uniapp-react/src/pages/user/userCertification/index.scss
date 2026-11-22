@@ -68,7 +68,7 @@
 
 .form-box {
     background-color: #fff;
-    border-radius: 20rpx;
+    border-radius: 12rpx;
     padding: 20rpx 30rpx;
     margin: 20rpx;
     .type-text {
@@ -81,7 +81,7 @@
         width: 149rpx;
         height: 150rpx;
         background: #fafafa;
-        border-radius: 20rpx;
+        border-radius: 12rpx;
         margin-top: 20rpx;
         display: flex;
         align-items: center;
@@ -324,7 +324,7 @@
 /* 旧 up-action-sheet（round）自绘 */
 .action-sheet {
     background-color: #fff;
-    border-radius: 16rpx 16rpx 0 0;
+    border-radius: 12rpx 12rpx 0 0;
     overflow: hidden;
 
     .action-sheet-title {

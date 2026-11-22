@@ -238,7 +238,7 @@ export default function ProductShare({ modelValue, productId, productInfo, produ
                 onClose={() => {
                     setShow(false);
                 }}
-                style={{ background: "#fff", borderRadius: "20rpx 20rpx 0 0" }}
+                style={{ background: "#fff", borderRadius: "12rpx 12rpx 0 0" }}
             >
                 <View className="share-title"> {t("分享")} </View>
                 <View className="share-content">

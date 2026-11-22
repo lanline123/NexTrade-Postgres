@@ -126,7 +126,7 @@ export default function ProductGrouponMore({
             onClose={() => {
                 setShow(false);
             }}
-            style={{ background: "#fff", borderRadius: "20rpx 20rpx 0 0", zIndex: 999 }}
+            style={{ background: "#fff", borderRadius: "12rpx 12rpx 0 0", zIndex: 999 }}
         >
             <View className="groupon-container">
                 <View className="groupon-title">{t("可参与的拼团")}</View>

@@ -111,7 +111,7 @@ export default function BuyerShowShare({ modelValue, buyerShowId, content, buyer
                 round
                 closeable={false}
                 onClose={() => emitModelValue(false)}
-                style={{ backgroundColor: "#fff", borderRadius: "20rpx 20rpx 0 0" }}
+                style={{ backgroundColor: "#fff", borderRadius: "12rpx 12rpx 0 0" }}
             >
                 <View className="share-title">{t("分享")}</View>
                 <View className="share-content">

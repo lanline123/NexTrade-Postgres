@@ -227,7 +227,7 @@ export default function ProductConsultPage() {
                 visible={consultationLoading}
                 closeable={false}
                 onClose={() => setConsultationLoading(false)}
-                style={{ borderRadius: "20rpx" }}
+                style={{ borderRadius: "12rpx" }}
             >
                 <View className="popup-content">
                     <View className="popup-header">

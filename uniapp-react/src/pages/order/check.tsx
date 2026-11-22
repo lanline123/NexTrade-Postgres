@@ -1676,7 +1676,7 @@ export default function Check() {
                     <AddressInfo data={addressList[0]} />
                 ) : !canChangeDelivery() ? (
                     hasPickupDelivery || reserveFlowType() === 9 ? (
-                        <PickupUserCard userPickupIfon={userPickupIfon} borderRadius="0 0 18rpx 18rpx" />
+                        <PickupUserCard userPickupIfon={userPickupIfon} borderRadius="0 0 12rpx 12rpx" />
                     ) : (
                         ((hasStoreDelivery || reserveFlowType() === 10 || hasLocalDelivery) && <AddressInfo data={addressList[0]} />)
                     )
@@ -1746,7 +1746,7 @@ export default function Check() {
                 <View
                     style={{
                         background: "#fff",
-                        borderRadius: "18rpx",
+                        borderRadius: "12rpx",
                         margin: "20rpx 24rpx 0",
                         padding: "24rpx 28rpx"
                     }}
@@ -1765,7 +1765,7 @@ export default function Check() {
                             style={{
                                 width: "88rpx",
                                 height: "48rpx",
-                                borderRadius: "24rpx",
+                                borderRadius: "12rpx",
                                 background: formState.isGiftOrder ? "#65c4aa" : "#e5e5e5",
                                 position: "relative",
                                 flexShrink: 0
@@ -1822,7 +1822,7 @@ export default function Check() {
                         <View
                             style={{
                                 background: "#fff",
-                                borderRadius: "18rpx",
+                                borderRadius: "12rpx",
                                 margin: "20rpx 24rpx 0",
                                 padding: "24rpx 28rpx"
                             }}

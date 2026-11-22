@@ -271,7 +271,7 @@ export default function SalesmanMaterial() {
                                     onChange={handleKeywordChange}
                                     onConfirm={handleSearch}
                                     onClear={handleSearchClear}
-                                    customStyle={{ width: "100%", backgroundColor: "#f7f8fa", borderRadius: "36rpx", padding: "10rpx 15rpx" }}
+                                    customStyle={{ width: "100%", backgroundColor: "#f7f8fa", borderRadius: "12rpx", padding: "10rpx 15rpx" }}
                                 />
                             </View>
                         </View>

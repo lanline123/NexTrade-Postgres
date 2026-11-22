@@ -112,7 +112,7 @@ const CancelOrderReasonPopup = forwardRef<CancelOrderReasonPopupRef, Props>(func
             onClose={() => {
                 if (!submitting) setShow(false);
             }}
-            style={{ backgroundColor: "#fff", borderRadius: "20rpx 20rpx 0 0" }}
+            style={{ backgroundColor: "#fff", borderRadius: "12rpx 12rpx 0 0" }}
         >
             <View className="cancel-reason-popup">
                 <View className="popup-title">{t("请选择取消订单原因")}</View>

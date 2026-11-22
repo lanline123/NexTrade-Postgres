@@ -730,7 +730,7 @@ export default function OrderInfo() {
                                 ) : null}
                                 {/* 拼团自提面板（我方新增，帖 407906）：自提点 + 核销码（订单号）+ 成团门提示 */}
                                 {(orderInfo as any)?.orderType === 2 && isPickupOrder ? (
-                                    <View className="card-space" style={{ background: "#fff", borderRadius: "18rpx", padding: "24rpx 28rpx", marginTop: "20rpx" }}>
+                                    <View className="card-space" style={{ background: "#fff", borderRadius: "12rpx", padding: "24rpx 28rpx", marginTop: "20rpx" }}>
                                         <View style={{ display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                                             <Text style={{ fontSize: "30rpx", fontWeight: 600, color: "#1a1a1a" }}>{t("拼团自提")}</Text>
                                             <Text style={{ fontSize: "26rpx", color: "#65c4aa" }}>{(orderInfo as any)?.joinStatusDesc || ""}</Text>
@@ -760,7 +760,7 @@ export default function OrderInfo() {
                                 ) : null}
                                 {/* 送礼物面板（我方新增）：状态/赠言/分享/取消 */}
                                 {(orderInfo as any)?.isGiftOrder && (orderInfo as any)?.giftInfo ? (
-                                    <View className="card-space" style={{ background: "#fff", borderRadius: "18rpx", padding: "24rpx 28rpx", marginTop: "20rpx" }}>
+                                    <View className="card-space" style={{ background: "#fff", borderRadius: "12rpx", padding: "24rpx 28rpx", marginTop: "20rpx" }}>
                                         <View style={{ display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                                             <Text style={{ fontSize: "30rpx", fontWeight: 600, color: "#1a1a1a" }}>{t("送礼物")}</Text>
                                             <Text style={{ fontSize: "26rpx", color: "#65c4aa" }}>{(orderInfo as any).giftInfo.giftStatusName}</Text>
@@ -806,7 +806,7 @@ export default function OrderInfo() {
                                 ) : null}
                                 {/* 后厨面板（我方新增）：后厨进度 + 已催次数 */}
                                 {kitchenInfo?.inKitchen ? (
-                                    <View className="card-space" style={{ background: "#fff", borderRadius: "18rpx", padding: "24rpx 28rpx", marginTop: "20rpx" }}>
+                                    <View className="card-space" style={{ background: "#fff", borderRadius: "12rpx", padding: "24rpx 28rpx", marginTop: "20rpx" }}>
                                         <View style={{ display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                                             <Text style={{ fontSize: "30rpx", fontWeight: 600, color: "#1a1a1a" }}>{t("后厨进度")}</Text>
                                             <Text style={{ fontSize: "26rpx", color: "#65c4aa" }}>{kitchenInfo.kitchenStatusName}</Text>

@@ -178,12 +178,12 @@ export default function TigWechartLogin({ onLoginSuccess }: Props) {
                                     className="wechart-btn"
                                     openType="getPhoneNumber"
                                     onGetPhoneNumber={getPhoneNumber}
-                                    style={{ borderRadius: "20rpx", height: "95rpx", width: "100%" }}
+                                    style={{ borderRadius: "12rpx", height: "95rpx", width: "100%" }}
                                 >
                                     {t("手机号快捷登入")}
                                 </Button>
                             ) : (
-                                <View className="wechart-btn" style={{ borderRadius: "20rpx", height: "95rpx" }} onClick={mobileLogin}>
+                                <View className="wechart-btn" style={{ borderRadius: "12rpx", height: "95rpx" }} onClick={mobileLogin}>
                                     {t("手机号快捷登入")}
                                 </View>
                             )
@@ -191,7 +191,7 @@ export default function TigWechartLogin({ onLoginSuccess }: Props) {
                         isChecked ? (
                             <View
                                 className="wechart-btn"
-                                style={{ borderRadius: "20rpx", height: "95rpx" }}
+                                style={{ borderRadius: "12rpx", height: "95rpx" }}
                                 onClick={() => {
                                     if (loginLoading) return;
                                     setLoginLoading(true);
@@ -201,7 +201,7 @@ export default function TigWechartLogin({ onLoginSuccess }: Props) {
                                 {t("微信授权")}
                             </View>
                         ) : (
-                            <View className="wechart-btn" style={{ borderRadius: "20rpx", height: "95rpx" }} onClick={mobileLogin}>
+                            <View className="wechart-btn" style={{ borderRadius: "12rpx", height: "95rpx" }} onClick={mobileLogin}>
                                 {t("微信授权")}
                             </View>
                         )}

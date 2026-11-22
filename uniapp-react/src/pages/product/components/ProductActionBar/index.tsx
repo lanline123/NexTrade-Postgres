@@ -190,7 +190,7 @@ const ProductActionBar = forwardRef<ProductActionBarRef, Props>(function Product
         if (isVortmallSimpleBar) return `border-radius:${vortmallSimpleRadius}`;
         if (isO2oSimpleBar) return `border-radius:${btnRadius}`;
         if (isOverseasSimpleBar) return `border-radius:${btnRadius}`;
-        if (isOverseasClassicBar) return "border-radius:100rpx 0 0 100rpx";
+        if (isOverseasClassicBar) return "border-radius:12rpx 0 0 12rpx";
         return isSquareBar ? `border-radius:${btnRadius} 0 0 ${btnRadius}` : "";
     }, [isVortmallSimpleBar, isO2oSimpleBar, isOverseasSimpleBar, isOverseasClassicBar, isSquareBar, vortmallSimpleRadius, btnRadius]);
 
@@ -198,7 +198,7 @@ const ProductActionBar = forwardRef<ProductActionBarRef, Props>(function Product
         if (isVortmallSimpleBar) return `border-radius:${vortmallSimpleRadius}`;
         if (isO2oSimpleBar) return `border-radius:${btnRadius}`;
         if (isOverseasSimpleBar) return `border-radius:${btnRadius}`;
-        if (isOverseasClassicBar) return "border-radius:0 100rpx 100rpx 0";
+        if (isOverseasClassicBar) return "border-radius:0 12rpx 12rpx 0";
         return isSquareBar ? `border-radius:0 ${btnRadius} ${btnRadius} 0` : "";
     }, [isVortmallSimpleBar, isO2oSimpleBar, isOverseasSimpleBar, isOverseasClassicBar, isSquareBar, vortmallSimpleRadius, btnRadius]);
 

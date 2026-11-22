@@ -54,7 +54,9 @@ interface Props {
  * - 默认色 var(--main-bg)（主题红），plain 模式描边 + 文字同色
  */
 export default function TigButton({
-    shape = "circle",
+    // 默认形状口径（2026-11-22 用户拍板的全站圆角收敛）：默认 square（8rpx=4px，刻度 0/2/4/6px 内），
+    // 不再默认胶囊；需要胶囊的调用点显式传 shape="circle"（变体本身保留不动）。
+    shape = "square",
     type = "primary",
     color = "var(--main-bg)",
     text = "",

@@ -433,7 +433,7 @@ export default function CouponIndex() {
                             style={{
                                 width: "100%",
                                 height: "88rpx",
-                                borderRadius: "50rpx",
+                                borderRadius: "12rpx",
                                 fontSize: "30rpx",
                                 fontWeight: "bold"
                             }}

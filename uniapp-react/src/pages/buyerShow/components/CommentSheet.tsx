@@ -89,7 +89,7 @@ export default function CommentSheet({ show, buyerShowId, commentCount = 0, onSh
             position="bottom"
             closeable={false}
             onClose={() => onShowChange?.(false)}
-            style={{ backgroundColor: "#fff", borderRadius: "16px 16px 0 0" }}
+            style={{ backgroundColor: "#fff", borderRadius: "6px 6px 0 0" }}
         >
             <View className="comment-sheet" style={sheetStyle}>
                 <View className="sheet-header">

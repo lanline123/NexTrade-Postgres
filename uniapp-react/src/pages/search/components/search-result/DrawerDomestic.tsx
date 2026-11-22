@@ -150,7 +150,7 @@ export default function DrawerDomestic({
             position="right"
             zIndex={900}
             closeable={false}
-            style={{ borderRadius: "15rpx 0 0 0" }}
+            style={{ borderRadius: "12rpx 0 0 0" }}
             onClose={() => onShowChange?.(false)}
         >
             <View

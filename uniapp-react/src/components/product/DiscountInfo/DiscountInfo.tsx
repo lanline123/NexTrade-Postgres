@@ -32,7 +32,7 @@ export default function DiscountInfo({ show, onShowChange, total = {}, discountT
             zIndex={999}
             closeable={false}
             onClose={() => onShowChange?.(false)}
-            style={{ backgroundColor: "#fff", borderRadius: "28rpx 28rpx 0 0", overflow: "hidden" }}
+            style={{ backgroundColor: "#fff", borderRadius: "12rpx 12rpx 0 0", overflow: "hidden" }}
         >
             <View className="discount">
                 <View className="discount-title">

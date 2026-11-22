@@ -23,7 +23,7 @@ interface Props {
 
 const defaultStyle: CSSProperties = {
     backgroundColor: "#f7f8fa",
-    borderRadius: "36rpx",
+    borderRadius: "12rpx",
     padding: "10rpx 15rpx",
     height: "inherit"
 };

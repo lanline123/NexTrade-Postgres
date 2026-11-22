@@ -112,7 +112,7 @@ export default function CustomerDetailPage() {
                             position="bottom"
                             zIndex={999}
                             closeable={false}
-                            style={{ backgroundColor: "#fff", borderRadius: "20rpx 20rpx 0 0" }}
+                            style={{ backgroundColor: "#fff", borderRadius: "12rpx 12rpx 0 0" }}
                             onClose={() => setShowRemarkEditor(false)}
                         >
                             <View className="remark-editor" style={{ paddingBottom: `${safeBottom + 20}px` }}>
@@ -165,7 +165,7 @@ export default function CustomerDetailPage() {
                             position="center"
                             zIndex={999}
                             closeable={false}
-                            style={{ backgroundColor: "#fff", borderRadius: "24rpx" }}
+                            style={{ backgroundColor: "#fff", borderRadius: "12rpx" }}
                             onClose={() => setShowAmountTipPopup(false)}
                         >
                             <View className="amount-tip-popup">

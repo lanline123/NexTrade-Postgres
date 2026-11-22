@@ -56,7 +56,7 @@
 .login-root-MjI4MnJhdHQ .wechat-login-box .btn {
     background-color: #ececec;
     color: #333;
-    border-radius: 66rpx;
+    border-radius: 12rpx;
     height: 80rpx;
     line-height: 80rpx;
     width: 80%;
@@ -179,7 +179,7 @@
     display: inline-block;
     font-size: 100%;
     background: #f2f2f2;
-    border-radius: 40rpx;
+    border-radius: 12rpx;
     border: 0;
     vertical-align: middle;
     font-size: 24rpx;
@@ -422,7 +422,7 @@
     &__btn {
         flex: 1;
         height: 80rpx;
-        border-radius: 40rpx;
+        border-radius: 12rpx;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -638,7 +638,7 @@
     height: 90rpx;
     line-height: 90rpx;
     text-align: center;
-    border-radius: 45rpx;
+    border-radius: 12rpx;
     color: var(--main-text, #fff);
     font-size: 36rpx;
     font-weight: normal;

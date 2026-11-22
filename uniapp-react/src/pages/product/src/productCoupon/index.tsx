@@ -247,7 +247,7 @@ export default function ProductCoupon({
             onClose={() => {
                 setShowCoupon(false);
             }}
-            style={{ background: "#fff", borderRadius: "20rpx 20rpx 0 0", zIndex: 999 }}
+            style={{ background: "#fff", borderRadius: "12rpx 12rpx 0 0", zIndex: 999 }}
         >
             <View className="coupon-content">
                 <View className="coupon-title">{t("优惠")}</View>
@@ -407,7 +407,7 @@ export default function ProductCoupon({
                                                             className="coupon-claim-btn"
                                                             style={{
                                                                 height: "55rpx",
-                                                                borderRadius: "27.5rpx",
+                                                                borderRadius: "12rpx",
                                                                 background: "var(--main-bg)",
                                                                 color: "#fff",
                                                                 fontSize: "22rpx",
@@ -450,7 +450,7 @@ export default function ProductCoupon({
                                     className="coupon-ensure-btn"
                                     style={{
                                         height: "80rpx",
-                                        borderRadius: "40rpx",
+                                        borderRadius: "12rpx",
                                         background: "var(--main-bg)",
                                         color: "#fff",
                                         fontSize: "28rpx"

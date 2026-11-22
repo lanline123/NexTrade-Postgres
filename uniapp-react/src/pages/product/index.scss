@@ -49,7 +49,7 @@
     .group-card-row {
         background-color: var(--product-content-bg, #fff);
         padding: 20rpx;
-        border-radius: 20rpx;
+        border-radius: 12rpx;
         margin: 20rpx 0;
 
         .group-num {
@@ -137,7 +137,7 @@
     .product-card-row {
         background-color: var(--product-content-bg, #fff);
         padding: 20rpx;
-        border-radius: 20rpx;
+        border-radius: 12rpx;
         margin: 20rpx 0;
         display: flex;
         flex-direction: column;
@@ -212,7 +212,7 @@
     .coupon-list {
         background-color: var(--product-content-bg, #fff);
         padding: 20rpx;
-        border-radius: 20rpx;
+        border-radius: 12rpx;
         align-items: center;
 
         .title {
@@ -293,7 +293,7 @@
 }
 
 .balance {
-    border-radius: 0 0 18rpx 18rpx;
+    border-radius: 0 0 12rpx 12rpx;
     background: var(--product-content-bg, #fff);
     margin-bottom: 20rpx;
     padding: 30rpx 32rpx 25rpx;
@@ -370,7 +370,7 @@
 
         .group-card-row--vortmall {
             margin: 20rpx 20rpx 14rpx;
-            border-radius: 20rpx;
+            border-radius: 12rpx;
 
             .group-desc .more {
                 white-space: nowrap;
@@ -409,7 +409,7 @@
         align-items: center;
         width: 100%;
         padding: 21rpx;
-        border-radius: 14rpx;
+        border-radius: 12rpx;
         background: #f7f8fc;
     }
 
@@ -442,7 +442,7 @@
     gap: 12rpx;
     margin-top: 20rpx;
     padding: 22rpx;
-    border-radius: 14rpx;
+    border-radius: 12rpx;
     background: #f7f8fc;
 
     .reserve-row {
@@ -474,7 +474,7 @@
     /* A2 批发价格块是内容区首个卡片，与主图之间保持统一模块间距。 */
     .wholesale-price-block {
         margin-top: 20rpx;
-        border-radius: 20rpx;
+        border-radius: 12rpx;
 
         .wholesale-price-table {
             padding-top: 20rpx;
@@ -575,7 +575,7 @@
             width: 100%;
             margin: 14rpx 0 0;
             box-sizing: border-box;
-            border-radius: 20rpx;
+            border-radius: 12rpx;
             background: var(--product-content-bg, #fff);
 
             .group {
@@ -603,7 +603,7 @@
     align-items: center;
     gap: 16rpx;
     padding: 20rpx 24rpx;
-    border-radius: 14rpx;
+    border-radius: 12rpx;
     background: #f7f8fc;
 
     .coupon-title {

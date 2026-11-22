@@ -19,7 +19,7 @@ page {
 .empty-box {
     padding: 60rpx 0 110rpx;
     margin-top: 50rpx;
-    border-radius: 18rpx;
+    border-radius: 12rpx;
 }
 .empty-box .pictrue {
     width: 200rpx;
@@ -37,7 +37,7 @@ page {
 
 /* button 基本样式 */
 .base-button {
-    border-radius: 50rpx;
+    border-radius: 12rpx;
     background-color: #ee0a24;
     color: #fff;
     font-size: 26rpx;

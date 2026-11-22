@@ -32,7 +32,7 @@
 
 .cashier-panel {
     background: #fff;
-    border-radius: 18rpx;
+    border-radius: 12rpx;
     margin: 0 20rpx;
     padding: 30rpx 32rpx 10rpx;
 
@@ -135,7 +135,7 @@
 // 旧 tig-button 等价重写（主题色实底 + 白字）
 .pay-submit-btn {
     height: 88rpx;
-    border-radius: 44rpx;
+    border-radius: 12rpx;
     background: var(--general);
     color: #fff;
     font-size: 32rpx;

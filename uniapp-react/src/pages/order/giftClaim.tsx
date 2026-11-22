@@ -108,7 +108,7 @@ export default function GiftClaimPage() {
 
     const cardStyle = {
         background: "#fff",
-        borderRadius: "18rpx",
+        borderRadius: "12rpx",
         margin: "20rpx 24rpx 0",
         padding: "28rpx"
     };

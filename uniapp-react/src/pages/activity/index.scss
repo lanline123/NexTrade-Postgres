@@ -46,7 +46,7 @@ page {
 .index .index-bg .slide-navigator .slide-image {
     width: 100%;
     height: 100%;
-    border-radius: 15rpx;
+    border-radius: 12rpx;
 }
 .index .index-bg .wx-swiper-dot {
     width: 20rpx;
@@ -302,7 +302,7 @@ page {
 .index .hotList .list {
     width: 690rpx;
     height: 330rpx;
-    border-radius: 20rpx;
+    border-radius: 12rpx;
     background-color: #fff;
     margin: -128rpx auto 0 auto;
     padding: 0 22rpx;
@@ -400,7 +400,7 @@ page {
     padding: 30rpx 20rpx 30rpx;
     white-space: nowrap;
     background: #fff;
-    border-radius: 15rpx;
+    border-radius: 12rpx;
 }
 .index .overseas_cat .flexbox {
     display: flex;
@@ -467,7 +467,7 @@ page {
     background: #fff;
     -webkit-border-radius: 12rpx;
     -moz-border-radius: 12rpx;
-    border-radius: 15rpx;
+    border-radius: 12rpx;
     position: relative;
 }
 .index .tmcscoupon .coupon-header {
@@ -671,9 +671,9 @@ page {
     width: 120rpx;
     height: 54rpx;
     background: #ff9400;
-    -webkit-border-radius: 28rpx;
-    -moz-border-radius: 28rpx;
-    border-radius: 28rpx;
+    -webkit-border-radius: 12rpx;
+    -moz-border-radius: 12rpx;
+    border-radius: 12rpx;
     -webkit-box-pack: center;
     -webkit-justify-content: center;
     -moz-box-pack: center;
@@ -696,7 +696,7 @@ page {
 /* 限时抢购 */
 .rush-buy {
     background-color: #fff;
-    border-radius: 15rpx;
+    border-radius: 12rpx;
     margin: 0 30rpx;
     margin-bottom: 20rpx;
     box-shadow: 0 4rpx 10rpx rgba(0, 0, 0, 0.08);
@@ -748,7 +748,7 @@ page {
 /* 限时抢购商品样式 */
 .goods-box-content {
     background: #fff;
-    border-radius: 15rpx;
+    border-radius: 12rpx;
     -webkit-overflow-scrolling: touch;
     overflow-x: auto;
     white-space: nowrap;
@@ -860,7 +860,7 @@ page {
     margin: 0 0 15rpx;
     -webkit-box-shadow: 0 10rpx 35rpx -5rpx rgba(0, 0, 0, 0.1);
     box-shadow: 0 10rpx 35rpx -5rpx rgba(0, 0, 0, 0.1);
-    border-radius: 15rpx;
+    border-radius: 12rpx;
     overflow: hidden;
     overflow: hidden;
 }
@@ -964,7 +964,7 @@ page {
 }
 .home_ads-1 image {
     overflow: hidden;
-    border-radius: 15rpx;
+    border-radius: 12rpx;
     width: 690rpx;
     height: 230rpx;
     margin-top: 20rpx;
@@ -1179,7 +1179,7 @@ page {
 .homeTopBar .title-box .title.current .desc {
     background: linear-gradient(to right, #f23030, #f23030);
     color: #fff;
-    border-radius: 0 20rpx 20rpx 20rpx;
+    border-radius: 0 12rpx 12rpx 12rpx;
 }
 /*首页 - 头条*/
 .headlines-box {
@@ -1187,7 +1187,7 @@ page {
     height: 60rpx;
     margin: 10rpx 30rpx;
     background: #fff;
-    border-radius: 18rpx;
+    border-radius: 12rpx;
 }
 .headlines-box .headlines-box-wrap {
     display: flex;

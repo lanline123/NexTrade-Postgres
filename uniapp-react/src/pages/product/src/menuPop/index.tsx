@@ -86,7 +86,7 @@ export default function MenuPop({ showDownload = false, downloadBusy = false, mo
             onClose={() => {
                 setShow(false);
             }}
-            style={{ background: "#fff", borderRadius: "0 0 20rpx 20rpx" }}
+            style={{ background: "#fff", borderRadius: "0 0 12rpx 12rpx" }}
         >
             <View className="menu-box">
                 <View className="menu-title">{t("快捷入口")}</View>

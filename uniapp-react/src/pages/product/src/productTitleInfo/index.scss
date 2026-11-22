@@ -1,6 +1,6 @@
 .product-title-info {
     margin-top: 20rpx;
-    border-radius: 24rpx;
+    border-radius: 12rpx;
     overflow: hidden;
 
     &.is-vortmall-layout {
@@ -82,7 +82,7 @@
         margin-top: 20rpx;
         padding: 20rpx 24rpx;
         background: #f7f8fa;
-        border-radius: 16rpx;
+        border-radius: 12rpx;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -145,7 +145,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 20rpx 30rpx 0;
-        border-radius: 24rpx 24rpx 0 0;
+        border-radius: 12rpx 12rpx 0 0;
 
         .title-top-price {
             color: var(--general);
@@ -186,7 +186,7 @@
         position: relative;
 
         &.has-activity {
-            border-radius: 24rpx;
+            border-radius: 12rpx;
             margin-top: -40rpx;
             z-index: 2;
         }

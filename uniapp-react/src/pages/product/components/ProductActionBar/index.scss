@@ -55,7 +55,7 @@
                 color: var(--main-text);
                 background-color: var(--main-bg);
                 height: 88rpx;
-                border-radius: 100rpx;
+                border-radius: 12rpx;
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -114,13 +114,13 @@
 
         .cart {
             background: var(--vice-bg);
-            border-radius: 100rpx 0 0 100rpx;
+            border-radius: 12rpx 0 0 12rpx;
             color: var(--vice-text);
         }
 
         .buy {
             background: var(--general);
-            border-radius: 0 100rpx 100rpx 0;
+            border-radius: 0 12rpx 12rpx 0;
             color: var(--main-text);
         }
 
@@ -134,7 +134,7 @@
     flex: 1;
     font-weight: 700;
     height: 88rpx;
-    border-radius: 100rpx;
+    border-radius: 12rpx;
     display: flex;
     align-items: center;
     justify-content: center;

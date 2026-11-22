@@ -67,7 +67,7 @@ export default function AbandonPayDialog({
             closeable
             onClose={onPopupClose}
             onClick={() => {}}
-            style={{ backgroundColor: "#fff", borderRadius: "24rpx 24rpx 0 0" }}
+            style={{ backgroundColor: "#fff", borderRadius: "12rpx 12rpx 0 0" }}
         >
             <View className="abandon">
                 {!iconFailed && (

@@ -464,7 +464,7 @@ export default function OrderList() {
                     style={{
                         margin: "16rpx 24rpx 0",
                         background: "#fff",
-                        borderRadius: "14rpx",
+                        borderRadius: "12rpx",
                         padding: "20rpx 24rpx",
                         display: "flex",
                         flexDirection: "row",
