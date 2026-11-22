@@ -44,9 +44,9 @@ export default function StepOne({ onStepChange, onMobileKeyChange }: Props) {
     });
     const [isLoading, setIsLoading] = useState(false);
 
-    // 旧 computed isDisabled（模板未直接使用，保留供后续步进校验复用）
-    const isDisabled = !mobile || !mobileCode || isLoading;
-    void isDisabled;
+    // 旧 computed isDisabled 此前算了不用（还 void 掉）：按钮在字段未填时照样可点、点了才报错。
+    // 现接进按钮 disabled，并按当前找回方式取对应字段（邮箱分支看 email/emailCode）
+    const isDisabled = formState.registType === "email" ? !email || !emailCode || isLoading : !mobile || !mobileCode || isLoading;
 
     const mobileErrorCallback = (msg: string) => {
         Taro.showToast({
@@ -132,7 +132,7 @@ export default function StepOne({ onStepChange, onMobileKeyChange }: Props) {
     };
 
     const handleToLogin = () => {
-        void Taro.navigateTo({
+        void Taro.redirectTo({
             url: "/pages/login/index"
         });
     };
@@ -166,7 +166,7 @@ export default function StepOne({ onStepChange, onMobileKeyChange }: Props) {
                                 onInput={(e) => setMobileCode(e.detail.value)}
                             />
                         </View>
-                        <View style="height: 65rpx; width: 200rpx; flex-shrink: 0;">
+                        <View style="height: 88rpx; width: 200rpx; flex-shrink: 0;">
                             <VerificationCode
                                 isChecked={isChecked}
                                 onVerifyTokenDataChange={setVerifyToken}
@@ -205,7 +205,7 @@ export default function StepOne({ onStepChange, onMobileKeyChange }: Props) {
                                 onInput={(e) => setEmailCode(e.detail.value)}
                             />
                         </View>
-                        <View style="height: 65rpx; width: 200rpx; flex-shrink: 0;">
+                        <View style="height: 88rpx; width: 200rpx; flex-shrink: 0;">
                             <VerificationCode
                                 isChecked={isChecked}
                                 email={email}
@@ -223,6 +223,7 @@ export default function StepOne({ onStepChange, onMobileKeyChange }: Props) {
                 {/* 旧 tig-button :loading-text :loading（已收敛到公共组件） */}
                 <TigButton
                     loading={isLoading}
+                    disabled={isDisabled}
                     loadingText={t("下 一 步")}
                     onClick={() => {
                         if (isLoading) return;

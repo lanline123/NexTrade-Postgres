@@ -31,8 +31,16 @@
         z-index: 1;
         width: 88rpx;
         height: 181rpx;
-        padding-left: 28rpx;
         box-sizing: border-box;
+
+        /* 热区修复：此前点击只落在 19px 勾选圆圈上，88rpx 槽位其余皆死区。
+           让 TigCheckbox 根节点（onClick 承载者）铺满槽位，圆圈视觉位置不变（左偏 28rpx、垂直居中） */
+        .tig-checkbox {
+            width: 88rpx;
+            height: 181rpx;
+            padding-left: 28rpx;
+            box-sizing: border-box;
+        }
     }
 
     .photo {

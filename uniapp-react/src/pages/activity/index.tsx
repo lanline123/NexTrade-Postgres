@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Image } from "@tarojs/components";
+import { View } from "@tarojs/components";
 import Taro, { useLoad, usePullDownRefresh, useShareAppMessage, useShareTimeline } from "@tarojs/taro";
 
 import DecorateModules from "@/pages/customPage/components/DecorateModules";
+import EmptyBox from "@/components/empty-box/EmptyBox";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
+import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import TigBackTop from "@/components/tig/tig-back-top";
 import { getIndex } from "@/api/home/home";
-import { staticResource, isDesktopBrowser, parseQueryString } from "@/utils";
+import { isDesktopBrowser, parseQueryString } from "@/utils";
 import { handleDecorateLoadError } from "@/utils/handleDecorateLoadError";
 import { usePageGuards } from "@/utils/pageMixin";
 import { useConfigStore } from "@/store/config";
@@ -28,6 +30,9 @@ export default function Activity() {
     const baseInfo = useConfigStore((s) => s.baseInfo);
 
     const [loading, setLoading] = useState(true);
+    /** 非模板类加载失败：错误态+重试，不再白页 */
+    const [loadError, setLoadError] = useState(false);
+    const pageIdRef = useRef<any>(undefined);
     const [modulesData, setModulesData] = useState<any[]>([]);
     const [pageModule, setPageModule] = useState<any>({});
     // 旧 ref showCatNav：仅赋值、无消费端，为逐行对齐保留
@@ -61,6 +66,7 @@ export default function Activity() {
     };
 
     const getIndexData = async (id?: number) => {
+        if (id !== undefined) pageIdRef.current = id;
         try {
             const res = await getIndex(id);
 
@@ -71,6 +77,7 @@ export default function Activity() {
             // #endif
 
             if (!mountedRef.current) return;
+            setLoadError(false);
             setModulesData(res.moduleList);
             setShowCatNav(1);
             setPageModule(res.pageModule);
@@ -80,6 +87,7 @@ export default function Activity() {
                 return;
             }
             console.error(error);
+            if (mountedRef.current) setLoadError(true);
         } finally {
             if (mountedRef.current) setLoading(false);
         }
@@ -118,9 +126,14 @@ export default function Activity() {
         <TigLayout>
             <View>
                 {loading ? (
-                    <View className="index_empty">
-                        <Image lazyLoad src={staticResource("common/index_empty.png")} mode="widthFix" />
-                    </View>
+                    <TigLoadingPage modelValue />
+                ) : loadError && modulesData.length === 0 ? (
+                    <EmptyBox
+                        height="auto"
+                        text="页面加载失败，请检查网络后重试"
+                        actionText="重新加载"
+                        onAction={() => void getIndexData(pageIdRef.current)}
+                    />
                 ) : (
                     <View className="index">
                         <View className="decorate-page-window">

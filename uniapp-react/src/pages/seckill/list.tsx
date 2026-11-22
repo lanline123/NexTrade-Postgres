@@ -3,6 +3,7 @@ import { Image, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
+import EmptyBox from "@/components/empty-box/EmptyBox";
 import LoadingBox from "@/components/loading-box";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import { getSeckill } from "@/api/seckill/seckill";
@@ -37,7 +38,14 @@ export default function SeckillList() {
         size: 20
     });
 
-    const { isLoadMore, data: seckillProductList } = useList<SeckillFilterState>(getSeckill, {
+    const {
+        isLoadMore,
+        isLoading,
+        total,
+        error,
+        getList,
+        data: seckillProductList
+    } = useList<SeckillFilterState>(getSeckill, {
         params: filterParamsRef.current,
         path: {
             dataKey: "records"
@@ -88,7 +96,9 @@ export default function SeckillList() {
         <TigLayout>
             <View className="seckill-title">
                 <View className="head-box">
-                    <Text className="iconfont icon-houtui" onClick={toBack} />
+                    <View className="seckill-back" onClick={toBack}>
+                        <Text className="iconfont icon-houtui" />
+                    </View>
                     {isZh ? (
                         <Text>{t("秒杀")}</Text>
                     ) : (
@@ -106,6 +116,18 @@ export default function SeckillList() {
                     </View>
                 </View>
             </View>
+            {!isLoading && seckillProductList.length === 0 ? (
+                error ? (
+                    <EmptyBox
+                        height="auto"
+                        text={t("加载失败，请检查网络后重试")}
+                        actionText={t("重新加载")}
+                        onAction={() => void getList({ page: 1 } as any)}
+                    />
+                ) : (
+                    <EmptyBox height="auto" text={t("暂无秒杀商品")} />
+                )
+            ) : null}
             <View className="qianggou-list">
                 {seckillProductList.map((item, index) => (
                     <View className="qianggou-item" key={`${item.productId}-${index}`} onClick={() => toDetail(item)}>
@@ -195,6 +217,7 @@ export default function SeckillList() {
                 color="#fff"
                 page={filterParamsRef.current.page}
                 length={seckillProductList.length}
+                finished={!isLoadMore && total > 0 && seckillProductList.length >= total}
             />
         </TigLayout>
     );

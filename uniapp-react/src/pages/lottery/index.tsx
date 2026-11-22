@@ -368,9 +368,23 @@ export default function LotteryIndex() {
             return;
         }
 
-        // 检查积分
+        // 活动时间门：此前未开始/已结束只靠后端 remaining 兜底，前端照样能点抽奖走动画；
+        // 用活动起止时间先行拦截（字符串时间按本地时区解析；解析不出时 NaN 比较恒 false，自动退回旧兜底）
+        const nowTs = Date.now();
+        const startTs = lotteryInfo.startTime ? new Date(String(lotteryInfo.startTime).replace(/-/g, "/")).getTime() : 0;
+        const endTs = lotteryInfo.endTime ? new Date(String(lotteryInfo.endTime).replace(/-/g, "/")).getTime() : 0;
+        if (startTs && nowTs < startTs) {
+            showTip(t("活动尚未开始"));
+            return;
+        }
+        if (endTs && nowTs > endTs) {
+            showTip(t("活动已结束"));
+            return;
+        }
+
+        // 检查积分（提示口径与其余拦截统一走 showTip，此前独用原生 toast 一闪而过）
         if (lotteryInfo.userPoints < lotteryInfo.costPoints) {
-            Taro.showToast({ title: t("积分不足"), icon: "none" });
+            showTip(t("积分不足"));
             return;
         }
 

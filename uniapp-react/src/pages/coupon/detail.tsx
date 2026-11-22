@@ -72,6 +72,7 @@ export default function CouponDetail() {
     });
 
     const [detailData, setDetailData] = useState<CouponDetailItem>({} as CouponDetailItem);
+    const [claiming, setClaiming] = useState(false);
     const [keyword, setKeyword] = useState("");
     const [tabIndex, setTabIndex] = useState("default");
     const [tabList, setTabList] = useState<TabItem[]>([
@@ -220,6 +221,8 @@ export default function CouponDetail() {
     });
 
     const handleSubmit = async () => {
+        // 领取防重复（此前无守卫，连点可重复领券请求）
+        if (claiming) return;
         if (couponStatus === "已领取") {
             Taro.showToast({
                 title: t("已领取"),
@@ -229,6 +232,7 @@ export default function CouponDetail() {
             return;
         }
 
+        setClaiming(true);
         try {
             if (id) {
                 await addCoupon({ couponId: id });
@@ -245,6 +249,8 @@ export default function CouponDetail() {
                 duration: 1500
             });
             console.error(error);
+        } finally {
+            setClaiming(false);
         }
     };
 
@@ -413,7 +419,7 @@ export default function CouponDetail() {
                                         )}
                                     </View>
                                     <View
-                                        className={`coupon-btn${couponStatus === "已领取" ? " disabled" : ""}`}
+                                        className={`coupon-btn${couponStatus === "已领取" || claiming ? " disabled" : ""}`}
                                         onClick={handleSubmit}
                                     >
                                         {" "}

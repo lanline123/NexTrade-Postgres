@@ -23,8 +23,9 @@
         justify-content: center;
         font-size: 24.5rpx;
         .error-btn {
-            height: 53rpx;
-            line-height: 53rpx;
+            /* 错误页按钮热区（原 53rpx） */
+            height: 80rpx;
+            line-height: 80rpx;
             padding: 0 20rpx;
             background-color: var(--main-bg);
             color: var(--main-text);

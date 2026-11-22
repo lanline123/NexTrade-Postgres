@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Input, RichText, Text, View } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
 
+import EmptyBox from "@/components/empty-box/EmptyBox";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import FormatPrice from "@/components/format-price/FormatPrice";
@@ -46,6 +47,9 @@ export default function AuctionDetail() {
 
     const [detail, setDetail] = useState<AuctionItemDetail | null>(null);
     const [loading, setLoading] = useState(true);
+    /** 首屏加载失败（尚无 detail）：此前 catch 静默且渲染门控恒走加载页，失败即永久假加载 */
+    const [loadError, setLoadError] = useState(false);
+    const hasDetailRef = useRef(false);
     const [bidInput, setBidInput] = useState("");
     const [busy, setBusy] = useState("");
     const [showDepositSheet, setShowDepositSheet] = useState(false);
@@ -57,10 +61,15 @@ export default function AuctionDetail() {
 
     const applyDetail = useCallback((d: AuctionItemDetail) => {
         setDetail(d);
+        hasDetailRef.current = true;
+        setLoadError(false);
         anchorRef.current = { remain: d.remainSeconds, at: Date.now() };
         setExtraBids([]);
         setBidPage(1);
         setBidsDone(false);
+        // 出价框一次性初始化为当前最低价：此前 value 用 `bidInput || minNext` 回填，
+        // 用户退格删空即被强制回填、无法逐位改价；改由数据到达时初始化，输入过程允许为空
+        setBidInput(String(money(d.minNextBid)));
     }, []);
 
     const refresh = useCallback(async () => {
@@ -69,7 +78,8 @@ export default function AuctionDetail() {
             const d = await getAuctionDetail(itemId);
             applyDetail(d);
         } catch {
-            /* 静默，下轮重试 */
+            /* 已有 detail 时静默（轮询/刷新失败不打断浏览）；首屏无数据时落错误态给重试 */
+            if (!hasDetailRef.current) setLoadError(true);
         } finally {
             setLoading(false);
         }
@@ -120,7 +130,20 @@ export default function AuctionDetail() {
     if (loading || !detail) {
         return (
             <TigLayout>
-                <TigLoadingPage />
+                {!loading && loadError ? (
+                    <EmptyBox
+                        height="auto"
+                        text={t("拍品加载失败，请检查网络后重试")}
+                        actionText={t("重新加载")}
+                        onAction={() => {
+                            setLoadError(false);
+                            setLoading(true);
+                            void refresh();
+                        }}
+                    />
+                ) : (
+                    <TigLoadingPage />
+                )}
             </TigLayout>
         );
     }
@@ -175,6 +198,7 @@ export default function AuctionDetail() {
     };
 
     const doQuit = async () => {
+        if (busy) return;
         const r = await Taro.showModal({
             title: t("退出参拍"),
             content: t("退出后保证金将解冻退回，确认退出？")
@@ -193,6 +217,7 @@ export default function AuctionDetail() {
     };
 
     const doRemind = async () => {
+        if (busy) return;
         setBusy("remind");
         try {
             await remindAuction(itemId, !detail.reminded);
@@ -315,7 +340,7 @@ export default function AuctionDetail() {
                         <Input
                             className="auction-bid-input"
                             type="number"
-                            value={bidInput || String(minNext)}
+                            value={bidInput}
                             onInput={(e) => setBidInput(e.detail.value)}
                         />
                         <View
@@ -447,6 +472,7 @@ export default function AuctionDetail() {
                         <View
                             className="auction-buyout-btn"
                             onClick={async () => {
+                                if (busy) return;
                                 const r = await Taro.showModal({
                                     title: t("一口价成交"),
                                     content: `${t("确认以")} ¥${money(detail.buyoutPrice).toLocaleString()} ${t("直接成交？")}`
@@ -526,7 +552,8 @@ export default function AuctionDetail() {
                                 <View
                                     className={`auction-bar-btn is-primary${busy === "freeze" ? " is-disabled" : ""}`}
                                     onClick={() => {
-                                        if (busy !== "freeze") doFreeze();
+                                        // 此前守卫是 busy !== "freeze"：任一其他操作进行中也会放行冻结，与出价并发；统一为 busy 非空即拦截
+                                        if (!busy) doFreeze();
                                     }}
                                 >
                                     <Text>{t("确认冻结")}</Text>

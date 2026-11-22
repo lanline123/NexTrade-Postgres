@@ -57,6 +57,8 @@ export default function Profile() {
     formRef.current = form;
 
     const [flowType] = useState(() => Taro.getStorageSync("bindWechatFlowType") || null);
+    const [profileLoadFailed, setProfileLoadFailed] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     const goPages = (url: string, type?: string) => {
         if (type == "password" && form.mobile == "") {
@@ -111,17 +113,28 @@ export default function Profile() {
         void edit();
     };
 
-    const onLogout = () => {
-        void logout();
+    const onLogout = async () => {
+        // 退出登录此前点即退（与同页「注销」有确认不一致）；补确认框，口径同全站危险操作
+        const res = await Taro.showModal({
+            title: t("提示"),
+            content: t("确定要退出登录吗？"),
+            confirmText: t("退出"),
+            cancelText: t("取消")
+        });
+        if (res.confirm) {
+            void logout();
+        }
     };
 
     const edit = async () => {
+        if (saving) return;
+        setSaving(true);
         try {
             await updateProfile({ ...formRef.current });
 
             Taro.showToast({
                 title: t("修改成功"),
-                icon: "none",
+                icon: "success",
                 duration: 1000
             });
 
@@ -139,6 +152,8 @@ export default function Profile() {
                 icon: "none",
                 duration: 1000
             });
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -242,8 +257,12 @@ export default function Profile() {
                 result.showMobile = temp.replace(/(\d{2})\d*(\d{4})$/, "$1*****$2");
             }
             setForm(result);
+            setProfileLoadFailed(false);
         } catch (error) {
             console.error(error);
+            // 此前加载失败静默：页面停在空表单，用户会把空值当资料误存
+            setProfileLoadFailed(true);
+            Taro.showToast({ title: t("资料加载失败，请重试"), icon: "none", duration: 2000 });
         } finally {
             Taro.hideLoading();
         }
@@ -281,6 +300,14 @@ export default function Profile() {
     return (
         <TigLayout title={t("个人资料")} borderBottom>
             <View className="profile-edit-main">
+                {profileLoadFailed && (
+                    <View
+                        style={{ padding: "24rpx 30rpx", color: "#e64340", fontSize: "26rpx", textAlign: "center" }}
+                        onClick={() => void __getProfile()}
+                    >
+                        {t("资料加载失败，点击重试")}
+                    </View>
+                )}
                 <View className="profile-edit-content">
                     <ProfileRow label={t("用户ID")}>
                         <Input className="profile-input disabled" value={form.dimUsername || ""} disabled />
@@ -386,7 +413,7 @@ export default function Profile() {
                     <TigButton2 className="btn" plain onClick={onLogout}>
                         {t("退出登录")}{" "}
                     </TigButton2>
-                    <TigButton2 className="btn" theme onClick={onSubmit}>
+                    <TigButton2 className="btn" theme loading={saving} disabled={saving} onClick={onSubmit}>
                         {t("保存修改")}{" "}
                     </TigButton2>
                 </View>

@@ -231,7 +231,7 @@ export default function GrouponMyList() {
                                             <TigButton2
                                                 plain
                                                 className="groupon-share-btn"
-                                                style={{ height: "58rpx", borderColor: "var(--main-bg)" }}
+                                                style={{ height: "80rpx", borderColor: "var(--main-bg)" }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     e.preventDefault?.();
@@ -245,7 +245,7 @@ export default function GrouponMyList() {
                                             <TigButton2
                                                 plain
                                                 className="groupon-detail-btn"
-                                                style={{ height: "58rpx", borderColor: "#9A9A9A", color: "#9A9A9A" }}
+                                                style={{ height: "80rpx", borderColor: "#9A9A9A", color: "#9A9A9A" }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     e.preventDefault?.();

@@ -114,7 +114,7 @@ export default function GrouponItem({
                                 <TigButton2
                                     plain
                                     className="groupon-act-btn"
-                                    style={{ height: "58rpx", borderColor: "var(--main-bg)" }}
+                                    style={{ height: "80rpx", borderColor: "var(--main-bg)" }}
                                     onClick={() => handleStartGroup(item)}
                                 >
                                     {t("我要开团")}
@@ -123,7 +123,7 @@ export default function GrouponItem({
                                 <TigButton2
                                     plain
                                     className="groupon-act-btn"
-                                    style={{ height: "58rpx", borderColor: "var(--main-bg)" }}
+                                    style={{ height: "80rpx", borderColor: "var(--main-bg)" }}
                                     onClick={() => handleBuy(item)}
                                 >
                                     {t("原价购买")}

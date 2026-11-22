@@ -64,6 +64,14 @@ export default function GrouponList() {
         shopTitle: ""
     });
 
+    // 秒级心跳：活动开始/结束判定原为渲染期一次性计算，停在页面上跨过开始/结束点不会翻态
+    // （倒计时归零后仍显示「距拼团结束」与可购按钮）。每秒重渲染一次使判定跟随当前时间
+    const [, setNowTick] = useState(0);
+    useEffect(() => {
+        const timer = setInterval(() => setNowTick((v) => v + 1), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
     const [tabIndex, setTabIndex] = useState("default");
     const [tabList, setTabList] = useState([
         {

@@ -166,8 +166,13 @@
                     align-items: center;
 
                     .icon {
-                        width: 40rpx;
-                        height: 40rpx;
+                        /* 编辑/删除图标热区（原 40rpx≈20px）：盒扩到 88rpx，字形不变、负边距抵消布局位移 */
+                        width: 88rpx;
+                        height: 88rpx;
+                        margin: -24rpx;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
 
                         .iconfont-h5 {
                             font-size: 33rpx;

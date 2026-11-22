@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Taro from "@tarojs/taro";
 import { ScrollView, Text, View } from "@tarojs/components";
 import { Popup } from "@nutui/nutui-react-taro";
@@ -35,6 +35,7 @@ export default function LangSet() {
     const getBaseConfigData = useConfigStore((s) => s.getBaseConfigData);
 
     const [showLang, setShowLang] = useState(false);
+    const savingRef = useRef(false);
     const [showCurrency, setShowCurrency] = useState(false);
     const [selectedLang, setSelectedLang] = useState(langCode);
     const [selectedCurrency, setSelectedCurrency] = useState<number | undefined>(currentCurrencyData.id);
@@ -99,8 +100,10 @@ export default function LangSet() {
      * 获取新语言数据包，清除首页装修缓存，重新加载页面
      */
     const handleConfirm = async () => {
+        if (savingRef.current) return;
         const prevLang = langCode;
         if (prevLang === selectedLang) return;
+        savingRef.current = true;
         const shouldReload = await getLangData(selectedLang, { clearLocaleGuard: true });
         setHomeDecorateData(null as any);
         if (shouldReload) {
@@ -122,6 +125,8 @@ export default function LangSet() {
      * 设置新的默认货币并重新加载页面
      */
     const handleCurrencyConfirm = () => {
+        if (savingRef.current) return;
+        savingRef.current = true;
         const index = currencyList?.findIndex((item: any) => item.id == selectedCurrency) ?? -1;
         setDefaultData(currencyList[index]);
         reload();
@@ -180,10 +185,10 @@ export default function LangSet() {
                             </ScrollView>
                         </View>
                         <View className="btttom">
-                            {/* 旧 tig-button2 theme style="height: 65rpx" :disabled → 主题色实底按钮（TODO(MIGRATION)：tig-button2 尚无 React 版） */}
+                            {/* 旧 tig-button2 theme style="height: 88rpx" :disabled → 主题色实底按钮（TODO(MIGRATION)：tig-button2 尚无 React 版） */}
                             <View
                                 className={`btn${langCode == selectedLang ? " is-disabled" : ""}`}
-                                style="height: 65rpx"
+                                style="height: 88rpx"
                                 onClick={() => {
                                     if (langCode == selectedLang) return;
                                     void handleConfirm();
@@ -237,7 +242,7 @@ export default function LangSet() {
                         <View className="btttom">
                             <View
                                 className={`btn${selectedCurrency == currentCurrencyData.id ? " is-disabled" : ""}`}
-                                style="height: 65rpx"
+                                style="height: 88rpx"
                                 onClick={() => {
                                     if (selectedCurrency == currentCurrencyData.id) return;
                                     handleCurrencyConfirm();

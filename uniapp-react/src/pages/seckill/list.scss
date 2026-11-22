@@ -21,6 +21,18 @@ page {
             font-size: 38rpx;
             margin-right: 10rpx;
         }
+        /* 返回键热区：此前是裸字形 Text（可点区≈字形本身），包 88rpx 盒达标，字形不变 */
+        .seckill-back {
+            width: 88rpx;
+            height: 88rpx;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: -20rpx 0 -20rpx -24rpx;
+            .iconfont {
+                margin-right: 0;
+            }
+        }
         .tit-img {
             height: 26px;
         }

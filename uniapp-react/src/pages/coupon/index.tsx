@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Image, Text, View } from "@tarojs/components";
-import Taro, { useDidShow, useReachBottom, useRouter } from "@tarojs/taro";
+import Taro, { useDidShow, usePullDownRefresh, useReachBottom, useRouter } from "@tarojs/taro";
 import { Popup } from "@nutui/nutui-react-taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
@@ -49,6 +49,8 @@ export default function CouponIndex() {
     const totalRef = useRef(0);
 
     const [couponList, setCouponList] = useState<CouponFilterResult[]>([]);
+    /** 加载失败标记：此前失败与「暂无优惠券」同形（空态假象），现区分并可重试 */
+    const [loadFailed, setLoadFailed] = useState(false);
     const [loading, setLoading] = useState(true);
     const [claimingSet, setClaimingSet] = useState<Set<number>>(new Set());
     const [showRulePopup, setShowRulePopup] = useState(false);
@@ -63,6 +65,13 @@ export default function CouponIndex() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [shopTitle]);
 
+    // 下拉刷新：回到第一页整表重拉（__getCouponList 为追加式，先清表重置分页）
+    usePullDownRefresh(() => {
+        filterParamsRef.current.page = 1;
+        setCouponList([]);
+        void __getCouponList().finally(() => Taro.stopPullDownRefresh());
+    });
+
     const __getCouponList = async () => {
         Taro.showLoading({
             title: t("加载中")
@@ -76,8 +85,10 @@ export default function CouponIndex() {
             }
             setCouponList((prev) => [...prev, ...result.records]);
             totalRef.current = result.total;
+            setLoadFailed(false);
         } catch (error) {
             console.error(error);
+            setLoadFailed(true);
         } finally {
             Taro.hideLoading();
             setLoading(false);
@@ -295,7 +306,7 @@ export default function CouponIndex() {
                                                     {/* 旧 tig-button plain-main-color :custom-style height 55rpx :disabled（已收敛到公共组件，plain 描边对齐旧版） */}
                                                     <TigButton
                                                         plain
-                                                        customStyle={{ height: "55rpx" }}
+                                                        customStyle={{ height: "88rpx" }}
                                                         disabled={
                                                             claimingSet.has(item.couponId) ||
                                                             couponStatus(item.isReceive, item.limitNum, item.receiveNum) === "已领取"
@@ -386,7 +397,18 @@ export default function CouponIndex() {
                         <View className="pictrue">
                             <Image lazyLoad src={staticResource("common/data_empty.png")} />
                         </View>
-                        <View className="txt">{t("暂无优惠券！")}</View>
+                        <View className="txt">{loadFailed ? t("加载失败，请检查网络后重试") : t("暂无优惠券！")}</View>
+                        {loadFailed && (
+                            <View
+                                style={{ marginTop: "24rpx", color: "var(--general)", fontSize: "28rpx" }}
+                                onClick={() => {
+                                    filterParamsRef.current.page = 1;
+                                    void __getCouponList();
+                                }}
+                            >
+                                {t("重新加载")}
+                            </View>
+                        )}
                     </View>
                 )}
             </TigLayout>
@@ -396,7 +418,7 @@ export default function CouponIndex() {
                 position="center"
                 round
                 closeable={false}
-                closeOnOverlayClick={false}
+                closeOnOverlayClick
                 zIndex={999}
                 style={{ backgroundColor: "#fff" }}
                 onClose={() => setShowRulePopup(false)}

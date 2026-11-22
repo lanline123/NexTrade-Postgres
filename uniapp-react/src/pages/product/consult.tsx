@@ -130,7 +130,10 @@ export default function ProductConsultPage() {
         }, 100); // 延迟以确保弹窗已渲染
     };
 
+    const [submitting, setSubmitting] = useState(false);
+
     const submitConsultation = async () => {
+        if (submitting) return;
         const pid = productIdRef.current;
         const sid = shopIdRef.current;
         if (pid === undefined || sid === undefined) return;
@@ -142,6 +145,7 @@ export default function ProductConsultPage() {
             });
             return;
         }
+        setSubmitting(true);
         try {
             await addConsultation({
                 productId: pid,
@@ -160,6 +164,8 @@ export default function ProductConsultPage() {
                 title: error.message,
                 icon: "none"
             });
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -238,7 +244,8 @@ export default function ProductConsultPage() {
                         <View className="popup-footer">
                             <TigButton2
                                 className="btn"
-                                disabled={!consultationMessage.trim()}
+                                loading={submitting}
+                                disabled={!consultationMessage.trim() || submitting}
                                 style={{
                                     background: consultationMessage.trim() ? "#C3A769" : "#e6e6e6",
                                     color: consultationMessage.trim() ? "#fff" : "#f7f7f7",

@@ -53,6 +53,7 @@ export default function ImIndex() {
         userFrom: "",
         shopId: 0
     });
+    const textSendingRef = useRef(false);
     const filterParams = filterParamsRef.current;
 
     const [messageList, setMessageList] = useState<any[]>([]);
@@ -475,6 +476,12 @@ export default function ImIndex() {
     };
 
     const handleSendMessage = async (type?: string, info?: any, pendingKey?: string) => {
+        // 文本发送防重复：回车与点「发送」可叠触发，此前无守卫会发两条
+        const isText = !type || type === "text";
+        if (isText) {
+            if (textSendingRef.current) return;
+            textSendingRef.current = true;
+        }
         try {
             const result: any = await sendMessage({
                 content: {
@@ -509,8 +516,13 @@ export default function ImIndex() {
             if (pendingKey) {
                 removePendingMessage(pendingKey);
                 void Taro.showToast({ title: t("视频发送失败，请重试"), icon: "none" });
+            } else {
+                // 此前文本发送失败只有 console.log：输入框内容还在但用户无从知晓没发出去
+                void Taro.showToast({ title: t("发送失败，请重试"), icon: "none" });
             }
             console.log(error);
+        } finally {
+            if (isText) textSendingRef.current = false;
         }
     };
 

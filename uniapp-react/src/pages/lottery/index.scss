@@ -334,12 +334,14 @@
     position: relative;
     .close-btn {
         position: absolute;
-        bottom: -80rpx;
+        bottom: -104rpx;
         left: 50%;
         transform: translateX(-50%);
         font-size: 40rpx;
         color: #fff;
         z-index: 999;
+        /* 关闭热区：字形 40rpx 扩到 88rpx 见方（padding 撑盒，位置补偿保持视觉位） */
+        padding: 24rpx;
     }
 }
 

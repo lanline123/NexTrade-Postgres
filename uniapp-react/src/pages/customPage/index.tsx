@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Image } from "@tarojs/components";
+import { View } from "@tarojs/components";
 import Taro, { useDidShow, usePullDownRefresh, useReachBottom, useRouter, useShareAppMessage, useShareTimeline } from "@tarojs/taro";
 
 import DecorateModules from "./components/DecorateModules";
 import Masonry from "@/components/masonry/Masonry";
+import EmptyBox from "@/components/empty-box/EmptyBox";
 import TigBackTop from "@/components/tig/tig-back-top";
+import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import { getIndex, getCateProduct } from "@/api/home/home";
 import type { GetProductFilterResult } from "@/types/home/home";
 import { usecatnavStore } from "@/store/catnav";
-import { staticResource } from "@/utils";
 import { handleDecorateLoadError } from "@/utils/handleDecorateLoadError";
 import { usePageGuards } from "@/utils/pageMixin";
 import { useConfigStore } from "@/store/config";
@@ -25,6 +26,8 @@ export default function CustomPage() {
     const previewId = useConfigStore((s) => s.previewId);
 
     const [loading, setLoading] = useState(false);
+    /** 非模板类加载失败（区别于 handleDecorateLoadError 已处理的模板不存在）：错误态+重试，不再白页 */
+    const [loadError, setLoadError] = useState(false);
     const [modulesData, setModulesData] = useState<any[]>([]);
     const [pageModule, setPageModule] = useState<any>({});
     const [currentCategoryId, setCurrentCategoryId] = useState(0);
@@ -61,6 +64,7 @@ export default function CustomPage() {
 
     const getIndexData = async (id?: number) => {
         setLoading(true);
+        setLoadError(false);
         loadingRef.current = true;
         try {
             const res = await getIndex(id);
@@ -72,6 +76,7 @@ export default function CustomPage() {
                 return;
             }
             console.error(error);
+            setLoadError(true);
         } finally {
             setLoading(false);
             loadingRef.current = false;
@@ -127,9 +132,14 @@ export default function CustomPage() {
         <TigLayout>
             <View className="custom-decorate-page">
                 {loading ? (
-                    <View className="custom-decorate-page__empty">
-                        <Image lazyLoad src={staticResource("common/index_empty.png")} mode="widthFix" />
-                    </View>
+                    <TigLoadingPage modelValue />
+                ) : loadError && modulesData.length === 0 ? (
+                    <EmptyBox
+                        height="auto"
+                        text="页面加载失败，请检查网络后重试"
+                        actionText="重新加载"
+                        onAction={() => void getIndexData(router.params.id ? Number(router.params.id) : previewId || undefined)}
+                    />
                 ) : (
                     <View className="index">
                         <View className="decorate-page-window">

@@ -100,7 +100,10 @@ export default function ProductConsultPage() {
         }, 100); // 延迟以确保弹窗已渲染
     };
 
+    const [submitting, setSubmitting] = useState(false);
+
     const submitConsultation = async () => {
+        if (submitting) return;
         if (!consultationMessage.trim()) {
             Taro.showToast({
                 title: t("请输入咨询内容"),
@@ -108,6 +111,7 @@ export default function ProductConsultPage() {
             });
             return;
         }
+        setSubmitting(true);
         try {
             await addConsultation({
                 productId: Number(productId),
@@ -125,6 +129,8 @@ export default function ProductConsultPage() {
                 title: error.message,
                 icon: "none"
             });
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -203,7 +209,8 @@ export default function ProductConsultPage() {
                         <View className="popup-footer">
                             <TigButton2
                                 className="btn"
-                                disabled={!consultationMessage.trim()}
+                                loading={submitting}
+                                disabled={!consultationMessage.trim() || submitting}
                                 style={{
                                     background: consultationMessage.trim() ? "#C3A769" : "#e6e6e6",
                                     color: consultationMessage.trim() ? "#fff" : "#f7f7f7",

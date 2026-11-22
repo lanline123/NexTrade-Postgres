@@ -563,6 +563,7 @@ export default function OrderInfo() {
                 if (res.confirm) {
                     try {
                         await confirmReceipt({ id });
+                        Taro.showToast({ title: t("确认收货成功"), icon: "success" });
                         void __getOrder();
                     } catch (error: any) {
                         Taro.showToast({

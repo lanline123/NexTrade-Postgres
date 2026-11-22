@@ -22,7 +22,7 @@ page {
     /* 右侧以图搜图入口自带 16rpx 内边距，右边距收窄避免相机图标离边框过远 */
     padding: 0 12rpx 0 35rpx;
     box-sizing: border-box;
-    height: 66rpx;
+    height: 72rpx;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -105,9 +105,10 @@ page {
     font-size: 24rpx;
     color: #666;
     padding: 0 28rpx;
-    height: 50rpx;
+    /* 历史/热门词标签热区（原 50rpx≈25px 易误触相邻标签） */
+    height: 64rpx;
     border-radius: 30rpx;
-    line-height: 50rpx;
+    line-height: 64rpx;
     margin: 0 0 20rpx 20rpx;
     background: #f6f6f6;
 }

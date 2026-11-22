@@ -1080,6 +1080,31 @@ export default function Check() {
      * - 门店自提：需要联系人、自提点
      * @returns 验证是否通过
      */
+    /**
+     * 校验失败时把视口滚到出问题卡片（此前只有预约分支有滚动定位，其余分支只弹 toast，
+     * 用户在长结算页里要自己找哪一项没填）。沿预约分支的 selectorQuery 做法，
+     * 并补上当前滚动偏移换算绝对位置（预约分支只用 data.top，长页深处会滚偏——此处修正，
+     * 预约分支本体未动）；查不到节点时静默跳过，不影响 toast 提示本身。
+     */
+    const scrollToCheckoutCard = (selector: string) => {
+        const query = Taro.createSelectorQuery();
+        let currentScrollTop = 0;
+        query.selectViewport().scrollOffset((res: any) => {
+            currentScrollTop = res?.scrollTop ?? 0;
+        });
+        query
+            .select(selector)
+            .boundingClientRect((data: any) => {
+                if (data) {
+                    Taro.pageScrollTo({
+                        scrollTop: currentScrollTop + data.top,
+                        duration: 300
+                    });
+                }
+            })
+            .exec();
+    };
+
     const validateDeliveryAndContact = (): boolean => {
         // 送礼物模式（我方新增）：无需买家收货地址/联系人，仅要求快递配送
         if (formState.isGiftOrder) {
@@ -1102,6 +1127,7 @@ export default function Check() {
                         title: t("请选择联系人信息"),
                         icon: "none"
                     });
+                    Taro.pageScrollTo({ scrollTop: 0, duration: 300 });
                     return false;
                 }
             } else if (reserveFlowType() === 10) {
@@ -1111,6 +1137,7 @@ export default function Check() {
                         title: t("请选择收货地址"),
                         icon: "none"
                     });
+                    Taro.pageScrollTo({ scrollTop: 0, duration: 300 });
                     return false;
                 }
             }
@@ -1126,6 +1153,7 @@ export default function Check() {
                         title: t("请选择收货地址"),
                         icon: "none"
                     });
+                    Taro.pageScrollTo({ scrollTop: 0, duration: 300 });
                     return false;
                 }
                 break;
@@ -1136,6 +1164,7 @@ export default function Check() {
                         title: t("请选择联系人信息"),
                         icon: "none"
                     });
+                    Taro.pageScrollTo({ scrollTop: 0, duration: 300 });
                     return false;
                 }
                 // 自提点未选择或不存在时拦截提交
@@ -1146,6 +1175,7 @@ export default function Check() {
                             title: t("请选择自提点"),
                             icon: "none"
                         });
+                        scrollToCheckoutCard(".store-card");
                         return false;
                     }
                 }
@@ -1195,6 +1225,7 @@ export default function Check() {
             deliverySlotDaysRef.current.length > 0 &&
             !formState.deliveryTimeSlot
         ) {
+            scrollToCheckoutCard(".store-card");
             return Taro.showToast({
                 title: t("请选择送达时间"),
                 icon: "none"
@@ -1202,6 +1233,7 @@ export default function Check() {
         }
 
         if (formState.payTypeId === 0) {
+            scrollToCheckoutCard(".payment-box");
             return Taro.showToast({
                 title: t("请选择付款方式"),
                 icon: "none"

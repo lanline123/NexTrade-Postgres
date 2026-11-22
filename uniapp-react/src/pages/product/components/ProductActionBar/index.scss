@@ -54,7 +54,7 @@
                 font-weight: bold;
                 color: var(--main-text);
                 background-color: var(--main-bg);
-                height: 70rpx;
+                height: 88rpx;
                 border-radius: 100rpx;
                 display: flex;
                 align-items: center;
@@ -106,8 +106,8 @@
         .btn {
             flex: 1;
             text-align: center;
-            line-height: 70rpx;
-            height: 70rpx;
+            line-height: 88rpx;
+            height: 88rpx;
             color: #fff;
             font-size: 24rpx;
         }
@@ -133,7 +133,7 @@
 .isBuyBtn {
     flex: 1;
     font-weight: 700;
-    height: 70rpx;
+    height: 88rpx;
     border-radius: 100rpx;
     display: flex;
     align-items: center;
@@ -212,7 +212,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 63rpx;
+            height: 88rpx;
             font-size: 24.5rpx;
             font-weight: 700;
             line-height: normal;
@@ -220,7 +220,7 @@
 
         .other-products-btn,
         .isBuyBtn {
-            height: 63rpx;
+            height: 88rpx;
             font-size: 24.5rpx;
             font-weight: 700;
         }

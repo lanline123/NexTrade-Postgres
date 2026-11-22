@@ -269,9 +269,11 @@ page {
             justify-content: center;
 
             .operation {
-                width: 60rpx;
-                height: 60rpx;
-                margin-right: 28rpx;
+                /* 表情/更多按钮热区（原 60rpx≈30px）：盒扩到 88rpx 高，图标背景仍 60rpx 居中 */
+                width: 88rpx;
+                height: 88rpx;
+                margin-right: 14rpx;
+                background-position: center;
             }
 
             .face {
@@ -287,11 +289,11 @@ page {
             }
 
             .send {
-                width: 80rpx;
-                height: 60rpx;
+                width: 96rpx;
+                height: 88rpx;
                 background-color: #0983f6;
                 border-radius: 4rpx;
-                line-height: 60rpx;
+                line-height: 88rpx;
                 text-align: center;
                 font-size: 28rpx;
                 color: #fff;

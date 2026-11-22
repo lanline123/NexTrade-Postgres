@@ -35,6 +35,16 @@ export default function SecurityPassword() {
         password: "",
         confirmPassword: ""
     });
+    // 密码可见切换（照重置密码 StepTow 的 passwordType 口径，此前本页两个密码框无眼睛）
+    const [passwordType, setPasswordType] = useState(["password", "password"]);
+    const [submitting, setSubmitting] = useState(false);
+    const passwordTypeChange = (index: number) => {
+        setPasswordType((prev) => {
+            const next = [...prev];
+            next[index] = next[index] == "password" ? "text" : "password";
+            return next;
+        });
+    };
     const [verifyToken, setVerifyToken] = useState("");
     const [isChecked] = useState(true);
 
@@ -121,6 +131,7 @@ export default function SecurityPassword() {
     };
 
     const onNext = async () => {
+        if (submitting) return;
         const validateFields: { key: keyof PasswordFormState; rules: any[] }[] = [
             { key: "mobileCode", rules: formRules.mobileCode.rules },
             { key: "password", rules: formRules.password.rules },
@@ -137,6 +148,7 @@ export default function SecurityPassword() {
             }
         }
 
+        setSubmitting(true);
         try {
             await checkModifyPasswordMobileCode({
                 password: formState.password,
@@ -145,7 +157,7 @@ export default function SecurityPassword() {
 
             Taro.showToast({
                 title: t("修改成功"),
-                icon: "none",
+                icon: "success",
                 duration: 1000
             });
 
@@ -160,6 +172,8 @@ export default function SecurityPassword() {
                     icon: "none"
                 });
             }
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -215,13 +229,17 @@ export default function SecurityPassword() {
                             <View className="form-content">
                                 <View className="input">
                                     <Input
-                                        password
+                                        password={passwordType[0] === "password"}
                                         value={formState.password}
                                         className="item-input"
                                         placeholder={t("请输入新密码")}
                                         onInput={(e) =>
                                             setFormState((prev) => ({ ...prev, password: e.detail.value }))
                                         }
+                                    />
+                                    <View
+                                        className={"password_show_hide iconfont " + (passwordType[0] == "text" ? "icon-xianshi" : "icon-yincang")}
+                                        onClick={() => passwordTypeChange(0)}
                                     />
                                 </View>
                             </View>
@@ -234,7 +252,7 @@ export default function SecurityPassword() {
                             <View className="form-content">
                                 <View className="input">
                                     <Input
-                                        password
+                                        password={passwordType[1] === "password"}
                                         value={formState.confirmPassword}
                                         className="item-input"
                                         placeholder={t("请再次输入新密码")}
@@ -242,12 +260,16 @@ export default function SecurityPassword() {
                                             setFormState((prev) => ({ ...prev, confirmPassword: e.detail.value }))
                                         }
                                     />
+                                    <View
+                                        className={"password_show_hide iconfont " + (passwordType[1] == "text" ? "icon-xianshi" : "icon-yincang")}
+                                        onClick={() => passwordTypeChange(1)}
+                                    />
                                 </View>
                             </View>
                         </View>
                     </View>
                     <View className="item">
-                        <TigButton2 theme className="next" disabled={isRegisterDisabled} onClick={() => onNext()}>
+                        <TigButton2 theme className="next" loading={submitting} disabled={isRegisterDisabled || submitting} onClick={() => onNext()}>
                             {t("提交")}
                         </TigButton2>
                     </View>

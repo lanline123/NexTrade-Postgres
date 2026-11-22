@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { View, Text, Image } from "@tarojs/components";
-import Taro, { useDidShow, useDidHide, useUnload } from "@tarojs/taro";
+import Taro, { useDidShow, useDidHide, usePullDownRefresh, useUnload } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import MainHeader from "@/components/mainHeader";
@@ -33,6 +33,7 @@ import Detail from "./src/Detail";
 import DiscountInfo from "@/components/product/DiscountInfo/DiscountInfo";
 import DeliveryProductPop from "./src/DeliveryProductPop";
 import Recommend from "@/components/recommend";
+import EmptyBox from "@/components/empty-box/EmptyBox";
 import TigButton2 from "@/components/tig/tig-button2/TigButton2";
 import CartSwipe from "./src/CartSwipe";
 
@@ -68,6 +69,11 @@ export default function Cart() {
         // 对应旧 uni.hideTabBar()：React 版 tabbar 由 TigLayout 自定义渲染（TigTabbar），
         // 不存在原生 tabBar，无需隐藏。
         getCartList();
+    });
+
+    // 下拉刷新：复用整表重拉（getCartList 自带 showLoading/hideLoading），停指示由本处兜底
+    usePullDownRefresh(() => {
+        void Promise.resolve(getCartList()).finally(() => Taro.stopPullDownRefresh());
     });
 
     useDidHide(() => {
@@ -107,6 +113,8 @@ export default function Cart() {
     const allChecked = allCheckedRef.current;
 
     const [isLoad, setIsLoad] = useState(true);
+    /** 购物车加载失败（非 401）：此前静默落「空购物车」假象，现落错误态+重试 */
+    const [cartLoadFailed, setCartLoadFailed] = useState(false);
     const [showLogin, setShowLogin] = useState(!Taro.getStorageSync("token"));
 
     // 外贸风皮肤开关，默认 false
@@ -313,6 +321,7 @@ export default function Cart() {
             totalRef.current = result.total;
             cartListRef.current = result.cartList;
             hasCartMutationFailureRef.current = false;
+            setCartLoadFailed(false);
             setShowLogin(false);
             updateCheckbox();
             cartStoreSetCartCount(Number(result.total?.totalCount ?? 0));
@@ -324,6 +333,8 @@ export default function Cart() {
             if (error.code === 401) {
                 setShowLogin(true);
                 cartStoreSetCartCount(0);
+            } else {
+                setCartLoadFailed(true);
             }
             return false;
         } finally {
@@ -1186,11 +1197,20 @@ export default function Cart() {
                                 </>
                             )}
 
-                            {cartList.length === 0 && !isLoad && (
+                            {cartList.length === 0 && !isLoad && cartLoadFailed ? (
+                                <View className="cart-empty">
+                                    <EmptyBox
+                                        height="auto"
+                                        text={t("购物车加载失败，请检查网络后重试")}
+                                        actionText={t("重新加载")}
+                                        onAction={() => void getCartList()}
+                                    />
+                                </View>
+                            ) : cartList.length === 0 && !isLoad ? (
                                 <View className="cart-empty">
                                     <CartEmpty />
                                 </View>
-                            )}
+                            ) : null}
                             {/* 旧 <recommend @callback="getCartList" />（已收敛到共享组件，含 Masonry 高度均衡瀑布流） */}
                             <Recommend onCallback={getCartList} />
                         </View>

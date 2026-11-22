@@ -106,6 +106,13 @@ export default function DecoratePreview() {
     const [modulesData, setModulesData] = useState<any[]>([]);
     const [pageModule, setPageModule] = useState<any>({});
     const [received, setReceived] = useState(false);
+    /** 等待编辑器数据超时（10s）：此前无限等待且无自诊断信息，超时只换提示文案、不拦截迟到数据 */
+    const [waitTimeout, setWaitTimeout] = useState(false);
+    useEffect(() => {
+        if (received) return;
+        const timer = setTimeout(() => setWaitTimeout(true), 10000);
+        return () => clearTimeout(timer);
+    }, [received]);
     /** 编辑器下发的页面类型（整页配置型分支判定用；旧编辑器不下发时为 0，恒走通用分发） */
     const [pageType, setPageType] = useState(0);
     /** 编辑器指定的预览样例商品 id（商品详情分支用；0 = 默认第一条在售商品） */
@@ -369,7 +376,7 @@ export default function DecoratePreview() {
                     />
                 )
             ) : (
-                <View className="decorate-preview__waiting">等待编辑器数据…</View>
+                <View className="decorate-preview__waiting">{waitTimeout ? "未收到编辑器数据，请检查嵌入来源后刷新重试" : "等待编辑器数据…"}</View>
             )}
         </View>
     );

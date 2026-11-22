@@ -9,6 +9,7 @@ import TigBackTop from "@/components/tig/tig-back-top";
 import TigCopyright from "@/components/tig/tig-copyright/TigCopyright";
 import TigImage from "@/components/tig/tig-image/TigImage";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
+import Skeleton from "@/components/skeleton";
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import TigUpload from "@/components/tig/tig-upload/TigUpload";
 import { getMemberDecorate, getMemberDecorateLegacy } from "@/api/home/home";
@@ -693,7 +694,25 @@ export default function Member() {
                             </View>
                         </View>
                     ) : null
-                ) : null}
+                ) : (
+                    /* 骨架屏试点：装修配置返回前此前整页空白。用既有 Skeleton 单块组件拼会员页骨架
+                       （头像行 + 数据条 + 两组列表块），全站骨架推广与否待本试点效果拍板 */
+                    <View style={{ padding: "30rpx" }}>
+                        <View style={{ display: "flex", alignItems: "center", gap: "24rpx", marginBottom: "30rpx" }}>
+                            <Skeleton width="120rpx" height="120rpx" animated />
+                            <View style={{ flex: 1 }}>
+                                <Skeleton width="40%" height="36rpx" animated />
+                                <View style={{ height: "16rpx" }} />
+                                <Skeleton width="65%" height="28rpx" animated />
+                            </View>
+                        </View>
+                        <Skeleton width="100%" height="120rpx" animated />
+                        <View style={{ height: "24rpx" }} />
+                        <Skeleton width="100%" height="300rpx" animated />
+                        <View style={{ height: "24rpx" }} />
+                        <Skeleton width="100%" height="300rpx" animated />
+                    </View>
+                )}
 
                 <Recommend />
                 {/* 旧 <tig-copyright />（版权/技术支持图，B6 已移植组件，接线） */}

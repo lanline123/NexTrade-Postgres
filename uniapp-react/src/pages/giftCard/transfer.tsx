@@ -5,6 +5,7 @@ import Taro, { useRouter } from "@tarojs/taro";
 import TigButton2 from "@/components/tig/tig-button2/TigButton2";
 import FixedPlaceholder from "@/components/tig/tig-fixed-placeholder/FixedPlaceholder";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
+import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import { getGiftCardDetail, giftCardClaim } from "@/api/giftCard/giftCard";
 import type { GiftCardInfo } from "@/types/giftCard/giftCard";
 import { useProductStyle } from "@/hooks/useProductStyle";
@@ -115,6 +116,7 @@ export default function GiftCardTransfer() {
     return (
         <View>
             <TigLayout title={t("TA送你一张礼品卡")}>
+                {loading ? <TigLoadingPage /> : null}
                 {!loading && !loadFailed ? (
                     <>
                         <View className="bg" />

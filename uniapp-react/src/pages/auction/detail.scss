@@ -210,7 +210,8 @@
 .auction-bar-btn {
     flex: 1;
     text-align: center;
-    padding: 20rpx 0;
+    /* 热区达标：原 padding 20rpx 时实际高约 76rpx < 88rpx(44px) 基准 */
+    padding: 24rpx 0;
     font-size: 28rpx;
     background: #fff;
     border: 2rpx solid #d9d9d9;
@@ -250,7 +251,7 @@
     align-items: stretch;
     border: 2rpx solid #d9d9d9;
     .auction-step-btn {
-        width: 72rpx;
+        width: 88rpx;
         display: flex;
         align-items: center;
         justify-content: center;

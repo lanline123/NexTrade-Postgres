@@ -283,7 +283,11 @@ export default function AfterSaleEdit() {
      * - 根据是否有 aftersaleId 判断是新建还是编辑
      * - 新建用 itemId，编辑用 orderItemId
      */
+    const [submitting, setSubmitting] = useState(false);
+
     const handleSave = async () => {
+        // 提交防重复（此前无守卫，连点可重复提交售后申请）
+        if (submitting) return;
         if (formRef.current.aftersaleType === 0) {
             Taro.showToast({
                 title: t("请选择售后类型"),
@@ -299,6 +303,8 @@ export default function AfterSaleEdit() {
             return;
         }
 
+        setSubmitting(true);
+        try {
         const isExchange = formRef.current.aftersaleType === 3;
         const items: { orderItemId: number; number: number; exchangeSkuId?: number }[] = [];
         if (formRef.current.aftersaleId) {
@@ -323,6 +329,9 @@ export default function AfterSaleEdit() {
             });
             patchForm({ pics: fileLists, orderId: infoRef.current.order.orderId, items });
             await add();
+        }
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -557,8 +566,12 @@ export default function AfterSaleEdit() {
 
                     <View className="btn-fixed-placeholder">
                         <View className="after-sale-btn-box">
-                            <View className="after-sale-btn" onClick={() => void handleSave()}>
-                                {t("提交")}
+                            <View
+                                className="after-sale-btn"
+                                style={submitting ? { opacity: 0.6, pointerEvents: "none" } : undefined}
+                                onClick={() => void handleSave()}
+                            >
+                                {submitting ? t("提交中...") : t("提交")}
                             </View>
                         </View>
                     </View>

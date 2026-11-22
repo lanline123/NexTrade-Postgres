@@ -26,6 +26,7 @@ export default function SecurityNewPhone() {
     const isOpenMobileAreaCode = useConfigStore((s) => s.isOpenMobileAreaCode);
 
     const [mobileCode, setMobileCode] = useState("");
+    const [submitting, setSubmitting] = useState(false);
     const [mobile, setMobile] = useState("");
     const [mobileAreaCode, setMobileAreaCode] = useState("86");
     const [verifyToken, setVerifyToken] = useState("");
@@ -44,6 +45,8 @@ export default function SecurityNewPhone() {
     };
 
     const onsubmit = async () => {
+        if (submitting) return;
+        setSubmitting(true);
         try {
             let temp = {
                 mobile: mobile,
@@ -53,7 +56,7 @@ export default function SecurityNewPhone() {
 
             Taro.showToast({
                 title: t("修改成功"),
-                icon: "none"
+                icon: "success"
             });
 
             setTimeout(() => {
@@ -69,6 +72,8 @@ export default function SecurityNewPhone() {
                     icon: "none"
                 });
             }
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -109,7 +114,7 @@ export default function SecurityNewPhone() {
                         />
                     </View>
                     <View className="item" style={{ height: "60rpx" }}>
-                        <TigButton2 theme className="next" disabled={isRegisterDisabled} onClick={onsubmit}>
+                        <TigButton2 theme className="next" loading={submitting} disabled={isRegisterDisabled || submitting} onClick={onsubmit}>
                             {t("提交")}
                         </TigButton2>
                     </View>

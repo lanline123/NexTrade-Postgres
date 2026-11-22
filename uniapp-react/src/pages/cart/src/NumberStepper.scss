@@ -39,9 +39,18 @@
         background-repeat: no-repeat;
         background-position: 50% 50%;
         background-size: 21rpx 21rpx;
-        /* 扩大可点区域，避免小程序端点击命中困难 */
+        /* 扩大可点区域，避免小程序端点击命中困难（此前只有注释没有实现，现以透明 ::after 把热区扩到约 87rpx 见方，图标视觉不变） */
         position: relative;
         z-index: 1;
+
+        &::after {
+            content: "";
+            position: absolute;
+            left: -20rpx;
+            right: -20rpx;
+            top: -20rpx;
+            bottom: -20rpx;
+        }
     }
 }
 

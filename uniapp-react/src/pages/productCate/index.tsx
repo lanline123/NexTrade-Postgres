@@ -3,6 +3,7 @@ import { View } from "@tarojs/components";
 import { useRouter } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
+import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import { usePageGuards } from "@/utils/pageMixin";
 import { setPageMeta } from "@/utils/seo";
 import { useConfigStore } from "@/store/config";
@@ -145,6 +146,8 @@ export default function ProductCate() {
 
     return (
         <TigLayout>
+            {/* 装修配置返回前此前整页空白，现给整页 loading（与首页/店铺页同口径） */}
+            {!decorateLoaded && <TigLoadingPage />}
             {decorateLoaded && (
                 <>
                     {effectiveStyleType === 1 && <StyleOneCate catId={catId} onCatIdChange={setCatId} module={moduleConfigV1} />}

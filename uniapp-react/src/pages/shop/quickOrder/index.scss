@@ -149,6 +149,17 @@
     justify-content: center;
     font-size: 34rpx;
     line-height: 1;
+    position: relative;
+
+    /* 热区：圆钮视觉 52rpx 不变（点单列表密度），透明伪元素扩到 88rpx 见方 */
+    &::before {
+        content: "";
+        position: absolute;
+        left: -18rpx;
+        right: -18rpx;
+        top: -18rpx;
+        bottom: -18rpx;
+    }
 }
 
 .quick-order-step-btn.minus {

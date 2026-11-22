@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
@@ -55,6 +55,8 @@ export default function Buy({
     onCallback
 }: Props) {
     const loadingRef = useRef(false);
+    /** 请求中视觉反馈（此前只有 ref 防重、界面零反馈，弱网下用户会以为没点中而连点别处） */
+    const [busy, setBusy] = useState(false);
 
     const showToast = (message: string) => {
         Taro.showToast({ title: message, icon: "none", duration: 1500 });
@@ -73,6 +75,7 @@ export default function Buy({
         try {
             if (loadingRef.current) return;
             loadingRef.current = true;
+            setBusy(true);
             const salesmanId = getSalemanId(id!);
             let result: any = {};
             const filterParams: any = {
@@ -127,11 +130,16 @@ export default function Buy({
             showToast(error.message);
         } finally {
             loadingRef.current = false;
+            setBusy(false);
         }
     };
 
     return (
-        <View className="buy" onClick={(e) => { e.stopPropagation(); handleBuy(); }}>
+        <View
+            className="buy"
+            style={busy ? { opacity: 0.6, pointerEvents: "none" } : undefined}
+            onClick={(e) => { e.stopPropagation(); handleBuy(); }}
+        >
             {children}
         </View>
     );

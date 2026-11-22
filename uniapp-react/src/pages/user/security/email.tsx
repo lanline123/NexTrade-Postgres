@@ -21,6 +21,7 @@ export default function SecurityEmail() {
 
     const router = useRouter();
     const [email, setEmail] = useState("");
+    const [submitting, setSubmitting] = useState(false);
     const [emailNew, setEmailNew] = useState("");
     const [emailCodeNew, setEmailCodeNew] = useState("");
     const [emailCode, setEmailCode] = useState("");
@@ -55,6 +56,8 @@ export default function SecurityEmail() {
     };
 
     const onBinding = async () => {
+        if (submitting) return;
+        setSubmitting(true);
         try {
             let temp = {
                 email: email,
@@ -63,7 +66,7 @@ export default function SecurityEmail() {
             await emailEmailValidate({ ...temp });
             Taro.showToast({
                 title: t("绑定成功"),
-                icon: "none"
+                icon: "success"
             });
             let url = "/pages/member/index";
             Taro.navigateTo({
@@ -74,10 +77,14 @@ export default function SecurityEmail() {
                 title: error.message,
                 icon: "none"
             });
+        } finally {
+            setSubmitting(false);
         }
     };
 
     const onEmailValidateNew = async () => {
+        if (submitting) return;
+        setSubmitting(true);
         try {
             await emailValidate({
                 email: email,
@@ -91,13 +98,17 @@ export default function SecurityEmail() {
                 icon: "none"
             });
             console.error("Email validation failed:", error);
+        } finally {
+            setSubmitting(false);
         }
     };
 
     const onNext = async () => {
+        if (submitting) return;
         if (!isBind) {
             return await onEmailValidateNew();
         }
+        setSubmitting(true);
         try {
             let temp = {
                 email: !isBind ? email : emailNew,
@@ -106,7 +117,7 @@ export default function SecurityEmail() {
             await emailEmailValidate({ ...temp });
             Taro.showToast({
                 title: t("绑定成功"),
-                icon: "none"
+                icon: "success"
             });
             let url = "/pages/member/index";
             Taro.navigateTo({
@@ -117,6 +128,8 @@ export default function SecurityEmail() {
                 title: error.message,
                 icon: "none"
             });
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -209,13 +222,13 @@ export default function SecurityEmail() {
                     )}
                     {!hasEmail ? (
                         <View className="item" style={{ height: "60rpx" }}>
-                            <TigButton2 theme className="next" disabled={isRegisterDisabled} onClick={onBinding}>
+                            <TigButton2 theme className="next" loading={submitting} disabled={isRegisterDisabled || submitting} onClick={onBinding}>
                                 {t("下一步")}
                             </TigButton2>
                         </View>
                     ) : (
                         <View className="item" style={{ height: "60rpx" }}>
-                            <TigButton2 theme className="next" disabled={isRegisterDisabled} onClick={onNext}>
+                            <TigButton2 theme className="next" loading={submitting} disabled={isRegisterDisabled || submitting} onClick={onNext}>
                                 {t("下一步")}
                             </TigButton2>
                         </View>

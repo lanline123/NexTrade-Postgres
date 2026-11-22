@@ -126,6 +126,7 @@ export default function request<T extends ResponseData>(config: RequestConfig): 
                         }
 
                         reject({ message: t("请登录") });
+                        return;
                     }
                     reject(data);
                 } else {

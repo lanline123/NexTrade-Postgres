@@ -81,6 +81,7 @@ export default function RiderWallet() {
     };
 
     const applyWithdraw = async () => {
+        if (busy) return;
         const amt = Number(amount);
         if (!amt || amt <= 0) {
             Taro.showToast({ title: t("请输入提现金额"), icon: "none" });
@@ -90,6 +91,20 @@ export default function RiderWallet() {
             Taro.showToast({ title: t("请先添加收款账号"), icon: "none" });
             return;
         }
+        // 提现是动钱操作，此前点按钮即提交（同域骑手取消订单反而有确认框）；补确认框并复述金额/账号/手续费
+        const account = accounts.find((a) => Number(a.accountId) === accountId);
+        const feeRate = Number(cfg?.withdrawFeeRate || 0);
+        const fee = feeRate > 0 ? (amt * feeRate) / 100 : 0;
+        const confirmRes = await Taro.showModal({
+            title: t("确认提现"),
+            content:
+                `${t("提现金额")} ¥${amt.toFixed(2)}\n` +
+                `${t("收款账号")} ${account ? `${account.accountName} · ${account.accountNo}` : ""}` +
+                (fee > 0 ? `\n${t("手续费")} ¥${fee.toFixed(2)} · ${t("实际到账")} ¥${(amt - fee).toFixed(2)}` : ""),
+            confirmText: t("确认提现"),
+            cancelText: t("取消")
+        });
+        if (!confirmRes.confirm) return;
         setBusy(true);
         try {
             await riderApplyWithdraw({ amount: amt, accountId });
@@ -132,7 +147,7 @@ export default function RiderWallet() {
                         <View
                             key={a.accountId}
                             className="rider-row"
-                            style={{ padding: "14rpx 0", borderTop: "1rpx solid #f0f1f3" }}
+                            style={{ padding: "22rpx 0", borderTop: "1rpx solid #f0f1f3" }}
                             onClick={() => setAccountId(Number(a.accountId))}
                         >
                             <Text style={{ fontSize: "27rpx" }}>

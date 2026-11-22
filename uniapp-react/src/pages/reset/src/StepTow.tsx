@@ -83,10 +83,10 @@ export default function StepTow({ onStepChange, mobileKey, onMobileKeyChange }: 
             Taro.showToast({
                 title: t("重置密码成功"),
                 duration: 1500,
-                icon: "none"
+                icon: "success"
             });
             setTimeout(() => {
-                void Taro.navigateTo({
+                void Taro.redirectTo({
                     url: "/pages/login/index?loginType=password"
                 });
             }, 1500);
@@ -107,7 +107,7 @@ export default function StepTow({ onStepChange, mobileKey, onMobileKeyChange }: 
     };
 
     const handleToLogin = () => {
-        void Taro.navigateTo({
+        void Taro.redirectTo({
             url: "/pages/login/index"
         });
     };

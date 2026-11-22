@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import Taro from "@tarojs/taro";
+import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
 import EmptyBox from "@/components/empty-box/EmptyBox";
@@ -116,6 +116,12 @@ export default function AddressList() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // 下拉刷新：整表重拉第一页
+    usePullDownRefresh(() => {
+        filterParams.current.page = 1;
+        void getList().finally(() => Taro.stopPullDownRefresh());
+    });
+
     const handleDel = (id: number) => {
         console.log("handleDel", id);
         Taro.showModal({
@@ -137,13 +143,18 @@ export default function AddressList() {
 
             Taro.showToast({
                 title: t("删除成功"),
-                icon: "none"
+                icon: "success"
             });
 
             filterParams.current.page = 1;
             void getList();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            // 此前删除失败完全静默：条目还在，用户以为删错了或已删
+            Taro.showToast({
+                title: error?.message || t("删除失败，请重试"),
+                icon: "none"
+            });
         }
     };
 
@@ -371,17 +382,17 @@ export default function AddressList() {
 
             <LoadingBox modelValue={isLoadMore} page={filterParams.current.page} length={addressList.length} />
 
-            {/* 旧 tig-fixed-placeholder + tig-button2（style="height: 73rpx"）→ 固定底栏 + 等高占位（等价重写） */}
+            {/* 旧 tig-fixed-placeholder + tig-button2（style="height: 88rpx"）→ 固定底栏 + 等高占位（等价重写） */}
             {/* TODO(MIGRATION)：tig-button2 尚无 React 版，按主题色实底按钮等价重写 */}
             <View className="btn-fixed-placeholder">
                 <View className="btn-box">
                     {/* 【批次D】微信收货地址快捷导入：仅小程序端渲染，H5 不出现 */}
                     {process.env.TARO_ENV === "weapp" && (
-                        <View className="btn btn--wechat" style="height: 73rpx" onClick={() => void handleImportWechatAddress()}>
+                        <View className="btn btn--wechat" style="height: 88rpx" onClick={() => void handleImportWechatAddress()}>
                             {t("导入微信收货地址")}
                         </View>
                     )}
-                    <View className="btn" style="height: 73rpx" onClick={handleAdd}>
+                    <View className="btn" style="height: 88rpx" onClick={handleAdd}>
                         <Text className="iconfont-h5 icon-jia" style="margin-right: 10rpx" />
                         {t("添加新地址")}
                     </View>

@@ -53,7 +53,8 @@
     background: #1677ff;
     color: #fff;
     font-size: 28rpx;
-    padding: 16rpx 36rpx;
+    /* 骑手端主按钮热区（原上下 16rpx、有效高约 72rpx） */
+    padding: 24rpx 36rpx;
     text-align: center;
 }
 
@@ -98,7 +99,8 @@
     color: #e93d3d;
     border: 1rpx solid #f0c1c1;
     background: #fff;
-    padding: 6rpx 22rpx;
+    /* 「移除」按钮热区（原上下 6rpx、有效高约 46rpx，户外手套/单手操作极易点空） */
+    padding: 18rpx 26rpx;
 }
 
 .rider-empty {

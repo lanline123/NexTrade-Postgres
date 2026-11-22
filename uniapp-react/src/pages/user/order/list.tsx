@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ScrollView, Text, View } from "@tarojs/components";
-import Taro, { useDidShow, useRouter, useUnload } from "@tarojs/taro";
+import Taro, { useDidShow, usePullDownRefresh, useRouter, useUnload } from "@tarojs/taro";
 import dayjs from "dayjs";
 
 import EmptyBox from "@/components/empty-box/EmptyBox";
@@ -209,7 +209,7 @@ export default function OrderList() {
                         await delOrder({ id });
                         Taro.showToast({
                             title: t("订单已删除成功"),
-                            icon: "none"
+                            icon: "success"
                         });
                         filterParams.page = 1;
                         void getList();
@@ -406,6 +406,12 @@ export default function OrderList() {
         }
         filterParams.page = 1;
         void getList();
+    });
+
+    // 下拉刷新：与 useDidShow 同口径重置到第一页重拉，拉完停指示
+    usePullDownRefresh(() => {
+        filterParams.page = 1;
+        void getList().finally(() => Taro.stopPullDownRefresh());
     });
 
     useUnload(() => {
@@ -715,7 +721,12 @@ export default function OrderList() {
                         </View>
                     ))}
                 </View>
-                <LoadingBox modelValue={isLoadMore} page={filterParams.page} length={orderList.length} />
+                <LoadingBox
+                    modelValue={isLoadMore}
+                    page={filterParams.page}
+                    length={orderList.length}
+                    finished={!isLoadMore && total > 0 && orderList.length >= total}
+                />
 
                 {!isLoading && total === 0 ? (
                     <View className="order-empty">

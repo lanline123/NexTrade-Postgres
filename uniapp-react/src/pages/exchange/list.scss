@@ -138,7 +138,8 @@
         flex-shrink: 0;
         align-self: center;
         margin-right: 24rpx;
-        padding: 12rpx 28rpx;
+        /* 「兑换」按钮热区（原上下 12rpx、有效高约 61rpx） */
+        padding: 25rpx 28rpx;
         background: var(--general, #65c4aa);
         color: #fff;
         font-size: 26rpx;

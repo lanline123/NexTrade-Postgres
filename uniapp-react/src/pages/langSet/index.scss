@@ -162,8 +162,14 @@
 /* 原 :deep(.u-popup__content__close) 平铺；关闭按钮容器按旧视觉补充定位（收敛在弹层内容内，避免串页） */
 .lang-content .u-popup__content__close {
     position: absolute;
-    top: 12rpx;
-    right: 24rpx;
+    /* 关闭热区达标（原图标 35rpx）：容器扩到 88rpx 见方，图标仍居中于原视觉位附近 */
+    top: -14rpx;
+    right: 0;
+    width: 88rpx;
+    height: 88rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     z-index: 2;
 
     .u-icon__icon {

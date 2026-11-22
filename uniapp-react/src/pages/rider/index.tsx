@@ -157,15 +157,15 @@ export default function RiderIndex() {
             )}
 
             <View className="rider-card">
-                <View className="rider-row" style={{ padding: "14rpx 0" }} onClick={() => Taro.navigateTo({ url: "/pages/rider/hall" })}>
+                <View className="rider-row" style={{ padding: "22rpx 0" }} onClick={() => Taro.navigateTo({ url: "/pages/rider/hall" })}>
                     <Text style={{ fontSize: "30rpx" }}>{t("接单大厅")}</Text>
                     <Text className="rider-sub">{t("本店待抢订单")} ›</Text>
                 </View>
-                <View className="rider-row" style={{ padding: "14rpx 0", borderTop: "1rpx solid #f0f1f3" }} onClick={() => Taro.navigateTo({ url: "/pages/rider/orders" })}>
+                <View className="rider-row" style={{ padding: "22rpx 0", borderTop: "1rpx solid #f0f1f3" }} onClick={() => Taro.navigateTo({ url: "/pages/rider/orders" })}>
                     <Text style={{ fontSize: "30rpx" }}>{t("我的派送")}</Text>
                     <Text className="rider-sub">{t("待取货 / 配送中 / 已完成")} ›</Text>
                 </View>
-                <View className="rider-row" style={{ padding: "14rpx 0", borderTop: "1rpx solid #f0f1f3" }} onClick={() => Taro.navigateTo({ url: "/pages/rider/wallet" })}>
+                <View className="rider-row" style={{ padding: "22rpx 0", borderTop: "1rpx solid #f0f1f3" }} onClick={() => Taro.navigateTo({ url: "/pages/rider/wallet" })}>
                     <Text style={{ fontSize: "30rpx" }}>{t("我的钱包")}</Text>
                     <Text className="rider-sub">{t("余额 / 明细 / 提现")} ›</Text>
                 </View>

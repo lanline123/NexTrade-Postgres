@@ -27,6 +27,17 @@
 
         .product-nav-left {
             left: 20rpx;
+
+            /* 返回热区：字形仅 38rpx，此前可点区≈字形本身；透明伪元素扩到约 88rpx 见方，字形位置不变 */
+            &::after {
+                content: "";
+                position: absolute;
+                left: -25rpx;
+                right: -25rpx;
+                top: -25rpx;
+                bottom: -25rpx;
+            }
+
             .icon-houtui {
                 font-weight: bold;
                 font-size: 38rpx;
@@ -47,7 +58,7 @@
             /* 原 padding-top: v-bind(paddingTop)；MP-WEIXIN 下 right/top/height/padding-top:0 → 组件内联 style（rightGroupStyle） */
 
             .action-btn {
-                position: static;
+                position: relative;
                 padding-top: 0;
                 background: rgba(0, 0, 0, 0.4);
                 border-radius: 12rpx;
@@ -56,6 +67,16 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
+
+                /* 热区扩到 88rpx 见方（圆钮视觉 64rpx 不变） */
+                &::after {
+                    content: "";
+                    position: absolute;
+                    left: -12rpx;
+                    right: -12rpx;
+                    top: -12rpx;
+                    bottom: -12rpx;
+                }
                 &.action-btn--plain {
                     background: transparent;
                     width: auto;

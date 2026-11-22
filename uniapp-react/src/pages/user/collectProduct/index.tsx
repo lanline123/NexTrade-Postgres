@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Image, Text, View } from "@tarojs/components";
-import Taro, { useReachBottom } from "@tarojs/taro";
+import Taro, { usePullDownRefresh, useReachBottom } from "@tarojs/taro";
 import { Swipe } from "@nutui/nutui-react-taro";
 
 import FormatPrice from "@/components/format-price/FormatPrice";
@@ -75,32 +75,28 @@ export default function CollectProduct() {
     };
 
     const handleBack = () => {
+        // 此前按「上一页 route 是否与本页相同」猜 delta（同名页连开时会跳过一页真实页面），
+        // 改为标准口径：栈深 >1 回退一页，否则回会员中心 tab
         const pageList = Taro.getCurrentPages();
-        const currentRoute = (pageList[pageList.length - 1] as any)?.route || (pageList[pageList.length - 1] as any)?.path;
-        const prevRoute = (pageList[pageList.length - 2] as any)?.route || (pageList[pageList.length - 2] as any)?.path;
-        const delta = prevRoute === currentRoute ? 2 : 1;
-
-        if (process.env.TARO_ENV === "h5") {
-            if (pageList.length > delta - 1) {
-                history.go(-delta);
-            } else {
-                Taro.switchTab({
-                    url: "/pages/member/index"
-                });
+        if (pageList.length > 1) {
+            if (process.env.TARO_ENV === "h5") {
+                history.go(-1);
+                return;
             }
-            return;
-        }
-
-        if (pageList.length > delta - 1) {
-            Taro.navigateBack({
-                delta
-            });
+            Taro.navigateBack({ delta: 1 });
         } else {
             Taro.switchTab({
                 url: "/pages/member/index"
             });
         }
     };
+
+    // 下拉刷新：回到第一页重拉（拉取为追加式，先清表防重复）
+    usePullDownRefresh(() => {
+        filterParams.page = 1;
+        setCollectList([]);
+        void __getCollectProductList().finally(() => Taro.stopPullDownRefresh());
+    });
 
     const __delCollect = (id: number) => {
         Taro.showModal({

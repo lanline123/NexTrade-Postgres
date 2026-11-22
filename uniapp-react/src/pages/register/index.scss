@@ -75,6 +75,19 @@ page {
             width: auto;
             padding-bottom: 10rpx;
             border-bottom: 2rpx solid #dfdfdf;
+            position: relative;
+        }
+
+        /* 密码可见切换（口径照重置密码 StepTow.scss 的 .password_show_hide） */
+        .password_show_hide {
+            position: absolute;
+            color: #666;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 40rpx;
+            padding: 10rpx;
+            z-index: 5;
         }
 
         .btn {

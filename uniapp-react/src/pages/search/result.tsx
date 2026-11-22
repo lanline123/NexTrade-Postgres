@@ -4,6 +4,7 @@ import Taro, { useRouter } from "@tarojs/taro";
 
 import ProductItem from "@/components/masonry/ProductItem";
 import LoadingBox from "@/components/loading-box";
+import TigBackTop from "@/components/tig/tig-back-top";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import MainHeader from "@/components/mainHeader";
 import TigButton2 from "@/components/tig/tig-button2/TigButton2";
@@ -12,7 +13,7 @@ import type { StoreSearchParams, StoreSearchRecord } from "@/types/search/storeS
 import { getCategoryTree, getCategoryProductFilter, getCategoryProduct, getShopCategoryTree, getSearchEsFilter, getStoreProduct } from "@/api/search/search";
 import { getMobileSearchStyle } from "@/api/common";
 import useList from "@/hooks/useList";
-import { useProductStyle } from "@/hooks";
+import { useProductStyle, useScrollTop } from "@/hooks";
 import HeaderDomestic from "./components/search-result/HeaderDomestic";
 import HeaderOverseas from "./components/search-result/header-overseas";
 import FilterDomestic from "./components/search-result/filter-domestic";
@@ -149,7 +150,8 @@ export default function SearchResult() {
         data: productList,
         promotionList,
         isLoadMore,
-        isLoading
+        isLoading,
+        error
     } = useList(getCategoryProduct, {
         params: filterParams,
         path: {
@@ -158,6 +160,8 @@ export default function SearchResult() {
         needPromotionList: true
     });
     const { styleMap } = useProductStyle(productList);
+    /** 回顶按钮用（此前本页无任何回顶手段，改筛选须手动长滑回顶；接法同商品详情页） */
+    const { scrollTop } = useScrollTop();
 
     // 后台「移动端搜索风格」接口值；0 表示尚未取到配置
     const [configSearchStyle, setConfigSearchStyle] = useState(0);
@@ -182,9 +186,11 @@ export default function SearchResult() {
 
     const {
         getList: getStoreList,
+        total: storeTotal,
         data: storeList,
         isLoading: storeIsLoading,
-        isLoadMore: storeIsLoadMore
+        isLoadMore: storeIsLoadMore,
+        error: storeError
     } = useList<StoreSearchRecord>(getStoreProduct, {
         params: storeParams,
         path: {
@@ -1017,15 +1023,26 @@ export default function SearchResult() {
                             {!storeIsLoading && storeList.length === 0 && (
                                 <View className="empty-container">
                                     <Image className="empty-image" src={staticResource("empty/emptyProduct.png")} mode="aspectFit" />
-                                    <Text>{t("没有找到相关的门店")}</Text>
+                                    <Text>{storeError ? t("加载失败，请检查网络后重试") : t("没有找到相关的门店")}</Text>
                                     {/* 旧 tig-button2 class="empty-btn"（已收敛到 TigButton2） */}
-                                    <TigButton2 className="empty-btn" onClick={toHomePage}>
-                                        {t("返回首页")}
-                                    </TigButton2>
+                                    {storeError ? (
+                                        <TigButton2 className="empty-btn" onClick={() => void getStoreList({ page: 1 } as any)}>
+                                            {t("重新加载")}
+                                        </TigButton2>
+                                    ) : (
+                                        <TigButton2 className="empty-btn" onClick={toHomePage}>
+                                            {t("返回首页")}
+                                        </TigButton2>
+                                    )}
                                 </View>
                             )}
                         </View>
-                        <LoadingBox modelValue={storeIsLoadMore} page={storeParams.page ?? 1} length={storeList.length} />
+                        <LoadingBox
+                            modelValue={storeIsLoadMore}
+                            page={storeParams.page ?? 1}
+                            length={storeList.length}
+                            finished={!storeIsLoadMore && storeTotal > 0 && storeList.length >= storeTotal}
+                        />
                     </>
                 )}
 
@@ -1070,15 +1087,26 @@ export default function SearchResult() {
                         {!isLoading && total === 0 && (
                             <View className="empty-container">
                                 <Image className="empty-image" src={staticResource("empty/emptyProduct.png")} mode="aspectFit" />
-                                <Text>{t("没有找到相关的商品")}</Text>
+                                <Text>{error ? t("加载失败，请检查网络后重试") : t("没有找到相关的商品")}</Text>
                                 {/* 旧 tig-button2 class="empty-btn"（已收敛到 TigButton2） */}
-                                <TigButton2 className="empty-btn" onClick={toHomePage}>
-                                    {t("返回首页")}
-                                </TigButton2>
+                                {error ? (
+                                    <TigButton2 className="empty-btn" onClick={() => void getList({ page: 1 } as any)}>
+                                        {t("重新加载")}
+                                    </TigButton2>
+                                ) : (
+                                    <TigButton2 className="empty-btn" onClick={toHomePage}>
+                                        {t("返回首页")}
+                                    </TigButton2>
+                                )}
                             </View>
                         )}
 
-                        <LoadingBox modelValue={isLoadMore} page={filterParams.page} length={productList.length} />
+                        <LoadingBox
+                            modelValue={isLoadMore}
+                            page={filterParams.page}
+                            length={productList.length}
+                            finished={!isLoadMore && total > 0 && productList.length >= total}
+                        />
                     </>
                 )}
 
@@ -1125,6 +1153,7 @@ export default function SearchResult() {
                         onSliderMany={sliderMany}
                     />
                 )}
+                <TigBackTop scrollTop={scrollTop} />
             </View>
         </TigLayout>
     );

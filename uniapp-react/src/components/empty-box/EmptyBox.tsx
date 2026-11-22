@@ -1,5 +1,6 @@
 import { Image, View } from "@tarojs/components";
 
+import TigButton2 from "@/components/tig/tig-button2/TigButton2";
 import { staticResource } from "@/utils";
 import { t } from "@/utils/i18n";
 
@@ -16,6 +17,9 @@ interface Props {
     iconWidth?: string;
     iconHeight?: string;
     centerContent?: boolean;
+    /** 可选行动按钮文案（如「重试」「去逛逛」）；与 onAction 同时传入才渲染 */
+    actionText?: string;
+    onAction?: () => void;
 }
 
 /**
@@ -31,7 +35,9 @@ export default function EmptyBox({
     icon = "common/empty-box.png",
     iconWidth = "240rpx",
     iconHeight = "240rpx",
-    centerContent = false
+    centerContent = false,
+    actionText = "",
+    onAction
 }: Props) {
     void mode;
     const displayText = text || t("暂无数据");
@@ -45,6 +51,13 @@ export default function EmptyBox({
                 <Image className="empty-img" src={staticResource(icon)} mode="aspectFit" style={{ width: iconWidth, height: iconHeight }} />
             </View>
             <View className="empty-text">{displayText}</View>
+            {actionText && onAction ? (
+                <View className="empty-action">
+                    <TigButton2 theme onClick={onAction}>
+                        {actionText}
+                    </TigButton2>
+                </View>
+            ) : null}
         </View>
     );
 }

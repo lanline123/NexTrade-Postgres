@@ -249,6 +249,8 @@ export default function Pay() {
      * 启动轮询检查支付状态，超时50次（100秒）视为失败
      */
     const handlePay = async () => {
+        // 防重复点击：disabled 态渲染落帧前连点会重入（状态检查兜底）
+        if (paymentDisabled) return;
         setPaymentDisabled(true);
         stopPaymentPolling();
         paymentSettledRef.current = false;
@@ -664,7 +666,7 @@ export default function Pay() {
                         // 旧 tig-fixed-placeholder + tig-button（已收敛到公共组件）
                         <View className="btn-box pay-fixed-footer">
                             <TigButton disabled={paymentDisabled} onClick={handlePay}>
-                                {t("立即支付")}
+                                {paymentDisabled ? t("支付中...") : t("立即支付")}
                             </TigButton>
                         </View>
                     ) : (

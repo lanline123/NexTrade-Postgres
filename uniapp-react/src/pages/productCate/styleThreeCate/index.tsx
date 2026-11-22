@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { View, Text, Image, ScrollView } from "@tarojs/components";
 
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
+import LoadingBox from "@/components/loading-box";
 import TigLazyImage from "@/components/tig/tig-lazy-image/TigLazyImage";
 import Specification, { type SpecificationRef } from "@/components/product/specification";
 import FormatPrice from "@/components/format-price/FormatPrice";
@@ -211,6 +212,7 @@ export default function StyleThreeCate({ height: heightProp = 0, module = {} as 
                             onChange={handleChange}
                         />
                         <View className="list-content">
+                            {isLoading && list.length === 0 && <LoadingBox modelValue showFirstPage page={1} length={0} />}
                             {!isLoading && total > 0 && (
                                 <ScrollView scrollY showScrollbar={false} className="list-scroll" onScrollToLower={reachBottom}>
                                     <View className={`product-list ${productListClasses.join(" ")}`}>

@@ -742,7 +742,7 @@ export default function EditRegion() {
             });
             Taro.showToast({
                 title: t("添加地址成功"),
-                icon: "none",
+                icon: "success",
                 duration: 1000
             });
 
@@ -772,7 +772,7 @@ export default function EditRegion() {
             await updateAddressData({ id, addressId: id, ...buildAddressPayload() });
             Taro.showToast({
                 title: t("编辑地址成功"),
-                icon: "none",
+                icon: "success",
                 duration: 1000
             });
 
@@ -785,7 +785,6 @@ export default function EditRegion() {
                             Taro.eventCenter.trigger("refreshData");
                         }
 
-                        setIsLoading(false);
                     }
                 });
             }, 1000);
@@ -796,6 +795,9 @@ export default function EditRegion() {
                 icon: "none",
                 duration: 1000
             });
+        } finally {
+            // 失败路径此前永不复位：一次保存失败后按钮永久锁定，只能杀页重进
+            setIsLoading(false);
         }
     };
 
@@ -1079,7 +1081,7 @@ export default function EditRegion() {
                     <View className="btn-box">
                         <View
                             className={`btn${isLoading ? " is-loading" : ""}`}
-                            style="height: 73rpx"
+                            style="height: 88rpx"
                             onClick={() => {
                                 if (isLoading) return;
                                 onSubmit();

@@ -26,6 +26,7 @@ export default function ArticleIssueList() {
     const shopTitle = useConfigStore((s) => s.baseInfo.shopTitle);
 
     const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [articleState, setArticleState] = useState<CategoryFilterState[]>([]);
     const [articleList, setArticleList] = useState<ArticleFilterState[]>([]);
@@ -38,9 +39,11 @@ export default function ArticleIssueList() {
             setLoading(true);
             const result = await getBzzxCategoryList({ categorySize: 99, articleSize: 99 });
             setArticleState(result);
-            setArticleList(result[0].articles);
+            setArticleList(result[0]?.articles ?? []);
+            setLoadError(false);
         } catch (error: any) {
             console.error(error.message);
+            setLoadError(true);
         } finally {
             setLoading(false);
             Taro.hideLoading();
@@ -132,6 +135,15 @@ export default function ArticleIssueList() {
                                     </View>
                                 </View>
                             ))
+                        ) : loadError ? (
+                            <EmptyBox
+                                centerContent
+                                height="100%"
+                                mode="news"
+                                text={t("加载失败，请检查网络后重试")}
+                                actionText={t("重新加载")}
+                                onAction={() => void loadBzzxList()}
+                            />
                         ) : (
                             <EmptyBox centerContent height="100%" mode="news" text={t("暂无文章")} />
                         )}

@@ -289,7 +289,16 @@ export default function InvoiceInfo({ getAddressInfo = {}, invoiceInfo = {}, onI
     const inputProps = (key: keyof FormState) => ({
         value: inputValue(key),
         placeholderStyle: "color:#c0c4cc;font-size:26rpx",
-        onInput: (e: any) => patchForm({ [key]: e.detail.value } as Partial<FormState>)
+        onInput: (e: any) => {
+            patchForm({ [key]: e.detail.value } as Partial<FormState>);
+            // 输入即清该字段的报错（此前报错要等下一次提交才消失，与已改对的文案并存误导用户）
+            setErrors((prev) => {
+                if (!prev[key as string]) return prev;
+                const next = { ...prev };
+                delete next[key as string];
+                return next;
+            });
+        }
     });
 
     return (

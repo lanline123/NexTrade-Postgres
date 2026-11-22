@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Button } from "@tarojs/components";
+import { Button, View } from "@tarojs/components";
 
 import "./TigButton2.scss";
 
@@ -57,6 +57,7 @@ export default function TigButton2({
                 onClick?.(event);
             }}
         >
+            {loading ? <View className="tig-button2__spinner" /> : null}
             {children}
         </Button>
     );

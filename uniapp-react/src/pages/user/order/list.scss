@@ -416,7 +416,8 @@
                 display: flex;
 
                 .btn-margin {
-                    height: 60rpx;
+                    /* 订单卡操作按钮（取消/支付/确认收货/删除）热区达标：原 60rpx≈30px */
+                    height: 88rpx;
                     margin-right: 16rpx;
 
                     &:last-child {

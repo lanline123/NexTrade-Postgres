@@ -9,6 +9,7 @@ import { t } from "@/utils/i18n";
 import { isWeixinBrowser } from "@/utils";
 import { redirectAfterLogin } from "@/utils/loginReturn";
 import { usePageGuards } from "@/utils/pageMixin";
+import TigLoadingPage from "@/components/tig/tig-loadingpage";
 
 import "./callback.scss";
 
@@ -67,5 +68,10 @@ export default function OauthCallback() {
         void finishAuthorization();
     }, [params]);
 
-    return <View className="oauth-callback" />;
+    // 授权处理中此前是纯白屏（用户以为页面坏了会反复刷新，可能打断授权）；给明确的进行中状态
+    return (
+        <View className="oauth-callback">
+            <TigLoadingPage />
+        </View>
+    );
 }

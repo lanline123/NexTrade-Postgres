@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { View } from "@tarojs/components";
-import Taro from "@tarojs/taro";
+import Taro, { usePullDownRefresh } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import Masonry from "@/components/masonry/Masonry";
 import EmptyBox from "@/components/empty-box/EmptyBox";
+import LoadingBox from "@/components/loading-box";
 import { exchangeCoupon, getExchangeList } from "@/api/exchange/exchange";
 import useList from "@/hooks/useList";
 import { useProductStyle } from "@/hooks/useProductStyle";
@@ -63,6 +64,11 @@ export default function ExchangeList() {
 
     const { styleMap } = useProductStyle(lsit);
 
+    // 下拉刷新：整表重拉
+    usePullDownRefresh(() => {
+        void getList({ page: 1 } as any).finally(() => Taro.stopPullDownRefresh());
+    });
+
     // 券型兑换品（我方新增）与商品型分开陈列：券区在上、商品瀑布流在下
     const couponItems = (lsit || []).filter((item: any) => Number(item.exchangeType) === 2);
     const productItems = (lsit || []).filter((item: any) => Number(item.exchangeType) !== 2);
@@ -115,6 +121,7 @@ export default function ExchangeList() {
                         <View className="header-title">{`${integralName}${t("兑换")}`}</View>
                     )}
                 </View>
+                {isLoading && <LoadingBox modelValue showFirstPage page={1} length={0} />}
                 {!isLoading && (
                     <>
                         {total > 0 && (

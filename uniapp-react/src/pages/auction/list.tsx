@@ -4,6 +4,7 @@ import Taro, { useReachBottom } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import EmptyBox from "@/components/empty-box/EmptyBox";
+import LoadingBox from "@/components/loading-box";
 import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import { getAuctionItems, getAuctionSessions } from "@/api/auction/auction";
@@ -65,6 +66,9 @@ export default function AuctionList() {
     const [items, setItems] = useState<AuctionItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
+    /** 首屏失败与真空态此前同形（catch 清空 items 落 EmptyBox）：分开落错误态给重试；上拉态用 state 驱动页脚反馈 */
+    const [loadError, setLoadError] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const pageRef = useRef(1);
     const anchorRef = useRef(Date.now());
     const [now, setNow] = useState(() => Date.now());
@@ -84,11 +88,16 @@ export default function AuctionList() {
                 setTotal(res.total || 0);
                 setItems((prev) => (append ? [...prev, ...res.records] : res.records));
                 pageRef.current = page;
+                if (!append) setLoadError(false);
             } catch {
-                if (!append) setItems([]);
+                if (!append) {
+                    setItems([]);
+                    setLoadError(true);
+                }
             } finally {
                 setLoading(false);
                 loadingMoreRef.current = false;
+                setLoadingMore(false);
             }
         },
         [tab, sessionId, sort]
@@ -113,6 +122,7 @@ export default function AuctionList() {
     useReachBottom(() => {
         if (loadingMoreRef.current || items.length >= total) return;
         loadingMoreRef.current = true;
+        setLoadingMore(true);
         load(pageRef.current + 1, true);
     });
 
@@ -174,6 +184,16 @@ export default function AuctionList() {
 
                 {loading ? (
                     <TigLoadingPage />
+                ) : items.length === 0 && loadError ? (
+                    <EmptyBox
+                        height="auto"
+                        text={t("拍品加载失败，请检查网络后重试")}
+                        actionText={t("重新加载")}
+                        onAction={() => {
+                            setLoading(true);
+                            void load(1, false);
+                        }}
+                    />
                 ) : items.length === 0 ? (
                     <EmptyBox icon="salesman/no_order.png" text={t("暂无拍品")} />
                 ) : (
@@ -234,6 +254,14 @@ export default function AuctionList() {
                             );
                         })}
                     </View>
+                )}
+                {!loading && items.length > 0 && (
+                    <LoadingBox
+                        modelValue={loadingMore}
+                        page={Math.max(2, pageRef.current)}
+                        length={items.length}
+                        finished={!loadingMore && items.length >= total && total > PAGE_SIZE}
+                    />
                 )}
             </View>
         </TigLayout>

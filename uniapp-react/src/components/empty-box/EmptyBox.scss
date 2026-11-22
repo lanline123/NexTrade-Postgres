@@ -34,3 +34,8 @@
     text-align: center;
     padding: 0 20rpx;
 }
+
+/* 可选行动按钮（EmptyBox actionText/onAction）：与文案间距 24rpx，按钮本体走 TigButton2 主题态 */
+.empty-action {
+    margin-top: 24rpx;
+}

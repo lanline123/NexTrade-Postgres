@@ -3,6 +3,7 @@ import { Image, Text, View } from "@tarojs/components";
 import Taro, { usePullDownRefresh, useReachBottom } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
+import LoadingBox from "@/components/loading-box";
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import { getMyGiftCards } from "@/api/giftCard/giftCard";
 import type { MyGiftCardItem } from "@/api/giftCard/giftCard";
@@ -108,7 +109,15 @@ export default function MyGiftCards() {
                     ))}
                 </View>
                 {list.length === 0 && !loading ? (
-                    <View className="empty">{t("暂无礼品卡")}</View>
+                    <View className="empty">
+                        {t("暂无礼品卡")}
+                        <View
+                            style={{ marginTop: "20rpx", color: "var(--general)", fontSize: "28rpx" }}
+                            onClick={() => redirect({ url: "/pages/search/result?onlyGiftCardProduct=1" })}
+                        >
+                            {t("去购买礼品卡")}
+                        </View>
+                    </View>
                 ) : (
                     list.map((card) => (
                         <View
@@ -141,6 +150,13 @@ export default function MyGiftCards() {
                         </View>
                     ))
                 )}
+                {/* 触底加载/终态行（此前翻页零反馈）：page>1 显示转圈，全部加载完显示「没有更多了」 */}
+                <LoadingBox
+                    modelValue={loading}
+                    page={page}
+                    length={list.length}
+                    finished={!loading && total > PAGE_SIZE && list.length >= total}
+                />
             </View>
         </TigLayout>
     );

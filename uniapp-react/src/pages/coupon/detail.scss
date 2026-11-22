@@ -122,6 +122,16 @@ page {
     top: 58rpx;
     right: 24rpx;
 
+    /* 热区：票面按钮视觉高 44rpx 不动（票面版式），透明伪元素把可点高扩到约 88rpx */
+    &::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -22rpx;
+        bottom: -22rpx;
+    }
+
     &.disabled {
         background: #e7e7e7;
         color: #999999;

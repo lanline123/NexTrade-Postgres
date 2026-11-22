@@ -436,7 +436,7 @@ export default function AiGuide() {
                         {t("停止")}
                     </View>
                 ) : (
-                    <View className="guide-send" onClick={() => send()}>
+                    <View className={`guide-send${input.trim() ? "" : " guide-send--disabled"}`} onClick={() => send()}>
                         {t("发送")}
                     </View>
                 )}

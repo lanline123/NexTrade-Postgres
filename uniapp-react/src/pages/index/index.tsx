@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Image } from "@tarojs/components";
+import { View } from "@tarojs/components";
 import Taro, {
     useDidShow,
     usePullDownRefresh,
@@ -13,6 +13,9 @@ import Taro, {
 import DecorateModules from "@/pages/customPage/components/DecorateModules";
 import PreviewTip from "@/pages/index/src/previewTip";
 import SplashAd from "@/components/SplashAd";
+import EmptyBox from "@/components/empty-box/EmptyBox";
+import LoadingBox from "@/components/loading-box";
+import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import Masonry from "@/components/masonry/Masonry";
 import MainHeader from "@/components/mainHeader";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
@@ -21,7 +24,7 @@ import type { GetProductFilterResult } from "@/types/home/home";
 import { usecatnavStore } from "@/store/catnav";
 import { useConfigStore } from "@/store/config";
 import { useMiniShopStore } from "@/store/miniShop";
-import { staticResource, isOverseas, isDesktopBrowser, parseQueryString } from "@/utils";
+import { isOverseas, isDesktopBrowser, parseQueryString } from "@/utils";
 import { setPageMeta } from "@/utils/seo";
 import { handleDecorateLoadError } from "@/utils/handleDecorateLoadError";
 import { usePageGuards } from "@/utils/pageMixin";
@@ -64,6 +67,11 @@ export default function Index() {
     const commonHeaderHeight = useConfigStore((s) => s.commonHeaderHeight);
 
     const [loading, setLoading] = useState(false);
+    /** 首屏装修数据加载失败（区别于「无数据」）：渲染错误态+重试，不再白屏 */
+    const [loadError, setLoadError] = useState(false);
+    /** 分类商品流加载中/已到底（此前切换分类与触底全程无任何指示） */
+    const [cateLoading, setCateLoading] = useState(false);
+    const [cateFinished, setCateFinished] = useState(false);
     const [modulesData, setModulesData] = useState<any[]>([]);
     const [pageModulesData, setPageModulesData] = useState<any>({});
     const [currentCategoryId, setCurrentCategoryId] = useState(0);
@@ -87,16 +95,21 @@ export default function Index() {
     const currentCategoryIdRef = useRef(0);
 
     const getProductList = async () => {
+        setCateLoading(true);
         try {
             const result = await getCateProduct({ categoryId: currentCategoryIdRef.current, page: pageRef.current });
             if (result.records && result.records.length > 0) {
                 setCommodityList((prev) => [...prev, ...result.records]);
                 loadendRef.current = false;
+                setCateFinished(false);
             } else {
                 loadendRef.current = true;
+                setCateFinished(true);
             }
         } catch (error) {
             console.error(error);
+        } finally {
+            setCateLoading(false);
         }
     };
 
@@ -106,6 +119,7 @@ export default function Index() {
         if (categoryId === 0) return;
         pageRef.current = 1;
         loadendRef.current = false;
+        setCateFinished(false);
         setCommodityList([]);
         void getProductList();
     };
@@ -162,6 +176,7 @@ export default function Index() {
 
     const getIndexData = async (forceRefresh = false) => {
         setLoading(true);
+        setLoadError(false);
         loadingRef.current = true;
         try {
             const configStore = useConfigStore.getState();
@@ -181,6 +196,7 @@ export default function Index() {
                 return;
             }
             console.error(error);
+            setLoadError(true);
         } finally {
             setLoading(false);
             loadingRef.current = false;
@@ -280,14 +296,23 @@ export default function Index() {
                 {previewId > 0 && <PreviewTip />}
 
                 {loading ? (
-                    <View className="index_empty">
-                        <Image lazyLoad src={staticResource("common/index_empty.png")} mode="widthFix" />
-                    </View>
+                    <TigLoadingPage modelValue />
+                ) : loadError && modulesData.length === 0 ? (
+                    <EmptyBox
+                        height="auto"
+                        text="首页加载失败，请检查网络后重试"
+                        actionText="重新加载"
+                        onAction={() => void getIndexData(true)}
+                    />
                 ) : (
                     <View className="index">
                         <View className="decorate-page-window" style={cssVariable as any}>
                             <DecorateModules modules={modulesData} pageModles={pageModulesData} scrollTop={scrollTop} onLoadGoodsList={loadGoodsList} />
                             {currentCategoryId > 0 && commodityList.length > 0 && <Masonry commodityList={commodityList} styleMap={styleMap} />}
+                            {currentCategoryId > 0 && cateLoading && <LoadingBox modelValue page={2} length={commodityList.length} />}
+                            {currentCategoryId > 0 && !cateLoading && (
+                                <LoadingBox modelValue={false} page={2} length={commodityList.length} finished={cateFinished} />
+                            )}
                         </View>
                     </View>
                 )}

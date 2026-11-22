@@ -1,3 +1,4 @@
 export default definePageConfig({
-    navigationBarTitleText: "收货地址"
+    navigationBarTitleText: "收货地址",
+    enablePullDownRefresh: true
 });

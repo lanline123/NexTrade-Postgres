@@ -1,9 +1,11 @@
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "@tarojs/components";
-import { useLoad, useShareAppMessage } from "@tarojs/taro";
+import Taro, { useLoad, useShareAppMessage } from "@tarojs/taro";
 
+import EmptyBox from "@/components/empty-box/EmptyBox";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
+import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import ShopModules from "@/pages/customPage/modules/shopModules";
 import { getShopDecorate, getShopDetail } from "@/api/shop/shop";
 import type { ShopDetailItem } from "@/types/shop/shop";
@@ -39,14 +41,21 @@ export default function ShopIndex() {
     const [modulesList, setModulesList] = useState<any[]>([]);
     const [pageModulesData, setPageModulesData] = useState<PageModule>({} as PageModule);
     const [shopInfo, setShopInfo] = useState<ShopDetailItem>({} as ShopDetailItem);
+    /** 店铺信息加载结局：此前失败/无参时页面只剩空壳，无 loading、无空态、无文案 */
+    const [infoLoaded, setInfoLoaded] = useState(false);
+    const [infoFailed, setInfoFailed] = useState(false);
 
     const getShopInfo = useCallback(async () => {
         try {
             const result = await getShopDetail(shopIdRef.current);
             setShopInfo(result);
             setNavbarTitle(result.shopTitle);
+            setInfoFailed(false);
         } catch (error: any) {
             console.error(error);
+            setInfoFailed(true);
+        } finally {
+            setInfoLoaded(true);
         }
     }, []);
 
@@ -139,8 +148,25 @@ export default function ShopIndex() {
             color={pageModulesData.titleColor}
         >
             <View className="decorate-page-window" style={cssVariable}>
-                {Object.keys(shopInfo).length > 0 && (
+                {Object.keys(shopInfo).length > 0 ? (
                     <ShopModules modules={modulesList} shopInfo={shopInfo} onRefreshShopDetail={getShopInfo} />
+                ) : shopId === 0 && miniShopResolved && miniShopMode !== "shop" ? (
+                    <EmptyBox height="auto" text={t("未指定店铺")} actionText={t("回到首页")} onAction={() => void Taro.switchTab({ url: "/pages/index/index" })} />
+                ) : infoFailed ? (
+                    <EmptyBox
+                        height="auto"
+                        text={t("店铺加载失败，请检查网络后重试")}
+                        actionText={t("重新加载")}
+                        onAction={() => {
+                            setInfoLoaded(false);
+                            void getShopInfo();
+                            void __getShopDecorate();
+                        }}
+                    />
+                ) : infoLoaded ? (
+                    <EmptyBox height="auto" text={t("店铺不存在或已下架")} />
+                ) : (
+                    <TigLoadingPage modelValue />
                 )}
             </View>
         </TigLayout>

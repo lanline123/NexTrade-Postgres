@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { View, Text, Image, ScrollView } from "@tarojs/components";
 
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
+import LoadingBox from "@/components/loading-box";
 import ProductItem from "@/components/masonry/ProductItem";
 import Specification, { type SpecificationRef } from "@/components/product/specification";
 import { getCateProduct } from "@/api/home/home";
@@ -222,6 +223,7 @@ export default function StyleTwoCate({ height: heightProp = 0, module = {} as Ca
                             onChange={handleChange}
                         />
                         <View className="list-content">
+                            {isLoading && list.length === 0 && <LoadingBox modelValue showFirstPage page={1} length={0} />}
                             {!isLoading && total > 0 && (
                                 <ScrollView scrollY showScrollbar={false} className="list-scroll" onScrollToLower={reachBottom}>
                                     {/* TODO(MIGRATION)：旧 <masonry> 实测高度均衡瀑布流 → 奇偶两列（与搜索结果页口径一致） */}

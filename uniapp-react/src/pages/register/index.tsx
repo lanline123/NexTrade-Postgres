@@ -44,6 +44,7 @@ export default function Register() {
     const [isChecked, setIsChecked] = useState(false);
     const [verifyToken, setVerifyToken] = useState("");
     const [loginLoading, setLoginLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const verificationCodeRef = useRef<VerificationCodeRef | null>(null);
 
     const isRegisterDisabled =
@@ -116,7 +117,8 @@ export default function Register() {
     const onRegister = async () => {
         const firstError = validate();
         if (firstError) {
-            console.error("表单错误信息：", firstError);
+            // 此前仅 console.error：用户点「注册」毫无反应（不知道哪一项没填对）
+            Taro.showToast({ title: firstError, icon: "none", duration: 2000 });
             return;
         }
         try {
@@ -139,7 +141,7 @@ export default function Register() {
             Taro.showToast({
                 title: t("注册成功"),
                 duration: 1500,
-                icon: "none"
+                icon: "success"
             });
             setTimeout(() => {
                 // 一秒后执行这里的代码
@@ -235,7 +237,7 @@ export default function Register() {
                                         placeholder={t("邮箱验证码")}
                                         onInput={(e) => setFormState((prev) => ({ ...prev, emailCode: e.detail.value }))}
                                     />
-                                    <View style={{ height: "65rpx", width: "200rpx", flexShrink: 0, marginLeft: "20rpx" }}>
+                                    <View style={{ height: "88rpx", width: "200rpx", flexShrink: 0, marginLeft: "20rpx" }}>
                                         <VerificationCode
                                             ref={verificationCodeRef}
                                             isChecked={isChecked}
@@ -286,7 +288,7 @@ export default function Register() {
                                         placeholder={t("手机验证码")}
                                         onInput={(e) => setFormState((prev) => ({ ...prev, mobileCode: e.detail.value }))}
                                     />
-                                    <View style={{ height: "65rpx", width: "200rpx", flexShrink: 0, marginLeft: "20rpx" }}>
+                                    <View style={{ height: "88rpx", width: "200rpx", flexShrink: 0, marginLeft: "20rpx" }}>
                                         <VerificationCode
                                             ref={verificationCodeRef}
                                             isChecked={isChecked}
@@ -307,12 +309,16 @@ export default function Register() {
                             <Input
                                 value={formState.password}
                                 type="text"
-                                password
+                                password={!showPassword}
                                 className="uni-input item-input"
                                 placeholderStyle="font-size: 28rpx;"
                                 placeholderClass="placeholder"
                                 placeholder={t("请输入密码")}
                                 onInput={(e) => setFormState((prev) => ({ ...prev, password: e.detail.value }))}
+                            />
+                            <View
+                                className={"password_show_hide iconfont " + (showPassword ? "icon-xianshi" : "icon-yincang")}
+                                onClick={() => setShowPassword(!showPassword)}
                             />
                         </View>
                     </View>

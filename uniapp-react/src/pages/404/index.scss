@@ -21,8 +21,9 @@
 
     &__btn {
         margin-top: 40rpx;
-        padding: 16rpx 60rpx;
-        border-radius: 40rpx;
+        /* 与全站方角扁平口径对齐（原胶囊 40rpx 为孤例），并把热区提到 88rpx 达标线 */
+        padding: 22rpx 60rpx;
+        border-radius: 0;
         background: var(--nutui-brand-color, #fa2c19);
         color: #fff;
         font-size: 28rpx;

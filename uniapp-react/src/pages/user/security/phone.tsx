@@ -26,6 +26,7 @@ export default function SecurityPhone() {
     const isOpenMobileAreaCode = useConfigStore((s) => s.isOpenMobileAreaCode);
 
     const [mobileCode, setMobileCode] = useState("");
+    const [submitting, setSubmitting] = useState(false);
     const [mobile, setMobile] = useState("");
     const [mobileAreaCode, setMobileAreaCode] = useState("86");
     const [verifyToken, setVerifyToken] = useState("");
@@ -60,6 +61,8 @@ export default function SecurityPhone() {
     };
 
     const onNext = async () => {
+        if (submitting) return;
+        setSubmitting(true);
         try {
             let temp = {
                 mobile: mobile,
@@ -74,7 +77,7 @@ export default function SecurityPhone() {
                 await mobileMobile({ ...temp, mobile: mobileForRequest });
                 Taro.showToast({
                     title: t("绑定成功"),
-                    icon: "none"
+                    icon: "success"
                 });
                 redirect({
                     url: "/pages/member/index"
@@ -85,6 +88,8 @@ export default function SecurityPhone() {
                 title: error.message,
                 icon: "none"
             });
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -156,7 +161,7 @@ export default function SecurityPhone() {
                     </View>
 
                     <View className="item" style={{ height: "60rpx" }}>
-                        <TigButton2 theme className="next" disabled={isRegisterDisabled} onClick={onNext}>
+                        <TigButton2 theme className="next" loading={submitting} disabled={isRegisterDisabled || submitting} onClick={onNext}>
                             {t("下一步")}
                         </TigButton2>
                     </View>

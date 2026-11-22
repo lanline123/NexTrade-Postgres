@@ -27,6 +27,7 @@ export default function ArticleNewsList() {
 
     const [navbarTitle, setNavbarTitle] = useState(t("文章中心"));
     const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [articleList, setArticleList] = useState<ArticleFilterState[]>([]);
 
@@ -54,8 +55,10 @@ export default function ArticleNewsList() {
             const result = await getArticleList({ ...filterParamsRef.current });
             totalRef.current = result.total;
             setArticleList((prev) => [...prev, ...result.records]);
+            setLoadError(false);
         } catch (error: any) {
             console.error(error.message);
+            setLoadError(true);
         } finally {
             setLoading(false);
             setLoaded(false);
@@ -82,8 +85,9 @@ export default function ArticleNewsList() {
             setNavbarTitle(
                 option.id === "zxzx" ? "最新资讯" : option.id === "bzgg" ? "最新公告" : option.id === "kfzx" ? "客服中心" : ""
             );
-            void loadFilter();
         }
+        // 此前无 id 入口（如直接进文章中心）永不发请求、永远「暂无文章」；无过滤时也要加载全量
+        void loadFilter();
     });
 
     // 对应旧 onReachBottom
@@ -137,10 +141,27 @@ export default function ArticleNewsList() {
                                     </View>
                                 </View>
                             ))
+                        ) : loadError ? (
+                            <EmptyBox
+                                centerContent
+                                height="100%"
+                                mode="news"
+                                text={t("加载失败，请检查网络后重试")}
+                                actionText={t("重新加载")}
+                                onAction={() => {
+                                    filterParamsRef.current.page = 1;
+                                    void loadFilter();
+                                }}
+                            />
                         ) : (
                             <EmptyBox centerContent height="100%" mode="news" text={t("暂无文章")} />
                         )}
-                        <LoadingBox modelValue={loaded} page={filterParamsRef.current.page} length={articleList.length} />
+                        <LoadingBox
+                            modelValue={loaded}
+                            page={filterParamsRef.current.page}
+                            length={articleList.length}
+                            finished={!loaded && totalRef.current > 0 && articleList.length >= totalRef.current}
+                        />
                     </View>
                 </View>
             )}
