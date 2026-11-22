@@ -218,7 +218,7 @@ export default function BarcodeScanButton({
         <div
           style={{
             position: 'relative',
-            borderRadius: 8,
+            borderRadius: 6,
             overflow: 'hidden',
             background: '#111',
             aspectRatio: '4 / 3',
@@ -230,7 +230,7 @@ export default function BarcodeScanButton({
               position: 'absolute',
               inset: '18% 12%',
               border: '2px solid rgba(255,255,255,0.75)',
-              borderRadius: 8,
+              borderRadius: 6,
               pointerEvents: 'none',
             }}
           />

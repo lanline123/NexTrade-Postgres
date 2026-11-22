@@ -996,7 +996,7 @@ export function VoiceBroadcast() {
       <Card title={t('语音播报设置')} style={{ marginBottom: 20 }}>
         <Row gutter={[24, 16]}>
           <Col span={8}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
               <Space>
                 <IconVolume2 style={{ color: 'var(--semi-color-primary)' }} />
                 <Text strong>{t('新订单语音播报')}</Text>
@@ -1006,7 +1006,7 @@ export function VoiceBroadcast() {
             </div>
           </Col>
           <Col span={8}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
               <Space>
                 <IconVolume2 style={{ color: 'var(--semi-color-success)' }} />
                 <Text strong>{t('已付款订单播报')}</Text>
@@ -1016,7 +1016,7 @@ export function VoiceBroadcast() {
             </div>
           </Col>
           <Col span={8}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
               <Space>
                 <IconVolume2 style={{ color: 'var(--semi-color-warning)' }} />
                 <Text strong>{t('售后申请语音播报')}</Text>
@@ -1026,7 +1026,7 @@ export function VoiceBroadcast() {
             </div>
           </Col>
           <Col span={8}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
               <Space>
                 <IconVolume2 style={{ color: 'var(--semi-color-danger)' }} />
                 <Text strong>{t('订单取消语音播报')}</Text>
@@ -1036,7 +1036,7 @@ export function VoiceBroadcast() {
             </div>
           </Col>
           <Col span={8}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
               <Space>
                 <IconVolume2 style={{ color: 'var(--semi-color-info)' }} />
                 <Text strong>{t('客服消息语音播报')}</Text>
@@ -1046,7 +1046,7 @@ export function VoiceBroadcast() {
             </div>
           </Col>
           <Col span={8}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
               <Space>
                 <IconSetting style={{ color: '#888' }} />
                 <Text strong>{t('弹窗显示同步通知')}</Text>

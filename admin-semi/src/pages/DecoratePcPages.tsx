@@ -2212,7 +2212,7 @@ export function PcProductStyle() {
                 style={{
                   height: 180,
                   border: `2px solid ${styleType === item.type ? '#1456f0' : '#eee'}`,
-                  borderRadius: 10,
+                  borderRadius: 6,
                   overflow: 'hidden',
                   background: '#fff',
                 }}
@@ -2277,7 +2277,7 @@ export function PcSearchStyle() {
                 style={{
                   height: 180,
                   border: `2px solid ${styleType === item.type ? '#1456f0' : '#eee'}`,
-                  borderRadius: 10,
+                  borderRadius: 6,
                   overflow: 'hidden',
                   background: '#fff',
                 }}

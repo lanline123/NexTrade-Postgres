@@ -8,7 +8,7 @@
   height: calc(100vh - 120px);
   gap: 0;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid var(--semi-color-border);
   background: var(--semi-color-bg-0);
 }
@@ -171,7 +171,7 @@
   text-align: center;
   color: var(--semi-color-text-2);
   border: 2px dashed var(--semi-color-border);
-  border-radius: 8px;
+  border-radius: 6px;
   margin: 20px;
 }
 
@@ -274,7 +274,7 @@
 }
 .deco-floor-item {
   background: #fff;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
   cursor: pointer;
@@ -437,7 +437,7 @@
   margin-bottom: 12px;
   background: #fff;
   border: 1px dashed var(--semi-color-border);
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
   color: var(--semi-color-text-2);
@@ -453,7 +453,7 @@
   margin-bottom: 12px;
   background: #fff;
   border: 1px solid var(--semi-color-border);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -780,7 +780,7 @@
   align-items: center;
   width: 100%;
   border: 1px solid #c1c1c1;
-  border-radius: 7px;
+  border-radius: 6px;
   padding: 1px;
   background: #fff;
   box-sizing: border-box;
@@ -995,7 +995,7 @@
   place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: 6px;
   /* 跟随 admin 主题色（原来写死 teal 渐变） */
   background: var(--primary, #1456f0);
   color: #fff;
@@ -1021,7 +1021,7 @@
 }
 .deco-loading-bar { height: 10px; border-radius: 6px; }
 .deco-loading-bar--title { width: 190px; height: 16px; }
-.deco-loading-bar--button { width: 88px; height: 30px; border-radius: 8px; }
+.deco-loading-bar--button { width: 88px; height: 30px; border-radius: 6px; }
 .deco-loading-bar--primary {
   background: var(--primary, #1456f0);
   animation: none;
@@ -1071,11 +1071,11 @@
   align-items: center;
   gap: 8px;
   padding: 12px 6px;
-  border-radius: 10px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(15, 23, 42, 0.04);
 }
-.deco-loading-card-icon { width: 32px; height: 32px; border-radius: 8px; }
+.deco-loading-card-icon { width: 32px; height: 32px; border-radius: 6px; }
 .deco-loading-card-label { width: 70%; height: 8px; border-radius: 4px; }
 .deco-loading-main {
   padding: 24px;
@@ -1087,22 +1087,22 @@
   width: min(78%, 760px);
   height: 100%;
   padding: 24px 26px;
-  border-radius: 10px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 16px 50px rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
-.deco-loading-canvas-bar { width: 100%; height: 60px; border-radius: 8px; }
-.deco-loading-canvas-hero { width: 100%; height: 160px; border-radius: 10px; }
+.deco-loading-canvas-bar { width: 100%; height: 60px; border-radius: 6px; }
+.deco-loading-canvas-hero { width: 100%; height: 160px; border-radius: 6px; }
 .deco-loading-canvas-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
 }
-.deco-loading-canvas-tile { height: 78px; border-radius: 8px; }
-.deco-loading-canvas-block { width: 100%; flex: 1; min-height: 80px; border-radius: 10px; }
+.deco-loading-canvas-tile { height: 78px; border-radius: 6px; }
+.deco-loading-canvas-block { width: 100%; flex: 1; min-height: 80px; border-radius: 6px; }
 .deco-loading-props {
   background: rgba(255, 255, 255, 0.9);
   border-left: 1px solid rgba(15, 23, 42, 0.06);
@@ -1111,7 +1111,7 @@
 .deco-loading-prop-list { display: flex; flex-direction: column; gap: 18px; }
 .deco-loading-prop { display: flex; flex-direction: column; gap: 8px; }
 .deco-loading-bar--prop-label { width: 40%; height: 9px; }
-.deco-loading-bar--prop-control { width: 100%; height: 32px; border-radius: 7px; }
+.deco-loading-bar--prop-control { width: 100%; height: 32px; border-radius: 6px; }
 .deco-loading-overlay {
   position: absolute;
   inset: 0;
@@ -1127,7 +1127,7 @@
   gap: 10px;
   min-width: 260px;
   padding: 28px 32px;
-  border-radius: 20px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(15, 23, 42, 0.06);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
@@ -1149,7 +1149,7 @@
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--primary, #1456f0);
   color: #fff;
   font-family: Georgia, serif;
@@ -1219,7 +1219,7 @@
   gap: 5px;
   height: 30px;
   padding: 0 9px;
-  border-radius: 7px;
+  border-radius: 6px;
   background: #f7f8fa;
   color: #1f2329;
   font-size: 12px;
@@ -1296,7 +1296,7 @@
   gap: 10px;
   padding: 8px;
   border: 1px solid #eef0f3;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fafbfc;
 }
 .pchead-logo-setting > img {
@@ -1354,7 +1354,7 @@
   gap: 8px;
   margin-top: 8px;
   padding: 7px 8px;
-  border-radius: 7px;
+  border-radius: 6px;
   background: #f7f8fa;
   color: #98a2b3;
   font-size: 11px;
@@ -1394,7 +1394,7 @@
 }
 .pchead-benefit-group {
   border: 1px dashed #e5e7eb;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 8px;
   background: #fafbfc;
 }
@@ -1536,7 +1536,7 @@
   height: 28px;
   flex-shrink: 0;
   border: 1px solid var(--semi-color-border);
-  border-radius: 5px;
+  border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
   background-color: #fff;
@@ -1585,7 +1585,7 @@
   box-sizing: border-box;
   padding: 0 6px;
   border: 1px solid var(--semi-color-border);
-  border-radius: 5px;
+  border-radius: 4px;
   background: #fff;
   color: var(--semi-color-text-0);
   font-size: 12px;
@@ -1645,7 +1645,7 @@
   gap: 6px;
   padding: 8px;
   border: 1px solid #eef0f3;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fafbfc;
 }
 .pchead-member-menu__head {
@@ -1682,7 +1682,7 @@
   height: 38px;
   padding: 0 12px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   color: #4b5563;
   text-align: left;
@@ -1712,7 +1712,7 @@
   height: 42px;
   padding: 0 12px;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
   color: #374151;
   text-align: left;
@@ -1750,7 +1750,7 @@
   gap: 10px;
   padding: 8px;
   border: 1px solid #eef0f3;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
   color: #374151;
   text-align: left;
@@ -2367,7 +2367,7 @@
   height: 32px;
   padding: 0 14px;
   border: none;
-  border-radius: 7px;
+  border-radius: 6px;
   background: #f2f4f7;
   color: #475467;
   font-size: 13px;
@@ -2388,7 +2388,7 @@
   margin: 12px;
   padding: 0;
   border: 1px solid #eaecf0;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #fff;
   overflow: hidden;
 }
@@ -2417,7 +2417,7 @@
   top: 3px;
   bottom: 3px;
   width: 3px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--semi-color-primary);
 }
 .pc-module-settings .dec-edit-group {
@@ -2467,14 +2467,14 @@
 .pc-module-settings .dec-edit-group.dec-edit-group-block:hover { background: #fff; }
 .pc-module-settings .semi-input-wrapper,
 .pc-module-settings .semi-input-number,
-.pc-module-settings .semi-select { border-radius: 7px; }
+.pc-module-settings .semi-select { border-radius: 6px; }
 
 /* 卡位编辑卡现代化 */
 .pc-module-settings .dec-hero-card-editor {
   margin: 0 0 10px;
   padding: 0;
   border: 1px solid #eaecf0;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #fff;
   overflow: hidden;
 }
@@ -2509,10 +2509,10 @@
 .pc-module-settings .dec-hero-product-item {
   border-color: #eaecf0;
   background: #fafbfc;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 .pc-module-settings .dec-hero-products-tip { margin-top: 8px; }
-.pc-module-settings .dec-hero-group-info { background: #f8fafc; border-color: #eaecf0; border-radius: 8px; }
+.pc-module-settings .dec-hero-group-info { background: #f8fafc; border-color: #eaecf0; border-radius: 6px; }
 
 /* 设置分组两级标题：一级更重，二级更轻 */
 .pc-module-settings .dec-edit-title-box--primary {
@@ -2590,7 +2590,7 @@
 .dec-group-list__item {
   padding: 12px;
   border: 1px solid #eaecf0;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #fff;
   display: flex;
   flex-direction: column;
@@ -2617,7 +2617,7 @@
   flex: none;
   width: 3px;
   height: 12px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--primary, var(--semi-color-primary, #1456f0));
 }
 /* 商品分组来源的「添加/更换分组」按钮（复用虚线卡片形态） */
@@ -2629,7 +2629,7 @@
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid #e4e9f0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #f7f9fb;
 }
 .dec-group-list__selected-name {
@@ -2671,7 +2671,7 @@
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid #edf0f4;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -2708,7 +2708,7 @@
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid #edf0f4;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -2739,7 +2739,7 @@
 .dec-groupon-picker__type {
   flex: none;
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: #eef4ff;
   color: #3562d6;
 }
@@ -2780,7 +2780,7 @@
 .square-template__option:hover { border-color: var(--semi-color-primary); }
 .square-template__option.is-active { border-color: var(--semi-color-primary); background: #eef4ff; }
 .square-thumb { display: grid; width: 100%; height: 100%; gap: 2px; }
-.square-thumb i { display: block; background: #cbd5e1; border-radius: 1px; min-height: 0; }
+.square-thumb i { display: block; background: #cbd5e1; border-radius: 2px; min-height: 0; }
 .square-thumb--1 { grid-template-columns: repeat(2, 1fr); }
 .square-thumb--1 i:nth-child(n+3) { display: none; }
 .square-thumb--2 { grid-template-columns: repeat(3, 1fr); }
@@ -2802,7 +2802,7 @@
 /* 整体：预览区 + Tab 分库网格，卡片化容器 */
 .ico-picker {
   border: 1px solid #e6eaf0;
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
   background: #fff;
 }
@@ -2818,7 +2818,7 @@
 .ico-picker__badge {
   width: 56px;
   height: 56px;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #eaf1ff;
   color: #165dff;
   display: flex;
@@ -2845,7 +2845,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid #eef1f6;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
   cursor: pointer;
   font-size: 24px;
@@ -2916,7 +2916,7 @@
   padding: 12px;
   box-sizing: border-box;
   border: 1px solid var(--semi-color-border, #ebedf0);
-  border-radius: 10px;
+  border-radius: 6px;
   background: var(--semi-color-fill-0, #fafbfc);
 }
 .dec-single-pic__thumb {
@@ -2930,7 +2930,7 @@
   padding: 0;
   overflow: hidden;
   border: 1px dashed var(--semi-color-border, #d7dbe0);
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
   color: var(--semi-color-text-3, #b6bcc6);
   cursor: pointer;
@@ -2988,7 +2988,7 @@
 /* 多行文本字段：标签下方整行输入，便于长公告编辑 */
 .pc-module-settings .dec-edit-group-block .semi-textArea-wrapper,
 .pc-module-settings .dec-edit-group-block textarea { width: 100%; box-sizing: border-box; }
-.pc-module-settings .dec-edit-group-block textarea { min-height: 72px; resize: vertical; line-height: 1.6; border-radius: 8px; }
+.pc-module-settings .dec-edit-group-block textarea { min-height: 72px; resize: vertical; line-height: 1.6; border-radius: 6px; }
 
 /* 编辑图片弹窗的操作条样式已并入上方 .dec-pic-modal__toolbar（现代化块） */
 .prod-img-picker { display: flex; gap: 16px; height: 600px; }
@@ -3011,7 +3011,7 @@
   flex-shrink: 0;
   padding: 8px;
   border: 1px solid #eef0f3;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #fff;
   text-align: left;
   cursor: pointer;
@@ -3023,7 +3023,7 @@
 .prod-img-picker__no-pic {
   width: 44px;
   height: 44px;
-  border-radius: 8px;
+  border-radius: 6px;
   object-fit: cover;
   flex-shrink: 0;
   background: #f3f5f8;
@@ -3060,7 +3060,7 @@
   aspect-ratio: 1 / 1;
   padding: 0;
   border: 1px solid #eef0f3;
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
   background: #f7f9fb;
   cursor: pointer;
@@ -3160,7 +3160,7 @@
 
 /* 画板 */
 .hotarea-painter__board {
-  position: relative; width: 100%; border-radius: 10px; overflow: hidden;
+  position: relative; width: 100%; border-radius: 6px; overflow: hidden;
   background: repeating-conic-gradient(#f2f3f5 0% 25%, #fafbfc 0% 50%) 50% / 16px 16px;
   box-shadow: inset 0 0 0 1px var(--semi-color-border);
   cursor: crosshair; user-select: none; touch-action: none;
@@ -3206,7 +3206,7 @@
 
 /* 四角缩放控制点 */
 .hotarea-painter__handle {
-  position: absolute; width: 10px; height: 10px; border-radius: 3px;
+  position: absolute; width: 10px; height: 10px; border-radius: 4px;
   background: #fff; border: 1px solid var(--semi-color-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
 }
@@ -3218,7 +3218,7 @@
 /* 右键菜单 */
 .hotarea-painter__menu {
   position: absolute; z-index: 30; min-width: 120px; padding: 4px;
-  border-radius: 8px; background: var(--semi-color-bg-3);
+  border-radius: 6px; background: var(--semi-color-bg-3);
   box-shadow: 0 6px 24px rgba(0, 0, 0, .16);
   border: 1px solid var(--semi-color-border);
   display: flex; flex-direction: column;
@@ -3238,7 +3238,7 @@
 
 /* 选中热区属性面板 */
 .hotarea-painter__inspector {
-  border-radius: 10px; padding: 10px 12px;
+  border-radius: 6px; padding: 10px 12px;
   background: var(--semi-color-fill-0);
   border: 1px solid var(--semi-color-border);
   display: flex; flex-direction: column; gap: 8px;
@@ -3274,7 +3274,7 @@
   display: flex;
   flex-direction: column;
   border: 1px solid #edf0f4;
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
   background: #f7f9fb;
   cursor: grab;
@@ -3359,7 +3359,7 @@
   gap: 4px;
   min-height: 108px;
   border: 1px dashed #cdd5de;
-  border-radius: 10px;
+  border-radius: 6px;
   background: transparent;
   color: #7b8595;
   font-size: 12px;
@@ -3494,7 +3494,7 @@
   gap: 2px;
   padding: 3px;
   background: #f2f4f7;
-  border-radius: 10px;
+  border-radius: 6px;
   vertical-align: middle;
 }
 .pc-header-field .semi-radio-buttonRadioGroup,
@@ -3504,7 +3504,7 @@
 .pc-header-field .semi-radio-addon-buttonRadio {
   display: block;
   padding: 4px 14px;
-  border-radius: 7px;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
   color: #475467;

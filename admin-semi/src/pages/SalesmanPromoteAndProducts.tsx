@@ -728,7 +728,7 @@ export function SalesmanPromoteMode() {
         </table>
         <div style={{ fontWeight: 600, margin: '18px 0 10px' }}>{t('如何选择这种分销模式？')}</div>
         {compareFaq.map((item) => (
-          <div key={item.question} style={{ background: '#f7f8fa', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+          <div key={item.question} style={{ background: '#f7f8fa', borderRadius: 6, padding: 12, marginBottom: 10 }}>
             <div>
               <b>Q</b> {item.question}
             </div>

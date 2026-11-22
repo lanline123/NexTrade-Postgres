@@ -5,7 +5,7 @@
 
 .gie-modal .semi-modal {
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: 6px;
   box-shadow: 0 32px 84px rgba(15, 23, 42, 0.24);
 }
 
@@ -94,7 +94,7 @@
   flex: none;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: 6px;
   color: var(--semi-color-text-2);
   font-size: 20px;
   line-height: 1;
@@ -137,7 +137,7 @@
 .gie-search-bar .semi-input-wrapper {
   flex: 1;
   max-width: 420px;
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 .gie-picker {
@@ -156,7 +156,7 @@
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--semi-color-border);
-  border-radius: 12px;
+  border-radius: 6px;
   background: #fff;
   color: inherit;
   font: inherit;
@@ -185,7 +185,7 @@
   height: 48px;
   overflow: hidden;
   border: 1px solid var(--semi-color-border);
-  border-radius: 10px;
+  border-radius: 6px;
   background: var(--semi-color-fill-0);
 }
 
@@ -274,7 +274,7 @@
   flex: none;
   padding: 12px 14px;
   border: 1px solid var(--semi-color-border);
-  border-radius: 14px;
+  border-radius: 6px;
   background: #fff;
 }
 
@@ -287,7 +287,7 @@
   height: 56px;
   overflow: hidden;
   border: 1px solid var(--semi-color-border);
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--semi-color-fill-0);
 }
 
@@ -332,7 +332,7 @@
   flex: none;
   padding: 14px 16px;
   border: 1px solid var(--semi-color-border);
-  border-radius: 14px;
+  border-radius: 6px;
   background: #fff;
 }
 
@@ -376,7 +376,7 @@
   gap: 8px;
   padding: 6px 10px;
   border: 1px solid var(--semi-color-border);
-  border-radius: 10px;
+  border-radius: 6px;
   background: var(--semi-color-fill-0);
 }
 
@@ -397,7 +397,7 @@
   flex: none;
   padding: 10px 14px;
   border: 1px solid color-mix(in srgb, var(--semi-color-warning) 34%, transparent);
-  border-radius: 12px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--semi-color-warning) 8%, #fff);
   color: color-mix(in srgb, var(--semi-color-warning) 72%, #000);
   font-size: 12.5px;
@@ -409,7 +409,7 @@
   display: flex;
   flex-direction: column;
   border: 1px solid var(--semi-color-border);
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
@@ -457,7 +457,7 @@
 .gie-grid-empty {
   padding: 34px 0;
   border: 1px dashed var(--semi-color-border);
-  border-radius: 10px;
+  border-radius: 6px;
   color: var(--semi-color-text-3);
   font-size: 12.5px;
   text-align: center;
@@ -486,7 +486,7 @@
 
 .gie-sn {
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--semi-color-fill-1);
   color: var(--semi-color-text-2);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

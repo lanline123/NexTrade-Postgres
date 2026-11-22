@@ -58,7 +58,7 @@ function GenericPreview({ data, spec }: { data: Record<string, any>; spec: Gener
 
   const shell: React.CSSProperties = {
     margin: 8,
-    borderRadius: 8,
+    borderRadius: 6,
     background: '#fff',
     overflow: 'hidden',
     border: '1px solid #f0f0f0',
@@ -143,7 +143,7 @@ function GenericPreview({ data, spec }: { data: Record<string, any>; spec: Gener
             <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>{String(m.description ?? '商品介绍占位文字')}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
               <span style={{ color: '#df4544', fontWeight: 700, fontSize: 16 }}>¥{Number(m.price ?? 199).toFixed(2)}</span>
-              <span style={{ background: '#df4544', color: '#fff', fontSize: 12, borderRadius: 14, padding: '4px 14px' }}>{String(m.buttonText ?? '立即购买')}</span>
+              <span style={{ background: '#df4544', color: '#fff', fontSize: 12, borderRadius: 6, padding: '4px 14px' }}>{String(m.buttonText ?? '立即购买')}</span>
             </div>
           </div>
         </div>
@@ -151,13 +151,13 @@ function GenericPreview({ data, spec }: { data: Record<string, any>; spec: Gener
     case 'search':
       return (
         <div style={{ ...shell, padding: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f5f6fa', borderRadius: 16, padding: '8px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f5f6fa', borderRadius: 6, padding: '8px 12px' }}>
             <span style={{ color: '#999' }}>🔍</span>
             <span style={{ color: '#bbb', fontSize: 12 }}>{String(m.placeholder ?? '搜索商品')}</span>
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {['综合', '销量', '价格', '新品'].map((chip) => (
-              <span key={chip} style={{ fontSize: 11, color: '#666', background: '#f5f6fa', borderRadius: 10, padding: '3px 10px' }}>{chip}</span>
+              <span key={chip} style={{ fontSize: 11, color: '#666', background: '#f5f6fa', borderRadius: 6, padding: '3px 10px' }}>{chip}</span>
             ))}
           </div>
         </div>

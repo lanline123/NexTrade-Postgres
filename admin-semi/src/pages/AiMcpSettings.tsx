@@ -48,7 +48,7 @@ const DEFAULTS: McpSettings = {
 
 const sectionStyle: React.CSSProperties = {
   background: '#fff',
-  borderRadius: 8,
+  borderRadius: 6,
   padding: '16px 20px',
   marginBottom: 16,
 };

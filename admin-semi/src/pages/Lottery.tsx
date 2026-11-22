@@ -750,7 +750,7 @@ function LotteryEditModal({
             style={{
               width: 240,
               height: 420,
-              borderRadius: 12,
+              borderRadius: 6,
               border: '1px solid var(--semi-color-border)',
               overflow: 'hidden',
               background: form.decorateConfig.bgColor || '#f7f7f7',
@@ -765,7 +765,7 @@ function LotteryEditModal({
             }}
           >
             <div style={{ fontWeight: 700, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,.4)', fontSize: 16 }}>{form.activityName || t('大转盘')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 60px)', gap: 4, background: '#fff', padding: 6, borderRadius: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 60px)', gap: 4, background: '#fff', padding: 6, borderRadius: 6 }}>
               {[1, 2, 3, 8, 0, 4, 7, 6, 5].map((slot) => {
                 if (slot === 0) {
                   return (
@@ -787,7 +787,7 @@ function LotteryEditModal({
                 );
               })}
             </div>
-            {form.decorateConfig.showWinnerList === 1 && <div style={{ fontSize: 11, color: '#fff', background: 'rgba(0,0,0,.35)', padding: '2px 10px', borderRadius: 10 }}>{t('中奖名单')}</div>}
+            {form.decorateConfig.showWinnerList === 1 && <div style={{ fontSize: 11, color: '#fff', background: 'rgba(0,0,0,.35)', padding: '2px 10px', borderRadius: 6 }}>{t('中奖名单')}</div>}
           </div>
         </div>
       </div>

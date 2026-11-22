@@ -944,7 +944,7 @@ function OfflineClaimAuditModal({
           <div
             style={{
               background: 'var(--semi-color-fill-0)',
-              borderRadius: 8,
+              borderRadius: 6,
               padding: 16,
               marginBottom: 16,
               display: 'flex',

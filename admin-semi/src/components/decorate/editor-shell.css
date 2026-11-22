@@ -193,7 +193,7 @@
   height: 32px;
   padding: 0 14px;
   border: none;
-  border-radius: 7px;
+  border-radius: 6px;
   background: #f2f4f7;
   color: #475467;
   font-size: 13px;
@@ -225,7 +225,7 @@
   gap: 2px;
   padding: 3px;
   background: #f2f4f7;
-  border-radius: 10px;
+  border-radius: 6px;
   vertical-align: middle;
 }
 .dec-settings-scope .semi-radio-buttonRadioGroup,
@@ -235,7 +235,7 @@
 .dec-settings-scope .semi-radio-addon-buttonRadio {
   display: block;
   padding: 4px 14px;
-  border-radius: 7px;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
   color: #475467;
@@ -303,7 +303,7 @@
   box-sizing: border-box;
   padding: 6px 4px;
   background: #f2f4f7;
-  border-radius: 7px;
+  border-radius: 6px;
 }
 .dec-settings-scope.h5-editor-settings .semi-radioGroup-buttonRadio.dec-icon-radio .semi-radio-addon-buttonRadio-hover {
   background: #e9edf3;
@@ -321,7 +321,7 @@
   margin: 12px;
   padding: 0;
   border: 1px solid #eaecf0;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #fff;
   overflow: hidden;
 }
@@ -365,7 +365,7 @@
   top: 3px;
   bottom: 3px;
   width: 3px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--semi-color-primary);
 }
 .dec-settings-scope .dec-spread-title {
@@ -388,7 +388,7 @@
   top: 3px;
   bottom: 3px;
   width: 3px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--semi-color-primary);
 }
 .dec-settings-scope .dec-edit-section-title {
@@ -407,7 +407,7 @@
   top: 13px;
   bottom: 13px;
   width: 3px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--semi-color-primary);
 }
 
@@ -493,5 +493,5 @@
 .dec-settings-scope .semi-input-wrapper,
 .dec-settings-scope .semi-input-number,
 .dec-settings-scope .semi-select {
-  border-radius: 7px;
+  border-radius: 6px;
 }

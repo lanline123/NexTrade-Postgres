@@ -195,7 +195,7 @@ export function PromotionOverview() {
                   flexShrink: 0,
                   width: 40,
                   height: 40,
-                  borderRadius: 5,
+                  borderRadius: 4,
                   marginRight: 10,
                   display: 'flex',
                   alignItems: 'center',

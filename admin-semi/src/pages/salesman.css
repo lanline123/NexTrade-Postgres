@@ -9,7 +9,7 @@
 .salesman-summary-item {
   background: #f7f8fa;
   border: 1px solid #eef1f6;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 18px 22px;
 }
 .salesman-summary-item .tit {
@@ -256,7 +256,7 @@
 /* ===== 结算方案设置 ===== */
 .salesman-settle-radio-card {
   border: 1px solid var(--semi-color-border);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 14px 16px;
   cursor: pointer;
   transition: border-color 0.2s;

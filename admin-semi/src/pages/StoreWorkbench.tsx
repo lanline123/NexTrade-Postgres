@@ -385,7 +385,7 @@ export default function StoreWorkbench() {
               style={{
                 textAlign: 'center',
                 padding: '10px 0',
-                borderRadius: 8,
+                borderRadius: 6,
                 cursor: 'pointer',
                 background:
                   tab === item.tabKey
@@ -455,7 +455,7 @@ export default function StoreWorkbench() {
                   key={row.orderId}
                   style={{
                     border: '1px solid var(--semi-color-border)',
-                    borderRadius: 8,
+                    borderRadius: 6,
                     padding: 12,
                   }}
                 >
@@ -589,7 +589,7 @@ export default function StoreWorkbench() {
                     display: 'flex',
                     gap: 10,
                     border: '1px solid var(--semi-color-border)',
-                    borderRadius: 8,
+                    borderRadius: 6,
                     padding: 10,
                   }}
                 >

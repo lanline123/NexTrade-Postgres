@@ -376,7 +376,7 @@ export default function BuyStyleSettings() {
                         background: selected ? selectedBg : '#fff',
                         border: `1px solid ${selected ? themeColor : '#e3e5e8'}`,
                         boxShadow: selected ? `0 0 0 1px ${themeColor}` : undefined,
-                        borderRadius: 8,
+                        borderRadius: 6,
                         cursor: 'pointer',
                         font: 'inherit',
                       }}
@@ -416,7 +416,7 @@ export default function BuyStyleSettings() {
                           top: -7,
                           right: -4,
                           padding: '0 5px',
-                          borderRadius: 7,
+                          borderRadius: 6,
                           background: themeColor,
                           color: '#fff',
                           fontSize: 10,
@@ -477,7 +477,7 @@ export default function BuyStyleSettings() {
                       gap: 8,
                       padding: '6px 8px 6px 12px',
                       border: '1px solid #e3e5e8',
-                      borderRadius: 8,
+                      borderRadius: 6,
                       background: '#fafbfc',
                     }}
                   >
@@ -708,7 +708,7 @@ export default function BuyStyleSettings() {
                 gap: 16,
                 padding: '10px 14px',
                 border: '1px solid #eef0f3',
-                borderRadius: 8,
+                borderRadius: 6,
                 background: '#fff',
               }}
             >
@@ -741,7 +741,7 @@ export default function BuyStyleSettings() {
             gap: 16,
             padding: '10px 14px',
             border: '1px solid #eef0f3',
-            borderRadius: 8,
+            borderRadius: 6,
             maxWidth: 420,
             background: '#fff',
           }}

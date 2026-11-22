@@ -46,7 +46,7 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: 9px;
+  border-radius: 6px;
   background: var(--semi-color-danger, #f93920);
   color: #fff;
   font-size: 11px;

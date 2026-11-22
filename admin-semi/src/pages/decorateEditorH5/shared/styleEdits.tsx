@@ -63,7 +63,7 @@ height: 32,
 lineHeight: "32px",
 fontSize: 13,
 cursor: "pointer",
-borderRadius: 7,
+borderRadius: 6,
 background: active === i? "var(--semi-color-primary)": "#f2f4f7",
 color: active === i? "#fff": "#475467",
 fontWeight: active === i? 600: 400

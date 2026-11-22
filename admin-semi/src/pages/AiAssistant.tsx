@@ -419,7 +419,7 @@ export default function AiAssistant() {
           width: 250,
           flexShrink: 0,
           border: '1px solid var(--semi-color-border)',
-          borderRadius: 8,
+          borderRadius: 6,
           display: 'flex',
           flexDirection: 'column',
           background: 'var(--semi-color-bg-1)',
@@ -481,7 +481,7 @@ export default function AiAssistant() {
         style={{
           flex: 1,
           border: '1px solid var(--semi-color-border)',
-          borderRadius: 8,
+          borderRadius: 6,
           display: 'flex',
           flexDirection: 'column',
           background: 'var(--semi-color-bg-1)',
@@ -558,7 +558,7 @@ export default function AiAssistant() {
                 style={{
                   maxWidth: '78%',
                   background: 'var(--semi-color-fill-0)',
-                  borderRadius: 8,
+                  borderRadius: 6,
                   padding: '10px 12px',
                   fontSize: 14,
                   lineHeight: 1.6,
@@ -642,7 +642,7 @@ function MessageRow({
             maxWidth: '78%',
             background: 'var(--semi-color-primary)',
             color: '#fff',
-            borderRadius: 8,
+            borderRadius: 6,
             padding: '10px 12px',
             whiteSpace: 'pre-wrap',
             fontSize: 14,
@@ -674,7 +674,7 @@ function MessageRow({
         style={{
           marginBottom: 12,
           border: '1px solid var(--semi-color-border)',
-          borderRadius: 8,
+          borderRadius: 6,
           padding: '10px 12px',
           maxWidth: '86%',
           background:
@@ -791,7 +791,7 @@ function MessageRow({
         style={{
           maxWidth: '78%',
           background: 'var(--semi-color-fill-0)',
-          borderRadius: 8,
+          borderRadius: 6,
           padding: '10px 12px',
           fontSize: 14,
           lineHeight: 1.6,

@@ -10,7 +10,7 @@
 }
 .multilingual-input__button {
   flex-shrink: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   color: var(--primary);
   background: var(--primary-soft);
   border-color: transparent;

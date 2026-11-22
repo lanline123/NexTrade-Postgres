@@ -26,7 +26,7 @@
 /* ——— 会员卡面（旧 card.less card1..card10 渐变） ——— */
 .mlp-card {
   border: 1px solid #fff;
-  border-radius: 3px;
+  border-radius: 4px;
   width: 56px;
   height: 30px;
   overflow: visible;
@@ -42,7 +42,7 @@
 .mlp-card-lg {
   width: 343px;
   height: 180px;
-  border-radius: 12px;
+  border-radius: 6px;
   font-size: 16px;
   font-weight: bold;
   box-sizing: border-box;

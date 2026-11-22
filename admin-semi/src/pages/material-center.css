@@ -449,7 +449,7 @@
   padding: 13px 15px;
   background: var(--semi-color-warning-light-default);
   border: 1px solid var(--semi-color-warning-light-active);
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 .mc-album-delete-banner-icon {
@@ -495,7 +495,7 @@
   margin: 0;
   padding: 14px 16px;
   border: 1px solid var(--semi-color-border);
-  border-radius: 10px;
+  border-radius: 6px;
   background: var(--semi-color-bg-0);
   transition: border-color 0.18s, background-color 0.18s, box-shadow 0.18s;
 }

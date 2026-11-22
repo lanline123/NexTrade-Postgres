@@ -229,7 +229,7 @@ export default function BuyBtnStylePicker({
               background: selected ? selectedBg : '#fff',
               border: `1px solid ${selected ? themeColor : '#e3e5e8'}`,
               boxShadow: selected ? `0 0 0 1px ${themeColor}` : undefined,
-              borderRadius: 8,
+              borderRadius: 6,
               cursor: 'pointer',
               font: 'inherit',
             }}

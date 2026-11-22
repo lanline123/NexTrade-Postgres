@@ -297,7 +297,7 @@ export function AiTranslateDialog({ visible, imageUrl, onCancel, onOk }: AiImage
                   gap: 12,
                   padding: 10,
                   border: '1px solid var(--semi-color-border)',
-                  borderRadius: 8,
+                  borderRadius: 6,
                 }}
               >
                 <div style={{ width: 120, flexShrink: 0, fontSize: 13, fontWeight: 500 }}>
@@ -498,7 +498,7 @@ export function AiEraseDialog({ visible, imageUrl, onCancel, onOk }: AiImageDial
             <img
               src={imageUrl}
               alt={t('待消除图片')}
-              style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 8, marginBottom: 20, display: 'block' }}
+              style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 6, marginBottom: 20, display: 'block' }}
             />
           ) : null}
           <div style={{ marginBottom: 12, fontWeight: 500 }}>{t('智能消图')}</div>
@@ -514,7 +514,7 @@ export function AiEraseDialog({ visible, imageUrl, onCancel, onOk }: AiImageDial
                     width: 140,
                     padding: '18px 8px',
                     border: `2px solid ${selected ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
-                    borderRadius: 10,
+                    borderRadius: 6,
                     background: selected ? 'var(--semi-color-primary-light-default)' : 'var(--semi-color-bg-0)',
                     cursor: 'pointer',
                     fontSize: 14,
@@ -576,7 +576,7 @@ export function AiEraseDialog({ visible, imageUrl, onCancel, onOk }: AiImageDial
                     alignItems: 'center',
                     justifyContent: 'center',
                     background: 'var(--semi-color-fill-0)',
-                    borderRadius: 8,
+                    borderRadius: 6,
                     overflow: 'hidden',
                   }}
                 >
@@ -607,7 +607,7 @@ export function AiEraseDialog({ visible, imageUrl, onCancel, onOk }: AiImageDial
                     alignItems: 'center',
                     justifyContent: 'center',
                     background: 'var(--semi-color-fill-0)',
-                    borderRadius: 8,
+                    borderRadius: 6,
                     overflow: 'hidden',
                   }}
                 >

@@ -86,7 +86,7 @@ export default function AiMcpLogs() {
   };
 
   return (
-    <div style={{ background: '#fff', borderRadius: 8, padding: '16px 20px' }}>
+    <div style={{ background: '#fff', borderRadius: 6, padding: '16px 20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h3 style={{ margin: 0 }}>操作日志（{total}）</h3>
         <div style={{ display: 'flex', gap: 8 }}>

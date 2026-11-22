@@ -1071,7 +1071,7 @@ body .layui-layer-tips.dec-tip-box i.layui-layer-TipsB {
     display: block;
     height: 4px;
     width: 100%;
-    border-radius: 8px;
+    border-radius: 6px;
     transition: background-color 0.3s;
     cursor: pointer;
 }

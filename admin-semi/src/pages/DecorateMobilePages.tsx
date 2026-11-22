@@ -908,7 +908,7 @@ export function MobileDecoratePages(props: {
             padding: '10px 14px',
             background: '#f0f5ff',
             border: '1px solid #d6e4ff',
-            borderRadius: 8,
+            borderRadius: 6,
             color: '#1f2329',
             fontSize: 13,
             display: 'flex',
@@ -1274,15 +1274,15 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
             </div>
             <div style={{ height: 42, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: '#1f2329', borderBottom: '1px solid #f0f0f2', flexShrink: 0 }}>{module.navName || t('主导航栏')}</div>
             <div style={{ flex: 1, padding: '14px 14px 10px', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
-              <div style={{ height: 92, borderRadius: 12, background: 'linear-gradient(120deg, #dbe7fd, #eef4ff)', flexShrink: 0 }} />
+              <div style={{ height: 92, borderRadius: 6, background: 'linear-gradient(120deg, #dbe7fd, #eef4ff)', flexShrink: 0 }} />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, flexShrink: 0 }}>
                 {[0, 1, 2, 3].map((i) => (
-                  <div key={i} style={{ height: 52, borderRadius: 10, background: '#fff' }} />
+                  <div key={i} style={{ height: 52, borderRadius: 6, background: '#fff' }} />
                 ))}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {[0, 1, 2, 3].map((i) => (
-                  <div key={i} style={{ height: 118, borderRadius: 10, background: '#fff', padding: 8 }}>
+                  <div key={i} style={{ height: 118, borderRadius: 6, background: '#fff', padding: 8 }}>
                     <div style={{ height: 62, borderRadius: 6, background: '#eef1f5' }} />
                     <div style={{ height: 8, borderRadius: 4, background: '#e7eaee', marginTop: 8, width: '80%' }} />
                     <div style={{ height: 8, borderRadius: 4, background: '#f3d9d9', marginTop: 6, width: '45%' }} />
@@ -1297,7 +1297,7 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
                 const isQr = item.entryType === 'qrcode';
                 return (
                   <div key={index} onClick={() => { if (isQr) { setQrPreview(index); } else { setActivePreview(index); } }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 52, cursor: 'pointer', padding: '2px 0', position: 'relative' }}>
-                    {src ? <img src={src} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} /> : <span style={{ width: 24, height: 24, borderRadius: 7, background: active ? '#fdecec' : '#eef1f5', display: 'inline-block' }} />}
+                    {src ? <img src={src} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} /> : <span style={{ width: 24, height: 24, borderRadius: 6, background: active ? '#fdecec' : '#eef1f5', display: 'inline-block' }} />}
                     {isQr ? <span style={{ position: 'absolute', top: 0, right: 6, width: 8, height: 8, borderRadius: '50%', background: '#792dff' }} /> : null}
                     <span style={{ fontSize: 11, color: active ? selectedColor : unselectedColor, fontWeight: active ? 600 : 400 }}>{item.picTitle || t('菜单')}</span>
                   </div>
@@ -1309,9 +1309,9 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
             </div>
             {qrPreview !== null && module.navList[qrPreview] ? (
               <div onClick={() => setQrPreview(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}>
-                <div style={{ background: '#fff', borderRadius: 14, padding: '18px 18px 14px', width: 210, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <div style={{ background: '#fff', borderRadius: 6, padding: '18px 18px 14px', width: 210, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: '#1f2329' }}>{module.navList[qrPreview].picTitle || t('扫码')}</span>
-                  <span style={{ fontSize: 11, color: '#792dff', background: '#f3efff', borderRadius: 8, padding: '2px 8px' }}>{module.navList[qrPreview].qrType === 'official' ? t('微信公众号') : t('企业微信')}</span>
+                  <span style={{ fontSize: 11, color: '#792dff', background: '#f3efff', borderRadius: 6, padding: '2px 8px' }}>{module.navList[qrPreview].qrType === 'official' ? t('微信公众号') : t('企业微信')}</span>
                   {module.navList[qrPreview].qrImage ? <img src={module.navList[qrPreview].qrImage} alt="" style={{ width: 150, height: 150, objectFit: 'contain' }} /> : <span style={{ width: 150, height: 150, background: '#f2f4f8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#969799', fontSize: 12 }}>{t('未上传二维码图')}</span>}
                   <span style={{ fontSize: 11, color: '#969799' }}>{t('长按识别二维码')}</span>
                 </div>
@@ -1323,7 +1323,7 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
       </div>
 
       {/* 右：分区卡片表单（对齐装修编辑器设置面板语言） */}
-      <div style={{ flex: 1, minWidth: 0, background: '#fff', border: '1px solid #eef0f3', borderRadius: 12, padding: '4px 20px 20px', boxShadow: '0 1px 3px rgba(16,24,40,0.04)' }}>
+      <div style={{ flex: 1, minWidth: 0, background: '#fff', border: '1px solid #eef0f3', borderRadius: 6, padding: '4px 20px 20px', boxShadow: '0 1px 3px rgba(16,24,40,0.04)' }}>
         {loading ? <Spin /> : (
           <>
             {sectionTitle(t('基础设置'))}
@@ -1355,7 +1355,7 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
 
             {sectionTitle(t('菜单设置'))}
             {module.navList.map((item, index) => (
-              <div key={index} style={{ border: '1px solid #eef0f3', borderRadius: 10, padding: '12px 14px', marginBottom: 10, background: '#fbfcfd' }}>
+              <div key={index} style={{ border: '1px solid #eef0f3', borderRadius: 6, padding: '12px 14px', marginBottom: 10, background: '#fbfcfd' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#155bd4', color: '#fff', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{index + 1}</span>
                   <Input value={item.picTitle || ''} placeholder={t('菜单名称')} onChange={(v: string) => updateItem(index, { picTitle: v })} style={{ width: 150 }} />
@@ -1533,7 +1533,7 @@ export function ClassifyDecorate() {
                 alt={item.title}
                 style={{
                   width: '100%',
-                  borderRadius: 10,
+                  borderRadius: 6,
                   border: `2px solid ${type === item.value ? 'var(--semi-color-primary)' : '#eee'}`,
                   marginBottom: 10,
                 }}
@@ -1621,13 +1621,13 @@ export function MobileUserDecorate() {
     <div style={{ padding: 20 }}>
       <Card title={t('会员中心首页装修')} loading={loading}>
         <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
-          <div style={{ width: 375, flexShrink: 0, border: '1px solid #e5e6eb', borderRadius: 12, overflow: 'hidden', background: 'linear-gradient(90deg,#fcf6fc,#f3f3fe)', padding: 8 }}>
-            <div style={{ height: 120, borderRadius: 8, overflow: 'hidden', background: '#dfe7f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#98a2b3' }}>
+          <div style={{ width: 375, flexShrink: 0, border: '1px solid #e5e6eb', borderRadius: 6, overflow: 'hidden', background: 'linear-gradient(90deg,#fcf6fc,#f3f3fe)', padding: 8 }}>
+            <div style={{ height: 120, borderRadius: 6, overflow: 'hidden', background: '#dfe7f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#98a2b3' }}>
               {bannerModule.bannerList?.picUrl ? <img src={bannerModule.bannerList.picUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : t('广告位')}
             </div>
             <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: menuModule.menuType === 2 ? 'repeat(3,1fr)' : 'repeat(4,1fr)', gap: 8 }}>
               {(menuModule.menuList || []).map((item: any, index: number) => (
-                <div key={index} style={{ background: '#fff', borderRadius: 8, padding: '10px 4px', textAlign: 'center', fontSize: 12 }}>
+                <div key={index} style={{ background: '#fff', borderRadius: 6, padding: '10px 4px', textAlign: 'center', fontSize: 12 }}>
                   {item.picUrl ? <img src={item.picUrl} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} /> : <div style={{ width: 22, height: 22, margin: '0 auto', background: '#eef1f5', borderRadius: 4 }} />}
                   <div style={{ marginTop: 6 }}>{item.picTitle || t('服务')}</div>
                 </div>

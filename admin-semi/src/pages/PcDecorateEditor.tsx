@@ -150,7 +150,7 @@ const HISTORY_COALESCE_MS = 800;
  * 产生新的组件类型，React 会整棵卸载重挂其子树——输入框打字时逐字丢焦点/丢字
  * （v46 验收发现的页面设置/头部设置丢字问题即此）。 */
 const SettingsCard = ({ children }: { children: ReactNode }) => (
-  <div style={{ background: '#fff', margin: 12, border: '1px solid #eaecf0', borderRadius: 10, padding: 16 }}>{children}</div>
+  <div style={{ background: '#fff', margin: 12, border: '1px solid #eaecf0', borderRadius: 6, padding: 16 }}>{children}</div>
 );
 
 export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEditorProps) {
