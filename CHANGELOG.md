@@ -2359,3 +2359,9 @@
 ### 碰撞提示
 
 - 本包含 `rust/crates/services/src/vendor/vendor.rs` 与 `rust/crates/services/src/vendor/vendor_product.rs` 两文件，与体检线 6 暂存包（site-audit-backend）同文件：线 6 改动为 import/re-import 与 create 的 `now_millis → now_seconds` 两处（vendor.rs 约 L165、vendor_product.rs 约 L355/L432），本包改动在 vendor.rs 的 create 状态/联系人段（约 L161–215）与 vendor_product.rs 的 to_vos 字段段（约 L127），区域相邻但不重叠，推送时请三方合并并双签名核验。
+
+## 0.0.2 续 · 2026-11-22 批次（安全修复：买家地址 list/create 的 IDOR，未部署——无迁移，随下一后端合并版上线）
+
+### 修复
+
+- **买家收货地址 list/create 越权（IDOR）修复（原版有·我方改口径；全站体检线 6 登记 R2·高）**：原 Java 口径下 `GET /api/user/address/list` 与 `POST /api/user/address/create` 不拦截游客且信任入参 `userId`（`listDTO.userId ?? getCurrentUserId()`），匿名 `GET /api/user/address/list?userId=<任意会员>` 即可枚举他人全部收货地址（姓名/手机号/详细地址），匿名 create 可往任意会员名下写地址；移植时原样带入。本批改口径：① 路由层（`api/public/src/routes/member/user_address_client.rs`）list/create 与 detail/update/del 同口径加登录拦截，未登录回既有业务错误「用户未登录」；② 服务层（`services/member/user_address_client.rs`）身份一律以令牌为准——list 不再以查询参数 `userId` 覆盖令牌身份，create 落库归属固定为令牌用户；③ 模型层（`core/models/member/user_address_client.rs`）两处 DTO 的 `userId` 字段仅保留反序列化兼容并注明被忽略。调用方排查（报告 `~/workspace/site-audit-address-idor/REPORT.md`）：PC/H5 全部合法调用点均不传 userId、身份与令牌同源，前端零改动；礼品领取链本身要求登录、H5 bannerA2 调用前自判 token，后端无其他内部调用方，无合法未登录依赖。detail/update/delete/setSelected 的归属校验经体检验明健全，未动。验收口径：上线后匿名 list/create 应回「用户未登录」、已登录传他人 userId 只见/只写本人地址、本人地址全链（列表/新增/编辑/删除/设默认/设选中）正常。

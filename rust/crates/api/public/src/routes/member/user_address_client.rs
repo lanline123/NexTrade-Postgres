@@ -17,8 +17,13 @@
 //! 契约 7 条均为 `optional`。本文件自带 [`optional_auth`]（同
 //! `routes/content/seo.rs`）。Java 控制器在 `detail` / `del` / `update` 内部
 //! 校验登录态（匿名 →「用户未登录」），本实现同样在 handler 层用
-//! [`UserAddressClientService::ensure_logged_in`] 拦截；`tagList` / `list` /
-//! `create` / `setSelected` 不拦截（与原实现一致，游客按 `user_id = 0` 处理）。
+//! [`UserAddressClientService::ensure_logged_in`] 拦截；`tagList` /
+//! `setSelected` 不拦截（游客按 `user_id = 0` 处理）。
+//!
+//! **安全改口径（2026-11-22，原版有·我方改口径）**：Java 的 `list` /
+//! `create` 不拦截游客且信任入参 `userId`，匿名可枚举、代写任意会员的
+//! 收货地址（PII）。本实现将两端点一并纳入登录拦截，且身份一律以令牌
+//! 为准、入参 `userId` 被忽略（服务层同口径）。
 //!
 //! ## 合并注意
 //! 必须并入 `crates/api/public/src/routes/member/mod.rs` 的 `merge_public` 链
@@ -158,13 +163,17 @@ fn parse_body<T>(result: Result<Json<T>, axum::extract::rejection::JsonRejection
         .map_err(|re| AppError(Error::biz_msg(format!("请求参数解析失败: {}", re.body_text()))))
 }
 
-/// `GET /api/user/address/list`：当前用户地址列表。
+/// `GET /api/user/address/list`：当前用户地址列表（需登录）。
+///
+/// 安全改口径：Java 版不拦截游客且信任查询参数 `userId`，匿名可枚举
+/// 他人地址；此处与 `detail` 同口径先拦截未登录（2026-11-22）。
 async fn list(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<UserAddressListQuery>,
 ) -> ApiResult<PageResult<UserAddressVO>> {
     let user_id = current_user_id(&auth);
+    ensure_login(user_id)?;
     ok(state.member.user_address_client.list(user_id, &q).await?)
 }
 
@@ -192,7 +201,10 @@ async fn del(
     ok(())
 }
 
-/// `POST /api/user/address/create`：创建地址。
+/// `POST /api/user/address/create`：创建地址（需登录）。
+///
+/// 安全改口径：Java 版不拦截游客且信任请求体 `userId`，匿名可往任意
+/// 会员名下写地址；此处与 `update` 同口径先拦截未登录（2026-11-22）。
 async fn create(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
@@ -200,6 +212,7 @@ async fn create(
 ) -> ApiResult<i32> {
     let dto = parse_body(dto)?;
     let user_id = current_user_id(&auth);
+    ensure_login(user_id)?;
     ok(state.member.user_address_client.create(user_id, &dto).await?)
 }
 

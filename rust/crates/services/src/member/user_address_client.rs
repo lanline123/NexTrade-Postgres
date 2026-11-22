@@ -16,6 +16,12 @@
 //! - `setSelected`：先清后设（事务）
 //!
 //! ## 与 Java 的差异（诚实记录）
+//! - **身份口径（安全改口径，2026-11-22）**：Java 的 `list` / `create`
+//!   信任入参 `userId`（`listDTO.userId ?? getCurrentUserId()`）且路由
+//!   免登录，匿名可枚举、代写任意会员的收货地址（PII）；本实现两端点
+//!   必须登录、身份一律以令牌为准，入参 `userId` 仅保留反序列化兼容、
+//!   被忽略。`detail` / `update` / `del` / `setSelected` 的归属校验与
+//!   Java 一致，未动。
 //! - `create` 的 `user_id` 兜底、区名排序、`sortItems` 默认排序等见
 //!   [`crate::models::member::user_address_client`] 模块头。
 //! - 业务错误码沿用项目惯例 500（Java `GlobalException` 为 1001），消息逐字。
@@ -75,8 +81,9 @@ impl UserAddressClientService {
         q: &UserAddressListQuery,
     ) -> Result<PageResult<UserAddressVO>> {
         let page = q.page_query();
-        // Java：`userId = listDTO.userId ?? getCurrentUserId()`
-        let user_id = q.user_id.unwrap_or(user_id);
+        // 安全改口径（2026-11-22）：Java 为 `listDTO.userId ?? 当前用户`，
+        // 入参可覆盖令牌身份。此处身份一律以令牌为准，`q.user_id` 不
+        // 参与查询（字段仅保留反序列化兼容）；未登录由路由层拦截。
         let sort = resolve_sort(q.sort_field.as_deref(), q.sort_order.as_deref());
         let (total, rows) = self.repo().paginate(user_id, sort, q).await?;
         let list = rows.iter().map(|e| to_vo(e, true)).collect();
@@ -119,6 +126,10 @@ impl UserAddressClientService {
         let postcode = normalize_postcode(dto.postcode.as_deref()).map_err(Error::biz_msg)?;
         let (address_line_two, building_name, floor, unit) =
             cross_border_columns(dto.address_data.as_ref());
+        // 安全改口径（2026-11-22）：Java 为 `dto.userId ?? 当前用户`，
+        // 匿名可往任意会员名下写地址。此处归属一律以令牌身份
+        // （current_user）为准，`dto.user_id` 不参与落库（字段仅保留
+        // 反序列化兼容）；未登录由路由层拦截。
         let entity = UserAddress {
             address_id: 0,
             country_code: dto
@@ -129,7 +140,7 @@ impl UserAddressClientService {
                 .map(|s| s.to_uppercase()),
             country_name: dto.country_name.clone(),
             address_tag: dto.address_tag.clone().unwrap_or_default(),
-            user_id: dto.user_id.unwrap_or(current_user),
+            user_id: current_user,
             consignee: dto.consignee.clone().unwrap_or_default(),
             email: dto.email.clone(),
             region_ids: to_json(&region_ids),

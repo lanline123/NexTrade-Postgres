@@ -325,7 +325,10 @@ pub struct UserAddressListQuery {
     pub sort_order: Option<String>,
     /// 关键字（Java `BasePage.keyword`；本域未使用）。
     pub keyword: Option<String>,
-    /// 用户 ID（Java `UserAddressListDTO.userId`；缺省取登录用户）。
+    /// 用户 ID（Java `UserAddressListDTO.userId`）。
+    ///
+    /// 安全改口径（2026-11-22）：仅保留反序列化兼容，服务层不采用——
+    /// 列表身份一律以令牌为准（Java 的入参覆盖口径可匿名枚举他人地址）。
     #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub user_id: Option<i32>,
     /// 是否系统地址（Java 控制器固定覆盖为 0）。
@@ -388,7 +391,10 @@ pub struct UserAddressCreateDTO {
     /// 地区 ID 列表。
     #[serde(default, deserialize_with = "tolerant_opt_i32_vec")]
     pub region_ids: Option<Vec<i32>>,
-    /// 用户 ID（缺省取当前登录用户）。
+    /// 用户 ID。
+    ///
+    /// 安全改口径（2026-11-22）：仅保留反序列化兼容，服务层不采用——
+    /// 新地址归属一律以令牌身份为准（Java 的入参兜底口径可代写他人地址）。
     #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub user_id: Option<i32>,
     /// 是否系统添加。
