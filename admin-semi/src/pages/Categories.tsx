@@ -215,7 +215,9 @@ export default function Categories() {
   };
 
   const moveCategory = async () => {
-    if (!moveRow || !targetCategoryId) {
+    // 目标可选「顶级分类」(0=商品改为无分类，后端 moveCat 接受 targetCatId=0)，
+    // 故只拦未选择（undefined），不能用 !targetCategoryId 把 0 一并拦掉。
+    if (!moveRow || targetCategoryId === undefined) {
       Toast.warning({ content: t('请选择目标分类') });
       return;
     }

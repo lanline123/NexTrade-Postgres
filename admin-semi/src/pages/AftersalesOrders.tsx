@@ -69,6 +69,8 @@ interface AftersalesRow {
   returnAddress?: string;
   mark?: number;
   aftersalesItems: AftersalesItem[];
+  /** 后端建议退款金额（VO suggestRefundAmount），同意退款时作前端上限校验 */
+  suggestRefundAmount?: number | string;
   /** 换货重发物流（我方新增，仅换货单已重发后） */
   exchangeLogisticsName?: string;
   exchangeTrackingNo?: string;
@@ -87,8 +89,13 @@ const STATUS_COLORS: Record<number, 'orange' | 'black' | 'grey' | 'green' | 'blu
   3: 'grey',
   4: 'black',
   5: 'green',
+  // 后端枚举补齐：6 已完成 / 7 已取消 / 21 待供应商审核 / 22 待供应商收货（原表缺失恒落默认蓝）
+  6: 'green',
+  7: 'grey',
   8: 'blue',
   9: 'blue',
+  21: 'orange',
+  22: 'orange',
 };
 
 const money = (value: unknown) => `¥${Number(value || 0).toFixed(2)}`;
@@ -138,8 +145,7 @@ export default function AftersalesOrders() {
     apiGet<{ records: AftersalesRow[]; total: number }>('/order/aftersales/list', {
       page,
       size: 10,
-      sortField: 'orderId',
-      sortOrder: 'desc',
+      // 原先传的 sortField/sortOrder 后端 AftersalesListQuery 根本不接收（死参数），已删除
       ...filters,
     })
       .then((result) => {
@@ -221,6 +227,14 @@ export default function AftersalesOrders() {
       Toast.error({ content: t('拒绝说明不能为空') });
       return;
     }
+    // 同意退款金额上限：后端已下发建议退款金额，前端先行拦截超额（后端另有校验时以其为准）
+    if (status === 2 && row.suggestRefundAmount !== undefined && row.suggestRefundAmount !== null) {
+      const cap = Number(row.suggestRefundAmount);
+      if (Number.isFinite(cap) && Number(handleForm.refundAmount ?? 0) > cap) {
+        Toast.error({ content: t('退款金额不能超过建议退款金额 {amount}', { amount: cap.toFixed(2) }) });
+        return;
+      }
+    }
     setSaving(true);
     try {
       await apiPost('/order/aftersales/update', {
@@ -267,12 +281,12 @@ export default function AftersalesOrders() {
     }
   };
 
-  const receiveAction = (row: AftersalesRow, action: 'receive' | 'rejectReceive', title: string) => {
+  const receiveAction = (row: AftersalesRow, title: string) => {
     Modal.confirm({
       title,
       onOk: async () => {
         try {
-          await apiPost(`/order/aftersales/${action}`, { id: row.aftersaleId });
+          await apiPost('/order/aftersales/receive', { id: row.aftersaleId });
           Toast.success({ content: t('操作成功') });
           reload();
         } catch (error) {
@@ -280,6 +294,34 @@ export default function AftersalesOrders() {
         }
       },
     });
+  };
+
+  /** 拒收：后端 reject_receive 强制 reply 非空（「拒收理由不能为空」），
+   * 原实现只传 {id} 且确认弹窗无输入框，拒收必然失败——改为带理由输入的弹窗。 */
+  const [rejectTarget, setRejectTarget] = useState<AftersalesRow | null>(null);
+  const [rejectReply, setRejectReply] = useState('');
+
+  const submitRejectReceive = async () => {
+    if (!rejectTarget) return;
+    if (!rejectReply.trim()) {
+      Toast.error({ content: t('拒收理由不能为空') });
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPost('/order/aftersales/rejectReceive', {
+        id: rejectTarget.aftersaleId,
+        reply: rejectReply.trim(),
+      });
+      Toast.success({ content: t('操作成功') });
+      setRejectTarget(null);
+      setRejectReply('');
+      reload();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('操作失败') });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const renderRow = (row: AftersalesRow): ReactNode => {
@@ -438,13 +480,20 @@ export default function AftersalesOrders() {
                   type="danger"
                   theme="borderless"
                   size="small"
-                  onClick={() => receiveAction(row, 'receive', t('确认收货'))}
+                  onClick={() => receiveAction(row, t('确认收货'))}
                 >
                   {t('确认收货')}
                 </Button>
               ) : null}
               {canConfirmReceipt ? (
-                <Button theme="borderless" size="small" onClick={() => receiveAction(row, 'rejectReceive', t('拒收商品'))}>
+                <Button
+                  theme="borderless"
+                  size="small"
+                  onClick={() => {
+                    setRejectReply('');
+                    setRejectTarget(row);
+                  }}
+                >
                   {t('拒收')}
                 </Button>
               ) : null}
@@ -681,6 +730,23 @@ export default function AftersalesOrders() {
       </Modal>
 
       <Modal
+        title={t('拒收商品')}
+        visible={Boolean(rejectTarget)}
+        confirmLoading={saving}
+        onOk={submitRejectReceive}
+        onCancel={() => setRejectTarget(null)}
+      >
+        <div className="aftersales-form">
+          <label>{t('拒收理由')}</label>
+          <TextArea
+            value={rejectReply}
+            onChange={setRejectReply}
+            placeholder={t('请输入拒收理由（必填，将同步给买家）')}
+          />
+        </div>
+      </Modal>
+
+      <Modal
         title={
           handleTarget
             ? handleTarget.status === 2
@@ -707,6 +773,12 @@ export default function AftersalesOrders() {
                 <InputNumber
                   style={{ width: 200 }}
                   min={0}
+                  max={
+                    handleTarget.row.suggestRefundAmount !== undefined &&
+                    handleTarget.row.suggestRefundAmount !== null
+                      ? Number(handleTarget.row.suggestRefundAmount)
+                      : undefined
+                  }
                   value={handleForm.refundAmount ?? 0}
                   onChange={(next) => setHandleForm((c) => ({ ...c, refundAmount: Number(next ?? 0) }))}
                 />

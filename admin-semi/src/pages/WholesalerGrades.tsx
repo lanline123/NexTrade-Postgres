@@ -51,10 +51,11 @@ export function WholesalerGrades() {
   const handleStatusChange = async (record: GradeRow, checked: boolean) => {
     const val = checked ? 1 : 0;
     try {
-      const res: any = await apiPost('/wholesale/grade/setStatus', {
-        gradeId: record.gradeId,
-        status: val,
-      });
+      // 后端 setStatus/delete 收 Query 参数（Java @RequestParam 口径）：
+      // 原先发 JSON body，后端恒报「gradeId 不能为空」，开关点了必失败
+      const res: any = await apiPost(
+        `/wholesale/grade/setStatus?gradeId=${record.gradeId}&status=${val}`,
+      );
       if (res && res.warning) {
         Toast.warning({ content: res.warning });
       } else {
@@ -83,13 +84,24 @@ export function WholesalerGrades() {
       });
       return;
     }
-    try {
-      await apiPost('/wholesale/grade/delete', { gradeId: record.gradeId });
-      Toast.success({ content: t('操作成功') });
-      setReloadKey((k) => k + 1);
-    } catch (error) {
-      Toast.error({ content: error instanceof Error ? error.message : t('删除失败') });
-    }
+    // 删除须二次确认（同批页面均有 Popconfirm/Modal.confirm，唯独此处原先裸删；
+    // 且传参修复后删除立即生效，更不能裸删）
+    Modal.confirm({
+      title: t('删除批发商等级'),
+      content: t('确定删除等级「{name}」？删除后不可恢复。', {
+        name: record.gradeName || String(record.gradeId),
+      }),
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await apiPost(`/wholesale/grade/delete?gradeId=${record.gradeId}`);
+          Toast.success({ content: t('操作成功') });
+          setReloadKey((k) => k + 1);
+        } catch (error) {
+          Toast.error({ content: error instanceof Error ? error.message : t('删除失败') });
+        }
+      },
+    });
   };
 
   const handleEditSubmit = async () => {

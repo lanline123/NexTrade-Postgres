@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Image, InputNumber, Table, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, Image, Input, Table, Toast, Typography } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
 import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
@@ -46,11 +46,48 @@ export default function MemberLevels() {
 
   const reload = () => setReloadKey((key) => key + 1);
 
+  /** 保存所需的等级配置（rankType/userRankConfig/growUpSetting）：打开编辑时从
+   * /user/userRank/detail 回填现值，提交时原样带回（口径同 MemberLevelPros）。 */
+  const [rankConfig, setRankConfig] = useState<{
+    rankType: number;
+    userRankConfig: Record<string, any>;
+    growUpSetting: Record<string, any>;
+  } | null>(null);
+
   const openEdit = async () => {
     try {
-      const result = await apiGet<any>('/user/userRank/list', { page: 1, size: 50 });
-      const data: RankRow[] = result?.userRank?.records || result?.records || [];
-      setDrawerMode(data.length ? 'edit' : 'create');
+      // detail 是权威来源：含 rankType 与 growUpSetting（update 校验必填）
+      let data: RankRow[] = [];
+      try {
+        const detail = await apiGet<any>('/user/userRank/detail');
+        setRankConfig({
+          rankType: Number(detail?.rankType) || 1,
+          userRankConfig: {
+            type: 1,
+            rankAfterMonth: 12,
+            useMonth: 12,
+            ...(detail?.userRankConfig?.data || {}),
+          },
+          growUpSetting: detail?.growUpSetting || {
+            buyOrder: 0,
+            buyOrderNumber: 0,
+            buyOrderGrowth: 0,
+            evpi: 0,
+            evpiGrowth: 0,
+            bindPhone: 0,
+            bindPhoneGrowth: 0,
+          },
+        });
+        data = (detail?.userRankList || []) as RankRow[];
+      } catch {
+        setRankConfig(null);
+      }
+      if (!data.length) {
+        const result = await apiGet<any>('/user/userRank/list', { page: 1, size: 50 });
+        data = result?.userRank?.records || result?.records || [];
+      }
+      // 保存统一走 update（见 onSubmit 注释），不再分 create 分支
+      setDrawerMode('edit');
       setDrawerInitial({ data: data.map((row) => ({ ...row })) });
       setDrawerOpen(true);
     } catch (error) {
@@ -89,12 +126,13 @@ export default function MemberLevels() {
                         }}
                         max={1}
                       />
-                      <InputNumber
+                      <Input
                         style={{ width: 220 }}
-                        value={row.rankName}
+                        value={row.rankName || ''}
+                        placeholder={t('等级名称')}
                         onChange={(next) => {
                           const nextRows = [...data];
-                          nextRows[index] = { ...row, rankName: String(next ?? '') };
+                          nextRows[index] = { ...row, rankName: next };
                           formApi?.setValue('data', nextRows);
                         }}
                       />
@@ -197,7 +235,35 @@ export default function MemberLevels() {
         onSubmit={async (payload) => {
           setSaving(true);
           try {
-            await apiPost(drawerMode === 'edit' ? '/user/userRank/update' : '/user/userRank/create', payload);
+            // 后端 update 走 UserRankEditParam：rankType 必填、rankType=1 时 growUpSetting
+            // 必填，只发 {data} 必被拒；原 create 分支发 {data:[...]} 给扁平 UserRankDTO
+            // 会静默写出一条全空等级。故统一走 update 并带齐 detail 回填的配置
+            // （口径与 MemberLevelPros 提交一致），data 行保留原行全部字段防丢失。
+            await apiPost('/user/userRank/update', {
+              id: 0,
+              rankType: rankConfig?.rankType ?? 1,
+              userRankConfig: rankConfig?.userRankConfig ?? {
+                type: 1,
+                rankAfterMonth: 12,
+                useMonth: 12,
+              },
+              growUpSetting: rankConfig?.growUpSetting ?? {
+                buyOrder: 0,
+                buyOrderNumber: 0,
+                buyOrderGrowth: 0,
+                evpi: 0,
+                evpiGrowth: 0,
+                bindPhone: 0,
+                bindPhoneGrowth: 0,
+              },
+              data: (payload.data || []).map((row: RankRow, index: number) => ({
+                ...row,
+                rankId: (row as any).rankId || undefined,
+                rankLevel: Number(row.rankLevel) || index + 1,
+                rankName: String(row.rankName || ''),
+                rankLogo: row.rankLogo || '',
+              })),
+            });
             Toast.success({ content: t('操作成功') });
             setDrawerOpen(false);
             reload();

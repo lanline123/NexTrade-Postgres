@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Badge,
   Button,
@@ -8,6 +8,7 @@ import {
   Popconfirm,
   Radio,
   RadioGroup,
+  Select,
   Space,
   Table,
   Tag,
@@ -82,6 +83,44 @@ export default function StoreList() {
   // 主账号管理弹窗
   const [accountModalVisible, setAccountModalVisible] = useState(false);
   const [currentStore, setCurrentStore] = useState<StoreRow | null>(null);
+  /** 主账号换绑（原弹窗 onOk 只弹「主账号更新成功」不调任何接口，是假功能）：
+   * 管理员候选走 /admin/adminAccount/pageAdminUser，保存走 bindMainAccount（type=store）。 */
+  const [adminOptions, setAdminOptions] = useState<Array<{ adminId: number; username?: string; mobile?: string }>>([]);
+  const [bindAdminId, setBindAdminId] = useState<number | undefined>(undefined);
+  const [bindSaving, setBindSaving] = useState(false);
+
+  useEffect(() => {
+    if (!accountModalVisible) return;
+    setBindAdminId(undefined);
+    apiGet<{ records: Array<{ adminId: number; username?: string; mobile?: string }> }>(
+      '/admin/adminAccount/pageAdminUser',
+      { page: 1, size: 100 },
+    )
+      .then((result) => setAdminOptions(result.records || []))
+      .catch(() => undefined);
+  }, [accountModalVisible]);
+
+  const submitBindMainAccount = async () => {
+    if (!currentStore || !bindAdminId) {
+      Toast.warning({ content: t('请选择要绑定的管理员') });
+      return;
+    }
+    setBindSaving(true);
+    try {
+      await apiPost('/admin/adminAccount/bindMainAccount', {
+        id: currentStore.shopId,
+        type: 'store',
+        adminData: { type: 2, adminId: bindAdminId },
+      });
+      Toast.success({ content: t('主账号绑定成功') });
+      setAccountModalVisible(false);
+      setReloadKey((k) => k + 1);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('绑定失败') });
+    } finally {
+      setBindSaving(false);
+    }
+  };
 
   const handleDelete = async (id: number) => {
     try {
@@ -244,12 +283,13 @@ export default function StoreList() {
           record.merchant?.corporateName ||
           record.merchant?.merchantData?.merchantName ||
           '--';
-        const isAuthed = record.merchant?.status === 1;
+        // 商户 status 只有 1=正常 / 2=取消资格，原 (已认证)/(未认证) 标签与后端枚举错位
+        const isNormal = record.merchant?.status === 1;
         return (
           <Space>
             <span>{name}</span>
-            <Tag color={isAuthed ? 'green' : 'amber'} size="small">
-              {isAuthed ? t('(已认证)') : t('(未认证)')}
+            <Tag color={isNormal ? 'green' : 'red'} size="small">
+              {isNormal ? t('(正常)') : t('(取消资格)')}
             </Tag>
             {record.merchant && (
               <Button
@@ -272,8 +312,10 @@ export default function StoreList() {
       title: '门店状态',
       dataIndex: 'status',
       width: 110,
-      render: (val: number) => {
-        const s = statusMap[val] || { text: t('开业'), type: 'success' };
+      render: (val: number, record) => {
+        // 未知状态原先默认显示绿色「开业」，会把异常状态伪装成正常营业；
+        // 改为优先后端 statusText，否则灰点「未知状态」
+        const s = statusMap[val] || { text: record.statusText || '未知状态', type: 'warning' as const };
         return (
           <Space>
             <Badge dot type={s.type} style={{ marginRight: 4 }} />
@@ -387,25 +429,23 @@ export default function StoreList() {
                     : selectedMerchant.merchantData?.merchantName,
               },
               {
-                key: t('认证状态'),
+                key: t('商户状态'),
                 value:
                   selectedMerchant.statusText ||
-                  (selectedMerchant.status === 1 ? t('认证通过') : t('待审核')),
+                  (selectedMerchant.status === 1 ? t('正常') : t('取消资格')),
               },
             ]}
           />
         )}
       </Modal>
 
-      {/* 主账号管理弹窗 */}
+      {/* 主账号管理弹窗：当前主账号 + 选择管理员换绑 */}
       <Modal
         title={t('主账号管理')}
         visible={accountModalVisible}
         onCancel={() => setAccountModalVisible(false)}
-        onOk={() => {
-          Toast.success({ content: t('主账号更新成功') });
-          setAccountModalVisible(false);
-        }}
+        onOk={submitBindMainAccount}
+        confirmLoading={bindSaving}
         width={480}
       >
         <div style={{ padding: '12px 0' }}>
@@ -414,6 +454,20 @@ export default function StoreList() {
               { key: t('门店名称'), value: currentStore?.shopTitle || '--' },
               { key: t('当前主账号'), value: currentStore?.mainAccount || t('未绑定主账号') },
             ]}
+          />
+          <Text strong style={{ display: 'block', margin: '14px 0 8px' }}>
+            {t('绑定管理员')}
+          </Text>
+          <Select
+            style={{ width: '100%' }}
+            placeholder={t('请选择管理员')}
+            value={bindAdminId}
+            optionList={adminOptions.map((item) => ({
+              label: item.mobile ? `${item.username || item.adminId}（${item.mobile}）` : item.username || String(item.adminId),
+              value: item.adminId,
+            }))}
+            onChange={(next) => setBindAdminId(Number(next))}
+            filter
           />
         </div>
       </Modal>

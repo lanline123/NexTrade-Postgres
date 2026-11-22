@@ -2,7 +2,8 @@ import ListPage from '../framework/ListPage';
 import type { ColumnConfig } from '../framework/types';
 
 interface RefundLogRow {
-  refundLogId: number;
+  /** 后端 RefundLogVO 主键字段为 logId（原误写 refundLogId，行键恒回退下标） */
+  logId: number;
   aftersalesSn?: string;
   refundTypeText?: string;
   refundAmount?: number | string;
@@ -27,7 +28,7 @@ export default function RefundLogs() {
   return (
     <ListPage<RefundLogRow>
       api="/finance/refundLog/list"
-      rowKey="refundLogId"
+      rowKey="logId"
       pageSize={10}
       filters={[
         {

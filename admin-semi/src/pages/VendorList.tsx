@@ -230,10 +230,27 @@ export default function VendorList() {
           width: 700,
           labelWidth: 'auto',
           createApi: '/vendor/vendor/create',
-          updateApi: '/vendor/vendor/updateInfo',
+          // 原 updateApi 指向 updateInfo——那是单字段宏接口（只读 {id,field,value}），
+          // 框架全量提交必报「不支持的字段」，编辑永远存不了；改走真更新接口
+          // /vendor/vendor/update（COALESCE 更新 vendorName/contactMobile/status）
+          updateApi: '/vendor/vendor/update',
           detailApi: '/vendor/vendor/detail',
           deleteApi: '/vendor/vendor/delVendor',
           idField: 'vendorId',
+          toPayload: (values, mode) => {
+            if (mode === 'create') {
+              // 后端 create 只从 vendorData 抽 contactName/contactPhone 落库：
+              // 表单平铺的联系人/电话不组装进去就会静默丢失
+              return {
+                ...values,
+                vendorData: {
+                  contactName: values.contactName || '',
+                  contactPhone: values.contactMobile || '',
+                },
+              };
+            }
+            return values;
+          },
           sections: [
             {
               key: 'basic',
@@ -331,9 +348,11 @@ export default function VendorList() {
         )}
       </Modal>
 
-      {/* 主账号管理弹窗 */}
+      {/* 主账号信息弹窗（原名「主账号管理」但只有只读展示、无任何管理动作，名不副实；
+          供应商主账号绑定走 adminVendorUser 系列接口、口径与店铺 bindMainAccount 不同，
+          待产品确认范围后另行接真绑定，此处先正名） */}
       <Modal
-        title={t('主账号管理')}
+        title={t('主账号信息')}
         visible={adminModalVisible}
         onCancel={() => setAdminModalVisible(false)}
         footer={

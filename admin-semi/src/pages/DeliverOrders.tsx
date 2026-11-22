@@ -230,7 +230,18 @@ export default function DeliverOrders({
   };
 
   const reset = () => {
-    setFilters({ keyword: '', outTradeNo: '', address: '', email: '', mobile: '', mark: -1, addTime: [] });
+    // 与初始 filters 结构保持一致（原先漏了 shippingStatus/payStatus 两键）
+    setFilters({
+      keyword: '',
+      outTradeNo: '',
+      address: '',
+      email: '',
+      mobile: '',
+      mark: -1,
+      shippingStatus: '',
+      payStatus: '',
+      addTime: [],
+    });
     setPage(1);
     setReloadKey((key) => key + 1);
   };
@@ -271,6 +282,17 @@ export default function DeliverOrders({
 
   const submitDeliver = async () => {
     if (!deliverTarget) return;
+    // 快递物流（shippingMethod=1）必须选物流公司并填运单号；无需物流（3）豁免
+    if (deliverForm.shippingMethod === 1) {
+      if (!deliverForm.logisticsId) {
+        Toast.error({ content: t('请选择物流公司') });
+        return;
+      }
+      if (!deliverForm.trackingNo.trim()) {
+        Toast.error({ content: t('请填写运单号') });
+        return;
+      }
+    }
     setSaving(true);
     try {
       await apiPost('/order/order/deliver', {
@@ -295,27 +317,60 @@ export default function DeliverOrders({
   };
 
   const submitBatchShip = async () => {
-    setSaving(true);
-    try {
-      for (const row of rows.filter((item) => selectedIds.includes(item.orderId))) {
-        const perOrder = batchPerOrder[row.orderId] || {};
-        await apiPost('/order/order/deliver', {
-          id: row.orderId,
-          deliverData: (row.items || []).map((item) => ({
-            itemId: item.itemId,
-            toDeliveryQuantity: item.quantity,
-          })),
-          shippingMethod: 1,
-          logisticsId: perOrder.logisticsId || batchShipForm.logisticsId || 0,
-          trackingNo: perOrder.trackingNo || batchShipForm.trackingNo,
-        });
+    const targets = rows.filter((item) => selectedIds.includes(item.orderId));
+    // 提交前逐单校验：统一/逐单物流与运单号任一缺失即整批拦下，避免发出无物流的单
+    for (const row of targets) {
+      const perOrder = batchPerOrder[row.orderId] || {};
+      if (!(perOrder.logisticsId || batchShipForm.logisticsId)) {
+        Toast.error({ content: t('订单 {sn} 未选择物流公司', { sn: row.orderSn }) });
+        return;
       }
-      Toast.success({ content: t('批量发货成功') });
-      setBatchShipOpen(false);
-      setBatchPerOrder({});
+      if (!(perOrder.trackingNo || batchShipForm.trackingNo)) {
+        Toast.error({ content: t('订单 {sn} 未填写运单号', { sn: row.orderSn }) });
+        return;
+      }
+    }
+    setSaving(true);
+    // 逐单提交并收集结果：原先中途失败时前面已发货成功、界面却只报整体失败，
+    // 操作员无从知道哪些已发、易重复发货——改为回显成功/失败明细。
+    const succeeded: string[] = [];
+    const failed: string[] = [];
+    try {
+      for (const row of targets) {
+        const perOrder = batchPerOrder[row.orderId] || {};
+        try {
+          await apiPost('/order/order/deliver', {
+            id: row.orderId,
+            deliverData: (row.items || []).map((item) => ({
+              itemId: item.itemId,
+              toDeliveryQuantity: item.quantity,
+            })),
+            shippingMethod: 1,
+            logisticsId: perOrder.logisticsId || batchShipForm.logisticsId || 0,
+            trackingNo: perOrder.trackingNo || batchShipForm.trackingNo,
+          });
+          succeeded.push(row.orderSn);
+        } catch {
+          failed.push(row.orderSn);
+        }
+      }
+      if (!failed.length) {
+        Toast.success({ content: t('批量发货成功') });
+        setBatchShipOpen(false);
+        setBatchPerOrder({});
+      } else if (!succeeded.length) {
+        Toast.error({ content: t('批量发货失败') });
+      } else {
+        Toast.warning({
+          content: t('已发货 {ok} 单，失败 {fail} 单：{sns}', {
+            ok: succeeded.length,
+            fail: failed.length,
+            sns: failed.join('、'),
+          }),
+        });
+        setBatchShipOpen(false);
+      }
       reload();
-    } catch (error) {
-      Toast.error({ content: error instanceof Error ? error.message : t('批量发货失败') });
     } finally {
       setSaving(false);
     }
@@ -340,6 +395,7 @@ export default function DeliverOrders({
       const res = await fetch('/adminapi/order/order/downloadDeliverTemplate', {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
+      if (!res.ok) throw new Error(t('模板下载失败'));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -690,6 +746,15 @@ export default function DeliverOrders({
             }))}
           />
           <Space>
+            <Checkbox
+              checked={allSelected}
+              indeterminate={selectedIds.length > 0 && !allSelected}
+              onChange={(event) =>
+                setSelectedIds(Boolean(event.target.checked) ? [...allSelectable] : [])
+              }
+            >
+              {t('全选本页')}
+            </Checkbox>
             <Button disabled={!selectedIds.length} onClick={() => {
               setMarkForm({ mark: 0, adminNote: '' });
               setMarkTarget({ ids: selectedIds });

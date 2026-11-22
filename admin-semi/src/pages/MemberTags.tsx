@@ -53,12 +53,22 @@ export default function MemberTags() {
       setDrawerInitial({
         id: row.id,
         groupName: detail?.groupName || row.groupName || '',
-        tags: tags.length >= 2 ? tags : [{ tagName: '' }, { tagName: '' }],
+        // 只有 1 条标签时保留该条并补一个空位（原先整组替换成两个空选项，真值被隐藏）
+        tags:
+          tags.length >= 2
+            ? tags
+            : tags.length === 1
+              ? [tags[0], { tagName: '' }]
+              : [{ tagName: '' }, { tagName: '' }],
       });
-    } catch {
-      setDrawerInitial({ id: row.id, groupName: row.groupName || '', tags: [{ tagName: '' }, { tagName: '' }] });
+      setDrawerOpen(true);
+    } catch (error) {
+      // detail 拉失败不得静默以空标签打开编辑抽屉（用户会误以为数据丢失）：
+      // 报错并中止打开
+      Toast.error({
+        content: error instanceof Error ? error.message : t('标签详情加载失败，请重试'),
+      });
     }
-    setDrawerOpen(true);
   };
 
   const saveTagGroup = async (payload: Record<string, any>) => {

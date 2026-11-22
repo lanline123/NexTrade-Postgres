@@ -98,6 +98,9 @@ export interface ListPageProps<T = any> {
   rowKey: string | ((row: T) => string);
   columns: ColumnConfig<T>[];
   filters?: FilterConfig[];
+  /** 初始筛选值（挂载时一次性注入 filterValues，如跨页跳转携带的查询参数）；
+   * 与普通筛选同路径生效、可被重置清空。不传时为空对象，行为不变。 */
+  initialFilters?: Record<string, any>;
   query?: Record<string, unknown>;
   /** 每页条数兜底值：仅首帧量测前/量测失败时用；框架量测后按浏览器高度自适应（下限 5、上限 50），页面传值不再固定条数。 */
   pageSize?: number;

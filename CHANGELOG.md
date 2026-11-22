@@ -2303,3 +2303,16 @@
 ### 验收口径
 
 - CI check-rust + build-pc + build-h5 绿后随合并版上线；真实验收：① 错码/乱填 6 位数注册应失败（1001 验证码错误）、对码注册成功且同码立即二次提交必失败；② 后台置 `shopRegClosed=1` 后 registAct 两通道均回「系统已关闭注册」、PC/H5 注册页只显关闭提示，恢复 0 后注册恢复；③ 邮箱通道：错码失败、对码成功建号（email_validated=1、可邮箱登录）、同邮箱再注册回「该邮箱已注册」。
+
+## 0.0.2 续 · 2026-11-22 批次（全站体检线 3/6：管理端交易域审计修复，未部署——随下一 admin 合并版上线）
+
+### 修复
+
+- **商品批量导入双重损坏（原版有·口径对齐后端实现）**：`ProductBatch` 的 add 模式误投 GET 导出端点且 apiPost 把 FormData 压成 `{}`，导入永远无效——改为原生 fetch multipart 直投 `productBatchModify`，结果弹窗按后端 VO 展示新增/更新/失败数与失败明细；导出实际返回 xlsx 却存 .csv、模板/导出失败把错误 JSON 存成表格文件，一并修正（res.ok 校验 + 错误信封解析）。
+- **订单筛选与状态配色枚举对齐（原版有·我方改口径纠正）**：`Orders` 支付筛选「已付款=1」与后端 PayStatus（1=支付中/2=已支付）错位、发货筛选与 ShippingStatus 错位、支付/订单状态 Tag 按文案判色恒不命中——全部改为按后端码值枚举；`OrderExport` 发货状态 3/4 对调、导出无 res.ok、日期 UTC 偏移、未选字段静默失败等一并修；`VendorOrders` 发货状态同病同修，且「去发货」原为假成功 Toast、「添加标记」为空壳弹窗、「批量打印」为假 Toast——分别接真实发货弹窗（`/order/order/deliver`）、标记表单（`setAdminNote`）与浏览器自绘配送单打印；`DeliverOrders` 单发物流必填校验、批量发货逐单成败回显、模板下载校验补齐；`AftersalesOrders` 拒收强制理由弹窗（后端 reply 必填、原提交必失败）、退款金额前端上限、状态色补全；`RefundLogs` rowKey 字段 refundLogId→logId（后端 VO 主键名）。
+- **会员等级保存必失败（原版有）**：`MemberLevels` 保存只发 `{data}`——update 被后端校验拒、create 静默写空等级；改为先 detail 回填 rankType/配置再统一 update 提交，等级名称输入框由 InputNumber 改 Input（文字名原先无法输入）。
+- **商户状态文案纠正（原版有·我方改口径纠正）**：商户 status 后端只有 1=正常/2=取消资格，`Merchants`/`ShopList`/`StoreList` 三处把 2 标为「未认证」（选它即取消资格）——统一改回「正常/取消资格」；`Merchants` 企业名称对个人商户误设必填已放开；「已绑定店铺」跳转参数无人消费——框架 ListPage 新增 `initialFilters` 初始筛选注入，跳转改传 corporateName 并由店铺页消费。
+- **店铺/门店主账号管理接真接口（原版有）**：`ShopList`/`StoreList` 的「主账号管理」原为只读弹窗/假成功 Toast——现接 `pageAdminUser` 候选 + `bindMainAccount` 换绑（shop/store 两型）；`VendorList` 同名弹窗因供应商绑定口径不同先正名为「主账号信息」。`StoreList` 未知门店状态原默认显示绿色「开业」，改优先 statusText/未知状态。
+- **供应商编辑永远失败（原版有）**：`VendorList` drawer 的 updateApi 误指单字段宏接口 updateInfo——改走真更新 `/vendor/vendor/update`；新建时联系人/电话组装进 vendorData 提交（原先静默丢失）。
+- **批发三设置永远保存失败（原版有）**：`WholesaleProducts` 批发价/起批量/倍数三弹窗提交字段与后端 DTO 完全错位（wholesalePrice/moqDimension/multiple 均被 serde 忽略）——批发价改为按 price/detail 的 SKU×等级×阶梯行编辑回提交 priceRows、起批量字段改 dimension（批量弹窗补维度选择）、倍数按 buyRule/detail 的 skuRules 逐 SKU 编辑提交 skuMultiples；`WholesalerGrades`/`Wholesalers` 的 setStatus/changeGrade/delete 后端收 Query 参数、前端原发 JSON body 恒报参数缺失——改 query 传参；批发商等级列表后端返回裸数组、框架 ListPage 只认 records 信封恒空——框架加裸数组兜底；等级删除补二次确认（与传参修复同批，防裸删生效）。
+- **采购域多处（原版有/我方新增混合，逐项见审计报告）**：退货可退量恒 0 致退货单建不出来（改按 入库量−已退量 现算、键名双读）；入库详情/退货带出误传采购订单 id 查入库单详情（改入库单主键）；对账候选入库/退货同号撞键改复合键；对账工具栏单号搜索参数后端不接收（改 keyword）、导出实为 JSON 却名「导出EXCEL」（改「导出JSON」+ .json 落盘，真 Excel 登记后端立项）；对账补驳回（带原因）/重新提交/作废三入口（后端端点已有、前端缺失）；采购订单/入库/退货/供应商/供应商商品五页死筛选清理（后端不接收的字段撤除或并入 keyword、文案如实）；供应商分类编辑静默清备注/重置排序（回填 + 排序项 + 提交带 sortOrder）；供应商商品汇总卡数字恒错（改取两列表真实 total）；选品弹窗跨页勾选丢失（改累积 Map）；订单收货入库时间标必填不校验（补校验）；`UserCertifications` 批量删除绕过状态门控（rowSelectable 仅已拒绝可选）；`Members` 禁用会员补二次确认、批量加积分/余额补 >0 校验、状态开关改受控同步、导入文案删虚假承诺；`MemberTags` detail 失败不再静默空开抽屉、单标签不再被整组替换；`CustomerBlacklist` 批量移除取消后不再丢勾选；`ShopCustomers` 筛选变化回第一页；`Categories` 商品转移到顶级分类被误拦已修；`ProductGifts` 操作列与框架自带编辑/删除重复且其「编辑」为死按钮，已删冗余列。

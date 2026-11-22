@@ -1022,6 +1022,9 @@ function PurchaseOrderInboundDrawer({
 
   const submit = async () => {
     if (!order) return;
+    // 入库时间在表单上标必填：原先不校验，清空时 businessDate 缺省、后端按提交
+    // 时刻落库，与用户所选时间不符且无感知（直接入库抽屉是有校验的，口径对齐）
+    if (!inboundAt) return Toast.warning(t('请选择入库时间'));
     if (!lines.length) return Toast.warning(t('暂无可入库的商品'));
     const active = lines.filter((line) => Math.round(Number(line.actualQuantity) || 0) > 0);
     if (!active.length) return Toast.warning(t('请填写实际入库量'));
@@ -1319,7 +1322,7 @@ export function PurchaseOrders() {
     },
     {
       title: t('采购总金额(元)'),
-      dataIndex: 'totalAmount',
+      dataIndex: 'productAmount',
       width: 140,
       render: (val: any) => <span style={{ fontWeight: 600, color: '#165dff' }}>{fmtYuan(val)}</span>,
     },
@@ -1460,15 +1463,12 @@ export function PurchaseOrders() {
         }
         filters={[
           {
-            field: 'orderSn',
+            // 后端列表只认 keyword（匹配 order_sn/vendor_name 两列）：
+            // 原 orderSn/trackingNo 两框后端根本不接收、输入毫无效果；
+            // 物流单号搜索后端无支持，已登记后端立项，前端先撤假框
+            field: 'keyword',
             label: t('采购单号'),
-            placeholder: t('输入采购单号'),
-            type: 'input',
-          },
-          {
-            field: 'trackingNo',
-            label: t('物流单号'),
-            placeholder: t('输入物流单号'),
+            placeholder: t('输入采购单号/供应商'),
             type: 'input',
           },
           {
@@ -1902,10 +1902,11 @@ function ReceiptDetailDrawer({ record, onClose }: { record: PurchaseReceiptItem 
 
   useEffect(() => {
     if (!record) return;
-    // 原版以关联采购订单 id 调 purchaseReceipt/detail（无关联单据无法查看详情）
-    const detailId = Number(record.orderId ?? record.id ?? 0);
+    // 后端 receipt_detail 按入库单主键 id 查 purchase_receipt 表：原先优先传
+    // orderId（采购订单 id），两 id 不相等时打开的是别人的入库单/空详情
+    const detailId = Number(record.id ?? record.receiptId ?? 0);
     if (!detailId) {
-      Toast.error(t('该入库单缺少关联采购订单，无法查看详情'));
+      Toast.error(t('该入库单缺少入库单ID，无法查看详情'));
       return;
     }
     setLoading(true);
@@ -2108,21 +2109,11 @@ export function PurchaseInbound() {
         }
         filters={[
           {
+            // 后端 keyword 只匹配 receipt_sn 一列：原占位文案承诺的采购单号/
+            // 供应商搜不到，且 receiptSn/orderSn 两框后端不接收——合并为一框如实文案
             field: 'keyword',
             label: t('关键词'),
-            placeholder: t('输入入库单号/采购单号/供应商'),
-            type: 'input',
-          },
-          {
-            field: 'receiptSn',
-            label: t('单据编号'),
             placeholder: t('输入入库单号'),
-            type: 'input',
-          },
-          {
-            field: 'orderSn',
-            label: t('采购订单号'),
-            placeholder: t('输入采购订单号'),
             type: 'input',
           },
         ]}
@@ -2218,33 +2209,43 @@ function PurchaseReturnCreateDrawer({
   }, [visible]);
 
   const selectReceipt = async (row: any) => {
-    // 原版以入库单的关联采购订单 id 调 purchaseReceipt/detail 带出可退明细
-    const detailId = Number(row.orderId ?? row.id ?? 0);
+    // 同详情抽屉：detail 按入库单主键查，必须传入库单 id 而非关联采购订单 id
+    const detailId = Number(row.id ?? row.receiptId ?? 0);
     if (!detailId) {
-      Toast.error(t('该入库单缺少关联采购订单，无法带出可退明细'));
+      Toast.error(t('该入库单缺少入库单ID，无法带出可退明细'));
       return;
     }
     setLoading(true);
     try {
       const detail = await apiGet<any>('/supplyChain/purchaseReceipt/detail', { id: detailId });
-      setShopId(String(detail.shopId ?? ''));
-      setShopName(detail.shopName || '');
-      setVendorId(String(detail.vendorId ?? ''));
-      setVendorName(detail.vendorName || '');
+      // 键名双读（同上 C-19）：后端别名层落地前 detail 为蛇形键
+      setShopId(String(detail.shopId ?? detail.shop_id ?? ''));
+      setShopName(detail.shopName || detail.shop_name || '');
+      setVendorId(String(detail.vendorId ?? detail.vendor_id ?? ''));
+      setVendorName(detail.vendorName || detail.vendor_name || '');
       setLines(
-        (detail.items || []).map((item: any) => ({
-          receiptItemId: String(item.id ?? ''),
-          skuId: String(item.skuId ?? 0),
-          productName: item.productName || '',
-          skuName: item.skuName || '',
-          categoryName: item.categoryName || '',
-          availableQuantity: Number(item.availableQuantity ?? item.returnableQuantity ?? 0),
-          returnableQuantity: Number(item.returnableQuantity ?? 0),
-          returnQuantity: '0',
-          inboundPurchasePrice: String(item.purchasePrice ?? 0),
-          returnPrice: String(item.purchasePrice ?? 0),
-          reason: '',
-        })),
+        (detail.items || []).map((item: any) => {
+          // 明细行是 purchase_receipt_item 原表行：没有 returnableQuantity 字段，
+          // 可退量须由 入库量 - 已退量 现算（原先恒读到 0，退货单在 UI 里永远建不出来）。
+          // 键名双读兼容后端蛇形原键与驼峰别名层（C-19 后端补齐后走驼峰分支）。
+          const qty = Number(item.quantity ?? 0);
+          const returned = Number(item.returnedQuantity ?? item.returned_quantity ?? 0);
+          const returnable =
+            item.returnableQuantity != null ? Number(item.returnableQuantity) : Math.max(qty - returned, 0);
+          return {
+            receiptItemId: String(item.id ?? ''),
+            skuId: String(item.skuId ?? item.sku_id ?? 0),
+            productName: item.productName || item.product_name || '',
+            skuName: item.skuName || item.sku_name || '',
+            categoryName: item.categoryName || item.category_name || '',
+            availableQuantity: Number(item.availableQuantity ?? returnable),
+            returnableQuantity: returnable,
+            returnQuantity: '0',
+            inboundPurchasePrice: String(item.purchasePrice ?? item.purchase_price ?? 0),
+            returnPrice: String(item.purchasePrice ?? item.purchase_price ?? 0),
+            reason: '',
+          };
+        }),
       );
     } catch (error) {
       Toast.error({ content: errMsg(error, t) });
@@ -2541,21 +2542,10 @@ export function PurchaseReturns() {
         }
         filters={[
           {
+            // 同入库页：keyword 只匹配 return_sn，另两框后端不接收，一并清理
             field: 'keyword',
             label: t('关键词'),
-            placeholder: t('输入退货单号/入库单号/供应商'),
-            type: 'input',
-          },
-          {
-            field: 'returnSn',
-            label: t('退货单号'),
             placeholder: t('输入退货单号'),
-            type: 'input',
-          },
-          {
-            field: 'receiptSn',
-            label: t('入库单号'),
-            placeholder: t('输入关联入库单号'),
             type: 'input',
           },
         ]}
@@ -2645,7 +2635,10 @@ function CandidatesModal({
             const type = Number(row.sourceType) === 2 ? 'return' : 'inbound';
             return {
               ...row,
-              key: String(row.sourceId ?? ''),
+              // 候选是入库(sourceType=1)与退货(sourceType=2)的 UNION，两套独立主键：
+              // 只用 sourceId 作 key 时同号两单勾选/禁用/确认互相串扰——key 用复合键，
+              // id 保持原始 sourceId（提交 sources 时按 type+id 组装，不受影响）
+              key: `${type}:${row.sourceId ?? ''}`,
               id: String(row.sourceId ?? ''),
               sn: row.sn || row.sourceSn || '',
               type,
@@ -2671,12 +2664,12 @@ function CandidatesModal({
   const rowSelection: any = {
     selectedRowKeys: selectedKeys,
     onChange: (keys: Array<string | number>) => setSelectedKeys(keys || []),
-    getCheckboxProps: (record: any) => ({ disabled: selectedIds.includes(String(record.id)) }),
+    getCheckboxProps: (record: any) => ({ disabled: selectedIds.includes(String(record.key)) }),
   };
 
   const confirm = () => {
     const docs: ReconciliationDocument[] = records
-      .filter((row) => selectedKeys.map(String).includes(String(row.id)))
+      .filter((row) => selectedKeys.map(String).includes(String(row.key)))
       .map((row) => ({
         id: row.id,
         type: row.type,
@@ -2963,7 +2956,7 @@ function PurchaseReconciliationCreateDrawer({
         visible={selectorOpen}
         shopId={shopId}
         supplierId={supplierId}
-        selectedIds={documents.map((doc) => doc.id)}
+        selectedIds={documents.map((doc) => `${doc.type}:${doc.id}`)}
         onCancel={() => setSelectorOpen(false)}
         onConfirm={acceptDocuments}
       />
@@ -2978,17 +2971,60 @@ export function PurchaseReconciliation() {
   const [exporting, setExporting] = useState(false);
   const [snInput, setSnInput] = useState('');
   const [statusInput, setStatusInput] = useState('');
-  const [applied, setApplied] = useState<{ reconciliationSn?: string; status?: string }>({});
+  // 后端 Pg 只认 keyword（匹配 reconciliation_sn 列）：原先 applied 传
+  // reconciliationSn 被 serde 忽略，工具栏单号搜索与导出筛选双双无效
+  const [applied, setApplied] = useState<{ keyword?: string; status?: string }>({});
   const [listKey, setListKey] = useState(0);
+  // 驳回弹窗（后端 reject 强制 remark 非空，且只有 status=1 可驳回）
+  const [rejectTarget, setRejectTarget] = useState<PurchaseReconciliationItem | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectSaving, setRejectSaving] = useState(false);
 
   const query = useMemo(() => ({ ...applied }), [applied]);
 
   const applyFilters = () => {
     setApplied({
-      reconciliationSn: snInput.trim() || undefined,
+      keyword: snInput.trim() || undefined,
       status: statusInput || undefined,
     });
     setListKey((k) => k + 1);
+  };
+
+  const submitReject = async () => {
+    if (!rejectTarget) return;
+    if (!rejectReason.trim()) {
+      Toast.warning(t('请填写驳回原因'));
+      return;
+    }
+    setRejectSaving(true);
+    try {
+      await apiPost('/supplyChain/purchaseReconciliation/reject', {
+        id: Number(rejectTarget.id ?? rejectTarget.reconciliationId ?? 0),
+        remark: rejectReason.trim(),
+      });
+      Toast.success(t('已驳回'));
+      setRejectTarget(null);
+      setRejectReason('');
+      setReloadKey((k) => k + 1);
+    } catch (error) {
+      Toast.error({ content: errMsg(error, t) });
+    } finally {
+      setRejectSaving(false);
+    }
+  };
+
+  const runReconciliationAction = async (
+    path: string,
+    record: PurchaseReconciliationItem,
+    successText: string,
+  ) => {
+    try {
+      await apiPost(path, { id: Number(record.id ?? record.reconciliationId ?? 0) });
+      Toast.success(t(successText));
+      setReloadKey((k) => k + 1);
+    } catch (error) {
+      Toast.error({ content: errMsg(error, t) });
+    }
   };
 
   const resetFilters = () => {
@@ -3004,7 +3040,9 @@ export function PurchaseReconciliation() {
       await apiDownload(
         '/supplyChain/purchaseReconciliation/export',
         { ...applied },
-        `采购对账单_${toYMDHM(new Date()).replace(/[-: ]/g, '')}`,
+        // 后端 export 返回 JSON 信封（无 xlsx 生成）：文件名如实落 .json，
+        // 按钮文案同步改「导出JSON」；真 Excel 导出已登记后端立项
+        `采购对账单_${toYMDHM(new Date()).replace(/[-: ]/g, '')}.json`,
       );
       Toast.success(t('导出成功'));
     } catch (error) {
@@ -3053,33 +3091,88 @@ export function PurchaseReconciliation() {
     },
     {
       title: t('操作'),
-      width: 130,
-      render: (_: any, record: PurchaseReconciliationItem) => (
-        Number(record.status) === 1 ? (
-          <Popconfirm
-            title={t('确认对账吗？')}
-            onConfirm={async () => {
-              try {
-                await apiPost('/supplyChain/purchaseReconciliation/approve', {
-                  id: Number(record.id ?? record.reconciliationId ?? 0),
-                  shopId: Number(currentShopId() || 0),
-                  remark: '',
-                });
-                Toast.success(t('对账成功'));
-                setReloadKey((k) => k + 1);
-              } catch (error) {
-                Toast.error({ content: errMsg(error, t) });
-              }
-            }}
-          >
-            <Button theme="borderless" type="primary" size="small">
-              {t('对账')}
-            </Button>
-          </Popconfirm>
-        ) : (
+      width: 200,
+      render: (_: any, record: PurchaseReconciliationItem) => {
+        const status = Number(record.status);
+        // 后端 reject/resubmit/void 三端点早已注册，原先前端无入口：
+        // 已驳回单据在本页是死胡同。门控与后端一致（驳回仅待对账 1；
+        // 重新提交/作废仅已驳回 3）
+        if (status === 1) {
+          return (
+            <Space spacing={2}>
+              <Popconfirm
+                title={t('确认对账吗？')}
+                onConfirm={async () => {
+                  try {
+                    await apiPost('/supplyChain/purchaseReconciliation/approve', {
+                      id: Number(record.id ?? record.reconciliationId ?? 0),
+                      shopId: Number(currentShopId() || 0),
+                      remark: '',
+                    });
+                    Toast.success(t('对账成功'));
+                    setReloadKey((k) => k + 1);
+                  } catch (error) {
+                    Toast.error({ content: errMsg(error, t) });
+                  }
+                }}
+              >
+                <Button theme="borderless" type="primary" size="small">
+                  {t('对账')}
+                </Button>
+              </Popconfirm>
+              <Button
+                theme="borderless"
+                type="danger"
+                size="small"
+                onClick={() => {
+                  setRejectReason('');
+                  setRejectTarget(record);
+                }}
+              >
+                {t('驳回')}
+              </Button>
+            </Space>
+          );
+        }
+        if (status === 3) {
+          return (
+            <Space spacing={2}>
+              <Popconfirm
+                title={t('确认重新提交该对账单吗？')}
+                onConfirm={() =>
+                  runReconciliationAction(
+                    '/supplyChain/purchaseReconciliation/resubmit',
+                    record,
+                    '已重新提交',
+                  )
+                }
+              >
+                <Button theme="borderless" type="primary" size="small">
+                  {t('重新提交')}
+                </Button>
+              </Popconfirm>
+              <Popconfirm
+                title={t('确认作废该对账单吗？作废后来源单据将释放，可重新对账。')}
+                okType="danger"
+                onConfirm={() =>
+                  runReconciliationAction(
+                    '/supplyChain/purchaseReconciliation/void',
+                    record,
+                    '已作废',
+                  )
+                }
+              >
+                <Button theme="borderless" type="danger" size="small">
+                  {t('作废')}
+                </Button>
+              </Popconfirm>
+            </Space>
+          );
+        }
+        return (
           <Text type="tertiary" size="small">--</Text>
-        )
-      ),
+        );
+      },
     },
   ];
 
@@ -3095,7 +3188,7 @@ export function PurchaseReconciliation() {
           {
             field: 'keyword',
             label: t('关键词'),
-            placeholder: t('输入对账单号/供应商'),
+            placeholder: t('输入对账单号'),
             type: 'input',
           },
         ]}
@@ -3128,7 +3221,7 @@ export function PurchaseReconciliation() {
             </Button>
             <Button onClick={resetFilters}>{t('重置')}</Button>
             <Button loading={exporting} onClick={handleExport}>
-              {t('导出EXCEL')}
+              {t('导出JSON')}
             </Button>
             <Button icon={<IconPlus />} type="primary" theme="solid" onClick={() => setCreateOpen(true)}>
               {t('新建对账单')}
@@ -3145,6 +3238,27 @@ export function PurchaseReconciliation() {
           setReloadKey((k) => k + 1);
         }}
       />
+
+      {/* 驳回对账单：后端强制驳回原因非空 */}
+      <Modal
+        title={t('驳回对账单')}
+        visible={rejectTarget !== null}
+        onCancel={() => setRejectTarget(null)}
+        onOk={submitReject}
+        confirmLoading={rejectSaving}
+        okText={t('确认驳回')}
+        cancelText={t('取消')}
+        width={460}
+      >
+        <TextArea
+          placeholder={t('请填写驳回原因（必填）')}
+          value={rejectReason}
+          onChange={(val) => setRejectReason(val)}
+          rows={3}
+          maxCount={200}
+          showClear
+        />
+      </Modal>
     </div>
   );
 }

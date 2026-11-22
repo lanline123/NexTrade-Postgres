@@ -705,15 +705,11 @@ export function SupplierList() {
         }
         filters={[
           {
-            field: 'vendorName',
+            // 后端 supplier/list 只认 keyword（匹配 vendor_name 列）：
+            // 原 vendorName/vendorCode 两框不被接收、搜索无效，合并为 keyword 一框
+            field: 'keyword',
             label: t('供应商名称'),
             placeholder: t('输入供应商名称'),
-            type: 'input',
-          },
-          {
-            field: 'vendorCode',
-            label: t('供应商编号'),
-            placeholder: t('输入供应商编号'),
             type: 'input',
           },
         ]}
@@ -741,6 +737,11 @@ interface SupplierCategoryItem {
   id: number;
   categoryName?: string;
   name?: string;
+  /** 列表行原表键（蛇形）双读：category_name/remark/sort_order */
+  category_name?: string;
+  remark?: string;
+  sortOrder?: number;
+  sort_order?: number;
   status?: number; // 1 启用, 2 禁用
 }
 
@@ -750,19 +751,23 @@ export function SupplierCategories() {
   const [formVisible, setFormVisible] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formState, setFormState] = useState({ categoryName: '', remark: '', status: 1 });
+  const [formState, setFormState] = useState({ categoryName: '', remark: '', status: 1, sortOrder: 50 });
 
   const openForm = (record?: SupplierCategoryItem) => {
     if (record) {
       setEditingId(record.id);
+      // 编辑必须回填备注/排序：原先 remark 写死空串、表单无排序项且提交不带
+      // sortOrder，后端 update 以 remark=''、sortOrder=50 覆盖——每编辑一次
+      // 分类，备注被清空、排序被重置
       setFormState({
-        categoryName: record.categoryName || record.name || '',
-        remark: '',
+        categoryName: record.categoryName || record.category_name || record.name || '',
+        remark: record.remark || '',
         status: Number(record.status) === 2 ? 2 : 1,
+        sortOrder: Number(record.sortOrder ?? record.sort_order ?? 50),
       });
     } else {
       setEditingId(null);
-      setFormState({ categoryName: '', remark: '', status: 1 });
+      setFormState({ categoryName: '', remark: '', status: 1, sortOrder: 50 });
     }
     setFormVisible(true);
   };
@@ -780,6 +785,7 @@ export function SupplierCategories() {
         categoryName: formState.categoryName.trim(),
         status: formState.status,
         remark: formState.remark.trim(),
+        sortOrder: formState.sortOrder,
       });
       Toast.success(t('保存成功'));
       setFormVisible(false);
@@ -903,6 +909,15 @@ export function SupplierCategories() {
             />
           </div>
           <div>
+            <div style={{ marginBottom: 6, fontWeight: 500 }}>{t('排序')}</div>
+            <InputNumber
+              style={{ width: '100%' }}
+              min={0}
+              value={formState.sortOrder}
+              onChange={(val) => setFormState({ ...formState, sortOrder: Number(val) || 0 })}
+            />
+          </div>
+          <div>
             <div style={{ marginBottom: 6, fontWeight: 500 }}>{t('备注')}</div>
             <TextArea
               placeholder={t('请输入备注')}
@@ -919,7 +934,7 @@ export function SupplierCategories() {
 
 /* ==================================================================
    3. 供应商商品 (SupplierProducts / selfVendorProductManage)
-   顶部汇总卡 GET supplyChain/supplierProduct/summary；
+   顶部汇总卡取供应商/供应商商品两列表的 total（原 summary 端点与 list 同 handler、数字恒错）；
    「批量挂接平台商品」抽屉对齐原版 supplierProduct/Manage.vue：
    GET product/product/list 选商品 -> 逐 SKU 设供货价/最小起订量 ->
    POST supplyChain/supplierProduct/batchSave
@@ -964,6 +979,9 @@ function ProductPickerModal({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Array<string | number>>([]);
+  // 跨页已选商品累积（key→行）：原先 confirm 只在当前页 records 里过滤，
+  // 翻页前勾的商品静默丢失——照采购域 ProductSelectorModal 的累积范式修
+  const [pickedMap, setPickedMap] = useState<Map<string, any>>(new Map());
   const pageSize = 10;
 
   useEffect(() => {
@@ -972,6 +990,7 @@ function ProductPickerModal({
     setAppliedKeyword('');
     setPage(1);
     setSelectedKeys([]);
+    setPickedMap(new Map());
   }, [visible]);
 
   useEffect(() => {
@@ -1004,11 +1023,24 @@ function ProductPickerModal({
 
   const rowSelection: any = {
     selectedRowKeys: selectedKeys,
-    onChange: (keys: Array<string | number>) => setSelectedKeys(keys || []),
+    onChange: (keys: Array<string | number>) => {
+      const nextKeys = keys || [];
+      setSelectedKeys(nextKeys);
+      // 仅按当前页行增删累积：本页勾选的加入、本页取消的移出，其他页已选不动
+      setPickedMap((prev) => {
+        const next = new Map(prev);
+        const keySet = new Set(nextKeys.map(String));
+        records.forEach((row) => {
+          if (keySet.has(String(row.key))) next.set(String(row.key), row);
+          else next.delete(String(row.key));
+        });
+        return next;
+      });
+    },
   };
 
   const confirm = () => {
-    const picked = records.filter((row) => selectedKeys.map(String).includes(String(row.key)));
+    const picked = Array.from(pickedMap.values());
     const lines: ProductLinkLine[] = [];
     picked.forEach((row) => {
       const productId = String(row.productId ?? row.id ?? '');
@@ -1039,8 +1071,8 @@ function ProductPickerModal({
       footer={
         <Space>
           <Button onClick={onCancel}>{t('取消')}</Button>
-          <Button theme="solid" type="primary" disabled={selectedKeys.length === 0} onClick={confirm}>
-            {t('确认')}
+          <Button theme="solid" type="primary" disabled={pickedMap.size === 0} onClick={confirm}>
+            {t('确认')} ({pickedMap.size})
           </Button>
         </Space>
       }
@@ -1348,14 +1380,19 @@ export function SupplierProducts() {
   useEffect(() => {
     let alive = true;
     setSummaryLoading(true);
-    apiGet<any>('/supplyChain/supplierProduct/summary', { page: 1, size: 100 })
-      .then((res) => {
+    // 原先调的 supplierProduct/summary 与 list 是同一 handler：返回的是商品行
+    // 分页（total=商品行数、行里没有 productCount），「供应商数量」实为商品行数、
+    // 「挂接商品总数」恒 0。改为两个口径属实的总数查询（后端真聚合端点已登记立项）：
+    // 供应商数量=供应商列表 total、挂接商品总数=供应商商品列表 total
+    Promise.all([
+      apiGet<any>('/supplyChain/supplier/list', { page: 1, size: 1 }).catch(() => null),
+      apiGet<any>('/supplyChain/supplierProduct/list', { page: 1, size: 1 }).catch(() => null),
+    ])
+      .then(([supplierRes, productRes]) => {
         if (!alive) return;
-        const records = res.records || [];
-        setSupplierTotal(Number(res.total ?? records.length) || 0);
-        setProductTotal(records.reduce((sum: number, item: any) => sum + (Number(item.productCount) || 0), 0));
+        setSupplierTotal(Number(supplierRes?.total ?? 0) || 0);
+        setProductTotal(Number(productRes?.total ?? 0) || 0);
       })
-      .catch(() => undefined)
       .finally(() => alive && setSummaryLoading(false));
     return () => {
       alive = false;
@@ -1418,7 +1455,7 @@ export function SupplierProducts() {
             </div>
           </div>
           <Text type="tertiary" size="small">
-            {t('数据来源：supplyChain/supplierProduct/summary（取前 100 家供应商聚合）')}
+            {t('数据来源：供应商列表与供应商商品列表的总数')}
           </Text>
         </div>
       </Card>
@@ -1439,12 +1476,9 @@ export function SupplierProducts() {
             placeholder: t('输入商品名称/货号'),
             type: 'input',
           },
-          {
-            field: 'supplierId',
-            label: t('供应商'),
-            placeholder: t('输入供应商名称'),
-            type: 'input',
-          },
+          // 原「供应商」筛选框 field=supplierId：后端 Pg 无此字段（且文案让填
+          // 名称、后端只可能按数字 id 过滤），输入毫无效果——已撤除，
+          // 按供应商过滤待后端给 list 补 vendorId 过滤后恢复
         ]}
       />
 

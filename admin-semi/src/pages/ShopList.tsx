@@ -7,6 +7,7 @@ import {
   Image,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Tag,
   Toast,
@@ -85,10 +86,55 @@ function chipDisplayName(chip: ShopLabelAssignment): string {
 export default function ShopList() {
   const { t } = useI18n();
   const [reloadKey, setReloadKey] = useState(0);
+  /** 跨页跳转携带的初始筛选（商户页「已绑定店铺」跳入时带 corporateName 商户名）：
+   * 原先参数无人接收、落地是全量列表，现经 ListPage initialFilters 注入。 */
+  const [initialFilters] = useState<Record<string, any>>(() => {
+    const corporateName = new URLSearchParams(window.location.search).get('corporateName');
+    return corporateName ? { corporateName } : {};
+  });
   const [merchantModalVisible, setMerchantModalVisible] = useState(false);
   const [selectedMerchant, setSelectedMerchant] = useState<ShopMerchant | null>(null);
   const [adminModalVisible, setAdminModalVisible] = useState(false);
   const [selectedShop, setSelectedShop] = useState<ShopRow | null>(null);
+  /** 主账号换绑：管理员候选（/admin/adminAccount/pageAdminUser）+ 待绑定管理员。
+   * 原弹窗只有只读信息 + 关闭按钮，「管理」无任何动作，现接 bindMainAccount 真接口。 */
+  const [adminOptions, setAdminOptions] = useState<Array<{ adminId: number; username?: string; mobile?: string }>>([]);
+  const [bindAdminId, setBindAdminId] = useState<number | undefined>(undefined);
+  const [bindSaving, setBindSaving] = useState(false);
+
+  useEffect(() => {
+    if (!adminModalVisible) return;
+    setBindAdminId(selectedShop?.merchant?.admin?.adminId);
+    apiGet<{ records: Array<{ adminId: number; username?: string; mobile?: string }> }>(
+      '/admin/adminAccount/pageAdminUser',
+      { page: 1, size: 100 },
+    )
+      .then((result) => setAdminOptions(result.records || []))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminModalVisible]);
+
+  const submitBindMainAccount = async () => {
+    if (!selectedShop || !bindAdminId) {
+      Toast.warning({ content: t('请选择要绑定的管理员') });
+      return;
+    }
+    setBindSaving(true);
+    try {
+      await apiPost('/admin/adminAccount/bindMainAccount', {
+        id: selectedShop.shopId,
+        type: 'shop',
+        adminData: { type: 2, adminId: bindAdminId },
+      });
+      Toast.success({ content: t('主账号绑定成功') });
+      setAdminModalVisible(false);
+      setReloadKey((k) => k + 1);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('绑定失败') });
+    } finally {
+      setBindSaving(false);
+    }
+  };
   // 店铺标签（本平台新增）：标签库 + 全量分配，平台账号才可读，失败静默
   const [labelLibrary, setLabelLibrary] = useState<ShopLabelItem[]>([]);
   const [labelMap, setLabelMap] = useState<Map<number, ShopLabelAssignment[]>>(new Map());
@@ -204,7 +250,9 @@ export default function ShopList() {
           merchant.type === 2
             ? merchant.merchantData?.merchantName || merchant.companyName || '--'
             : merchant.corporateName || '--';
-        const isCertified = merchant.status === 1;
+        // 商户 status 只有 1=正常 / 2=取消资格（后端 MerchantStatus），
+        // 原 (已认证)/(未认证) 标签把「取消资格」误示为未认证
+        const isNormal = merchant.status === 1;
 
         return (
           <Space>
@@ -216,13 +264,13 @@ export default function ShopList() {
                 setMerchantModalVisible(true);
               }}
             >
-              {isCertified ? (
+              {isNormal ? (
                 <Tag color="green" size="small">
-                  {t('(已认证)')}
+                  {t('(正常)')}
                 </Tag>
               ) : (
-                <Tag color="grey" size="small">
-                  {t('(未认证)')}
+                <Tag color="red" size="small">
+                  {t('(取消资格)')}
                 </Tag>
               )}
             </span>
@@ -308,6 +356,7 @@ export default function ShopList() {
         pageSize={10}
         selectable
         actionWidth={240}
+        initialFilters={initialFilters}
         filters={[
           {
             field: 'keyword',
@@ -429,6 +478,8 @@ export default function ShopList() {
                   options: [
                     { label: t('开业'), value: 1 },
                     { label: t('停业'), value: 4 },
+                    // 与同页筛选/状态列对齐补打烊(10)：原缺此项，打烊店铺编辑时 radio 无选中项
+                    { label: t('打烊'), value: 10 },
                   ],
                 },
                 {
@@ -562,33 +613,60 @@ export default function ShopList() {
           )}
       </Modal>
 
-      {/* 主账号管理弹窗 */}
+      {/* 主账号管理弹窗：展示当前主账号 + 选择管理员换绑（bindMainAccount） */}
       <Modal
         title={t('主账号管理')}
         visible={adminModalVisible}
         onCancel={() => setAdminModalVisible(false)}
         footer={
-          <Button type="primary" onClick={() => setAdminModalVisible(false)}>
-            {t('确定')}
-          </Button>
+          <Space>
+            <Button onClick={() => setAdminModalVisible(false)}>{t('取消')}</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={bindSaving}
+              disabled={!bindAdminId || bindAdminId === selectedShop?.merchant?.admin?.adminId}
+              onClick={submitBindMainAccount}
+            >
+              {t('保存绑定')}
+            </Button>
+          </Space>
         }
         width={500}
       >
         {selectedShop && (
-          <Descriptions
-            data={[
-              { key: t('店铺ID'), value: selectedShop.shopId },
-              { key: t('店铺名称'), value: selectedShop.shopTitle || selectedShop.shopName || '--' },
-              {
-                key: t('主账号管理员'),
-                value: selectedShop.merchant?.admin?.username || t('未绑定主账号'),
-              },
-              {
-                key: t('管理员ID'),
-                value: selectedShop.merchant?.admin?.adminId || '--',
-              },
-            ]}
-          />
+          <>
+            <Descriptions
+              data={[
+                { key: t('店铺ID'), value: selectedShop.shopId },
+                { key: t('店铺名称'), value: selectedShop.shopTitle || selectedShop.shopName || '--' },
+                {
+                  key: t('主账号管理员'),
+                  value: selectedShop.merchant?.admin?.username || t('未绑定主账号'),
+                },
+                {
+                  key: t('管理员ID'),
+                  value: selectedShop.merchant?.admin?.adminId || '--',
+                },
+              ]}
+            />
+            <div style={{ marginTop: 14 }}>
+              <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                {t('绑定管理员')}
+              </Text>
+              <Select
+                style={{ width: '100%' }}
+                placeholder={t('请选择管理员')}
+                value={bindAdminId}
+                optionList={adminOptions.map((item) => ({
+                  label: item.mobile ? `${item.username || item.adminId}（${item.mobile}）` : item.username || String(item.adminId),
+                  value: item.adminId,
+                }))}
+                onChange={(next) => setBindAdminId(Number(next))}
+                filter
+              />
+            </div>
+          </>
         )}
       </Modal>
     </>

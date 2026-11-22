@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Avatar,
   Button,
@@ -196,6 +196,9 @@ export default function CustomerBlacklist() {
   const [exporting, setExporting] = useState(false);
   const [detailEntry, setDetailEntry] = useState<BlacklistEntryRow | null>(null);
   const [removeTargets, setRemoveTargets] = useState<BlacklistEntryRow[]>([]);
+  /** 批量栏的清选回调：原先点「批量移除」在确认弹窗弹出前就 clear()，
+   * 用户取消后勾选全丢——改为移除成功后才清选（回调由 batchActions 渲染时登记）。 */
+  const clearSelectionRef = useRef<(() => void) | null>(null);
 
   /**
    * 导出 xlsx。注意：ListPage 框架不向页面暴露当前筛选值（filterValues 为
@@ -248,20 +251,16 @@ export default function CustomerBlacklist() {
         actionWidth={160}
         selectable
         filterLayout="popover"
-        batchActions={(rows, clear) => (
-          <Space>
-            <Button
-              size="small"
-              type="danger"
-              onClick={() => {
-                openRemove(rows);
-                clear();
-              }}
-            >
-              {t('批量移除')}
-            </Button>
-          </Space>
-        )}
+        batchActions={(rows, clear) => {
+          clearSelectionRef.current = clear;
+          return (
+            <Space>
+              <Button size="small" type="danger" onClick={() => openRemove(rows)}>
+                {t('批量移除')}
+              </Button>
+            </Space>
+          );
+        }}
         toolbarExtra={
           <Space>
             <Button theme="solid" type="primary" onClick={() => setAddVisible(true)}>
@@ -379,6 +378,7 @@ export default function CustomerBlacklist() {
         onCancel={() => setRemoveTargets([])}
         onSuccess={() => {
           setRemoveTargets([]);
+          clearSelectionRef.current?.();
           setReloadKey((key) => key + 1);
         }}
       />

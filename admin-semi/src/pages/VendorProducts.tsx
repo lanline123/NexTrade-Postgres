@@ -193,17 +193,18 @@ export default function VendorProducts() {
         columns={columns}
         batchActions={(rows, clear) => (
           <Space>
-            <Button
-              size="small"
-              type="primary"
-              disabled={rows.length === 0}
-              onClick={async () => {
+            {/* 与单个导入对齐补二次确认：原先点击即批量导入，误点成本高 */}
+            <Popconfirm
+              title={t('确定导入所选 {count} 个供应商商品吗？', { count: rows.length })}
+              onConfirm={async () => {
                 await importProduct(rows.map((r) => r.id));
                 clear();
               }}
             >
-              {t('批量导入')}
-            </Button>
+              <Button size="small" type="primary" disabled={rows.length === 0}>
+                {t('批量导入')}
+              </Button>
+            </Popconfirm>
           </Space>
         )}
         rowActions={(record) => (

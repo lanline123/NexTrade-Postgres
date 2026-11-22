@@ -33,13 +33,13 @@ type MemberAction = 'detail' | 'tags' | 'orders' | 'account' | null;
 
 function MemberStatusSwitch({ record }: { record: MemberRow }) {
   const { t } = useI18n();
+  // 受控于行数据（原先 useState 只取挂载初值，翻页/筛选后行复用会回显上一行状态）
   const [checked, setChecked] = useState(record.status === 1);
+  useEffect(() => {
+    setChecked(record.status === 1);
+  }, [record.userId, record.status]);
 
-  const toggle = async (next: boolean) => {
-    if (isDemo()) {
-      Toast.warning({ content: t('演示模式不支持操作') });
-      return;
-    }
+  const doToggle = async (next: boolean) => {
     try {
       await apiPost('/user/user/updateField', {
         id: record.userId,
@@ -51,6 +51,25 @@ function MemberStatusSwitch({ record }: { record: MemberRow }) {
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : t('操作失败') });
     }
+  };
+
+  const toggle = async (next: boolean) => {
+    if (isDemo()) {
+      Toast.warning({ content: t('演示模式不支持操作') });
+      return;
+    }
+    // 禁用方向影响该会员登录/下单，须二次确认；启用直通
+    if (!next) {
+      Modal.confirm({
+        title: t('禁用会员'),
+        content: t('确定禁用会员「{name}」？禁用后该会员将无法登录与下单。', {
+          name: record.username || String(record.userId),
+        }),
+        onOk: () => doToggle(false),
+      });
+      return;
+    }
+    await doToggle(true);
   };
 
   return <Switch checked={checked} onChange={toggle} size="small" />;
@@ -184,6 +203,11 @@ function BatchMemberModal({
     }
     if (type === 'rank' && !rankId) {
       Toast.warning({ content: t('请选择客户等级') });
+      return;
+    }
+    // 积分/余额金额必须 > 0：原先默认 0 且无校验，忘填会提交一次 0 值「成功」，账面无变化难排查
+    if ((type === 'points' || type === 'balance') && !(Number(value) > 0)) {
+      Toast.warning({ content: type === 'points' ? t('请输入大于 0 的积分') : t('请输入大于 0 的金额') });
       return;
     }
     setSaving(true);
@@ -674,7 +698,7 @@ export default function Members() {
             </Button>
           </label>
           <Text type="tertiary" size="small">
-            {t('按模板填写会员信息后导入；导入失败的行可通过错误数据下载查看。')}
+            {t('按模板填写会员信息后导入。')}
           </Text>
         </div>
       </Modal>

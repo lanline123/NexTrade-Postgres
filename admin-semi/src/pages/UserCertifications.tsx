@@ -361,6 +361,9 @@ export default function UserCertifications() {
         rowKey="id"
         pageSize={10}
         selectable
+        // 与行内删除口径一致：仅已拒绝(3)的认证可删。后端 batch del 无状态校验，
+        // 原先批量删除可硬删待审核/已通过记录——此处从勾选源头禁掉非 3 状态行
+        rowSelectable={(row) => Number(row.status) === 3}
         actionWidth={140}
         query={listQuery}
         filters={[

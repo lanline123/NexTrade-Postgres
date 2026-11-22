@@ -42,11 +42,17 @@ const SHIPPING_STATUS_OPTIONS = [
   { label: '待发货', value: 0 },
   { label: '已发货', value: 1 },
   { label: '已收货', value: 2 },
-  { label: '配送中', value: 3 },
-  { label: '配送失败', value: 4 },
+  // 后端 ShippingStatus：3=配送失败、4=配送中（原列表两项对调，按「配送中」导出实际导的是配送失败单）
+  { label: '配送失败', value: 3 },
+  { label: '配送中', value: 4 },
+  { label: '已发货，待配送', value: 5 },
 ];
 
-const formatDate = (date: Date) => date.toISOString().slice(0, 10);
+/** 按本地时区拼 yyyy-MM-dd（原 toISOString 是 UTC，CST 清晨会把默认结束日期算成昨天） */
+const formatDate = (date: Date) => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
 
 /** 后端导出字段值可能为字符串或 {key,label} 对象，统一归一化为展示文本。 */
 const toExportItems = (source: Record<string, unknown>) =>
@@ -115,7 +121,10 @@ export default function OrderExport() {
   };
 
   const saveTag = async () => {
-    if (!selected.length) return;
+    if (!selected.length) {
+      Toast.warning({ content: t('请先选择导出字段') });
+      return;
+    }
     try {
       await apiPost('/order/order/saveExportItem', {
         exportItem: selected.map((item) => item.key).join(','),
@@ -137,6 +146,16 @@ export default function OrderExport() {
       const res = await fetch(`/adminapi/order/order/orderExport?${params.toString()}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
+      if (!res.ok) {
+        let message = '';
+        try {
+          const json = await res.json();
+          message = json?.msg || json?.message || '';
+        } catch {
+          message = '';
+        }
+        throw new Error(message || t('导出失败'));
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -160,7 +179,7 @@ export default function OrderExport() {
         <div className="order-export-notice">
           <p>{t('提示：')}</p>
           <p>{t('1、如果数据量过大导至查询时间过久或者直接显示超时报错，请尝试缩小查询的时间间隔！')}</p>
-          <p>{t('2、可通过单击可增加项和导出项目来选择需要导出的参数，也可通过拖拽项目来调整参数排序（商品信息栏目默认在单行最后）')}</p>
+          <p>{t('2、可通过单击可增加项和导出项目来选择需要导出的参数，导出列顺序与选择顺序一致（商品信息栏目默认在单行最后）')}</p>
         </div>
 
         <Space wrap>
@@ -172,7 +191,7 @@ export default function OrderExport() {
             style={{ width: 240 }}
           />
           <Select
-            placeholder={t('请选择支付状态')}
+            placeholder={t('订单状态')}
             value={filters.orderStatus}
             optionList={localizeOptions(ORDER_STATUS_OPTIONS)}
             onChange={(next) => setFilters((c) => ({ ...c, orderStatus: next }))}

@@ -45,12 +45,16 @@ const statusTabs = [
   { tab: '已取消', key: '3' },
 ];
 
-const statusColor: Record<string, string> = {
-  待付款: 'orange',
-  待发货: 'blue',
-  待收货: 'cyan',
-  已完成: 'green',
-  已取消: 'grey',
+/** 订单状态配色按码值（后端 OrderStatus：0 待支付/1 已确认待发货/2 处理中已发货/
+ * 3 已取消/4 无效/5 已完成）。原实现按文案 key 匹配，但后端下发文案是
+ * 「待支付/已确认，待发货/处理中，已发货」，与 key 全对不上，配色恒落默认蓝。 */
+const statusColorByCode: Record<number, string> = {
+  0: 'orange',
+  1: 'blue',
+  2: 'cyan',
+  3: 'grey',
+  4: 'grey',
+  5: 'green',
 };
 
 type OrderFilters = {
@@ -374,8 +378,11 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
             value={filters.payStatus}
             optionList={[
               { label: t('全部'), value: -1 },
-              { label: t('未付款'), value: 0 },
-              { label: t('已付款'), value: 1 },
+              { label: t('未支付'), value: 0 },
+              { label: t('支付中'), value: 1 },
+              { label: t('已支付'), value: 2 },
+              { label: t('退款中'), value: 3 },
+              { label: t('已退款'), value: 4 },
             ]}
             onChange={(next) =>
               setFilters((current) => ({
@@ -421,9 +428,12 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
             value={filters.shippingStatus}
             optionList={[
               { label: t('全部'), value: -1 },
-              { label: t('未发货'), value: 0 },
-              { label: t('部分发货'), value: 1 },
-              { label: t('已发货'), value: 2 },
+              { label: t('待发货'), value: 0 },
+              { label: t('已发货'), value: 1 },
+              { label: t('已收货'), value: 2 },
+              { label: t('配送失败'), value: 3 },
+              { label: t('配送中'), value: 4 },
+              { label: t('已发货，待配送'), value: 5 },
             ]}
             onChange={(next) =>
               setFilters((current) => ({
@@ -611,8 +621,12 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
               render: (value: string, record: OrderRow) => (
                 <div className="order-status-cell">
                   <Space spacing={4} wrap>
-                    <Tag color={(statusColor[value] || 'blue') as any}>{value ? t(value) : '-'}</Tag>
-                    <Tag color={record.payStatusName === '已付款' ? 'green' : 'orange'}>
+                    <Tag color={(statusColorByCode[record.orderStatus] || 'blue') as any}>{value ? t(value) : '-'}</Tag>
+                    <Tag
+                      color={
+                        record.payStatus === 2 ? 'green' : record.payStatus === 4 ? 'grey' : 'orange'
+                      }
+                    >
                       {record.payStatusName ? t(record.payStatusName) : '-'}
                     </Tag>
                   </Space>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Modal, Space, Toast } from '@douyinfe/semi-ui';
+import { Button, Modal, Toast } from '@douyinfe/semi-ui';
 import { apiPost } from '../api';
 import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
@@ -73,34 +73,9 @@ export default function ProductGifts() {
           {t('批量删除')}
         </Button>
       )}
-      rowActions={(row) => (
-        <Space spacing={2}>
-          <Button theme="borderless" size="small">
-            {t('编辑')}
-          </Button>
-          <Button
-            theme="borderless"
-            type="danger"
-            size="small"
-            onClick={() => {
-              Modal.confirm({
-                title: t('确认删除该赠品吗？'),
-                onOk: async () => {
-                  try {
-                    await apiPost('/promotion/productGift/del', { id: row.giftId });
-                    Toast.success({ content: t('删除成功') });
-                    reload();
-                  } catch (error) {
-                    Toast.error({ content: error instanceof Error ? error.message : t('删除失败') });
-                  }
-                },
-              });
-            }}
-          >
-            {t('删除')}
-          </Button>
-        </Space>
-      )}
+      /* 操作列由 ListPage 框架按 drawer 配置统一渲染（编辑 + 删除带确认）；
+         此前另挂 rowActions 又给了一份编辑/删除，导致操作列出现两组按钮，
+         且其中的「编辑」无 onClick 是死按钮，故删除整段 rowActions。 */
       drawer={{
         title: '赠品',
         addText: '添加赠品',

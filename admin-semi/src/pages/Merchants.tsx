@@ -141,7 +141,7 @@ export default function Merchants() {
             ['入驻形态', typeLabel],
             ['管理员', record.admin?.username],
             ['已绑定店铺', String(record.shopCount ?? 0)],
-            ['认证状态', record.statusText || (record.status === 1 ? t('已认证') : t('未认证'))],
+            ['商户状态', record.statusText || (record.status === 1 ? t('正常') : t('取消资格'))],
             ['结算周期', t('{days} 天', { days: record.settlementCycle ?? 1 })],
             ['认证日期', record.addTime],
           ])}
@@ -297,7 +297,9 @@ export default function Merchants() {
           onClick={() => {
             const url = new URL(window.location.href);
             url.searchParams.set('page', 'shopManage');
-            url.searchParams.set('keyword', record.companyName || record.corporateName || '');
+            // 店铺页的商户名筛选字段是 corporateName（keyword 是店铺名）；
+            // 原先把商户名塞进 keyword 且目标页不读 URL 参数，跳转后根本不筛选
+            url.searchParams.set('corporateName', record.companyName || record.corporateName || '');
             window.location.href = url.toString();
           }}
         >
@@ -306,15 +308,17 @@ export default function Merchants() {
       ),
     },
     {
-      title: '认证状态',
+      // 后端商户 status 只有 1=正常 / 2=取消资格（MerchantStatus），并无「未认证」态；
+      // 原列名与兜底文案写作认证状态/未认证，会把「取消资格」误显示成未认证
+      title: '商户状态',
       dataIndex: 'statusText',
       width: 120,
       render: (value: string, record) => {
-        const isCertified = record.status === 1;
+        const isNormal = record.status === 1;
         return (
           <Space>
-            <Badge dot type={isCertified ? 'success' : 'danger'} style={{ marginRight: 4 }} />
-            <span>{value || (isCertified ? t('已认证') : t('未认证'))}</span>
+            <Badge dot type={isNormal ? 'success' : 'danger'} style={{ marginRight: 4 }} />
+            <span>{value || (isNormal ? t('正常') : t('取消资格'))}</span>
           </Space>
         );
       },
@@ -399,7 +403,10 @@ export default function Merchants() {
                   label: t('企业名称'),
                   type: 'input',
                   placeholder: t('请输入企业全称'),
-                  requiredWhen: (mode) => true,
+                  // 原 requiredWhen 恒 true：个人商户（type=1）也被迫填企业全称，
+                  // 与详情页个人走 corporateName 的口径矛盾；框架 requiredWhen 不支持
+                  // 按表单值联动，故改为非强制并以文案提示适用类型
+                  extraText: t('企业 / 个体工商户请填写，个人可留空'),
                 },
                 {
                   field: 'corporateName',
@@ -417,12 +424,14 @@ export default function Merchants() {
                 },
                 {
                   field: 'status',
-                  label: t('认证状态'),
+                  // 后端 status：1=正常、2=取消资格。原选项把 2 标作「未认证」，
+                  // 选它保存等于取消商户资格——高危误标，必须按后端语义呈现
+                  label: t('商户状态'),
                   type: 'radio',
                   initValue: 1,
                   options: [
-                    { label: t('已认证'), value: 1 },
-                    { label: t('未认证'), value: 2 },
+                    { label: t('正常'), value: 1 },
+                    { label: t('取消资格'), value: 2 },
                   ],
                 },
               ],

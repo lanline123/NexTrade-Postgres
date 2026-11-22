@@ -11,7 +11,7 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { apiGet, apiPost, getToken } from '../api';
+import { apiGet, getToken } from '../api';
 import ProductPicker from '../components/ProductPicker';
 import { useI18n } from '../i18n';
 
@@ -66,6 +66,27 @@ export default function ProductBatch({ mode }: ProductBatchPageProps) {
   >([]);
   const [submitting, setSubmitting] = useState(false);
 
+  /** 下载类接口统一处理：先判响应成败，失败时解析错误信封提示，绝不把错误 JSON 存成表格文件。 */
+  const downloadBlob = async (res: Response, filename: string) => {
+    if (!res.ok) {
+      let message = '';
+      try {
+        const json = await res.json();
+        message = json?.msg || json?.message || '';
+      } catch {
+        message = '';
+      }
+      throw new Error(message || t('下载失败'));
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const submitExport = async () => {
     setExporting(true);
     try {
@@ -77,13 +98,8 @@ export default function ProductBatch({ mode }: ProductBatchPageProps) {
       const res = await fetch(`/adminapi/product/productBatch/productBatchDeal?${params.toString()}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = t('商品批量导出.csv');
-      link.click();
-      URL.revokeObjectURL(url);
+      // 后端 productBatchDeal 返回 xlsx 二进制（文件名 products.xlsx），扩展名须与实际格式一致
+      await downloadBlob(res, t('商品批量导出.xlsx'));
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : t('导出失败') });
     } finally {
@@ -96,15 +112,9 @@ export default function ProductBatch({ mode }: ProductBatchPageProps) {
       const res = await fetch('/adminapi/product/productBatch/downloadTemplate', {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = t('商品批量导入模板.xlsx');
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      Toast.error({ content: t('模板下载失败') });
+      await downloadBlob(res, t('商品批量导入模板.xlsx'));
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('模板下载失败') });
     }
   };
 
@@ -123,13 +133,37 @@ export default function ProductBatch({ mode }: ProductBatchPageProps) {
         form.append('isChangePic', '0');
         form.append('isUpload', '1');
       }
-      const result = await apiPost<{ msg?: string }>(
-        mode === 'add' ? '/product/productBatch/productBatchDeal' : '/product/productBatch/productBatchModify',
-        form as unknown as Record<string, unknown>,
-      );
+      // 导入/修改均走 POST /product/productBatch/productBatchModify（multipart）：
+      // 原先 add 模式误投 GET 导出端点 productBatchDeal（405），且 apiPost 固定 JSON
+      // 序列化会把 FormData 变成 "{}"，文件根本发不出去——故此处用原生 fetch 直传。
+      const res = await fetch('/adminapi/product/productBatch/productBatchModify', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: form,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || (json.code !== undefined && json.code !== 0)) {
+        throw new Error(json.msg || json.message || t('导入失败'));
+      }
+      const vo = (json.data || {}) as {
+        addNum?: number;
+        updateNum?: number;
+        failNum?: number;
+        errorMsg?: string;
+        errorList?: string[];
+      };
+      const lines = [
+        t('新增 {add} 条，更新 {update} 条，失败 {fail} 条', {
+          add: vo.addNum ?? 0,
+          update: vo.updateNum ?? 0,
+          fail: vo.failNum ?? 0,
+        }),
+      ];
+      if (vo.errorMsg) lines.push(vo.errorMsg);
+      (vo.errorList || []).slice(0, 20).forEach((item) => lines.push(item));
       Modal.info({
         title: t('导入结果'),
-        content: result?.msg || t('导入完成'),
+        content: lines.join('\n'),
         maskClosable: true,
       });
     } catch (error) {

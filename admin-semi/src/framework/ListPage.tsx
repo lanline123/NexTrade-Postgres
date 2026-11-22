@@ -88,6 +88,7 @@ export default function ListPage<T extends Record<string, any>>({
   rowKey,
   columns,
   filters = [],
+  initialFilters,
   query,
   pageSize = 10,
   drawer,
@@ -114,7 +115,7 @@ export default function ListPage<T extends Record<string, any>>({
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(!isDemo());
   const [reloadKey, setReloadKey] = useState(0);
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, any>>(initialFilters ?? {});
   const [selectedKeys, setSelectedKeys] = useState<Array<string | number>>([]);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -246,9 +247,14 @@ export default function ListPage<T extends Record<string, any>>({
     request
       .then((result) => {
         if (!alive) return;
-        setRows(result.records || []);
-        setTotal(result.total || 0);
-        onDataLoaded?.({ total: result.total || 0, rows: result.records || [] });
+        // 信封兜底：个别后端列表接口直接返回裸数组（如 /wholesale/grade/list 的
+        // ApiResult<Vec<VO>>），原先 result.records 恒 undefined、列表恒空——
+        // 数组时以数组为 rows、长度为 total；标准 {records,total} 信封行为不变。
+        const rows = result.records ?? (Array.isArray(result) ? result : []);
+        const total = result.total ?? rows.length;
+        setRows(rows);
+        setTotal(total);
+        onDataLoaded?.({ total, rows });
       })
       .catch((error) => alive && Toast.error({ content: error.message }))
       .finally(() => alive && setLoading(false));

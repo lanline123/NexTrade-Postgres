@@ -88,10 +88,10 @@ export function Wholesalers() {
   const handleStatusChange = async (record: WholesalerRow, checked: boolean) => {
     const nextStatus = checked ? 1 : 0;
     try {
-      await apiPost('/wholesale/wholesaler/setStatus', {
-        wholesalerId: record.wholesalerId,
-        status: nextStatus,
-      });
+      // 后端 setStatus 收 Query 参数：原先发 JSON body 恒报参数缺失、开关必失败
+      await apiPost(
+        `/wholesale/wholesaler/setStatus?wholesalerId=${record.wholesalerId}&status=${nextStatus}`,
+      );
       Toast.success({ content: nextStatus === 1 ? t('已启用该批发商') : t('已禁用该批发商') });
       setReloadKey((k) => k + 1);
     } catch (error) {
@@ -139,10 +139,10 @@ export function Wholesalers() {
     if (!currentWholesaler || !targetGradeId) return;
     setGradeLoading(true);
     try {
-      await apiPost('/wholesale/wholesaler/changeGrade', {
-        wholesalerId: currentWholesaler.wholesalerId,
-        gradeId: targetGradeId,
-      });
+      // 同 setStatus：changeGrade 也是 Query 口径
+      await apiPost(
+        `/wholesale/wholesaler/changeGrade?wholesalerId=${currentWholesaler.wholesalerId}&gradeId=${targetGradeId}`,
+      );
       Toast.success({ content: t('修改等级成功') });
       setGradeVisible(false);
       setReloadKey((k) => k + 1);

@@ -467,7 +467,11 @@ export default function ShopCustomers() {
               prefix={<IconSearch />}
               placeholder={t('昵称 / 手机号 / 邮箱')}
               value={keyword}
-              onChange={(v) => setKeyword(v)}
+              onChange={(v) => {
+                // 筛选变化须回第一页：原先停在旧页码，筛选后结果少时直接落到空页
+                setKeyword(v);
+                setMemberPage(1);
+              }}
               onEnterPress={() => {
                 setMemberPage(1);
                 void loadMembers();
@@ -478,25 +482,37 @@ export default function ShopCustomers() {
             <InputNumber
               placeholder={t('消费金额起')}
               value={amountMin}
-              onChange={(v) => setAmountMin(v ?? '')}
+              onChange={(v) => {
+                setAmountMin(v ?? '');
+                setMemberPage(1);
+              }}
               style={{ width: 130 }}
             />
             <InputNumber
               placeholder={t('消费金额止')}
               value={amountMax}
-              onChange={(v) => setAmountMax(v ?? '')}
+              onChange={(v) => {
+                setAmountMax(v ?? '');
+                setMemberPage(1);
+              }}
               style={{ width: 130 }}
             />
             <DatePicker
               type="dateRange"
               placeholder={[t('入会开始'), t('入会结束')]}
-              onChange={(d: unknown) => setJoinRange(d)}
+              onChange={(d: unknown) => {
+                setJoinRange(d);
+                setMemberPage(1);
+              }}
               style={{ width: 260 }}
             />
             <DatePicker
               type="dateRange"
               placeholder={[t('最近消费开始'), t('最近消费结束')]}
-              onChange={(d: unknown) => setConsumeRange(d)}
+              onChange={(d: unknown) => {
+                setConsumeRange(d);
+                setMemberPage(1);
+              }}
               style={{ width: 260 }}
             />
             <Button
