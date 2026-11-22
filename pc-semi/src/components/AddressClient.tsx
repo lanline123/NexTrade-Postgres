@@ -257,10 +257,14 @@ export default function AddressClient() {
                 onSuccess={() => load(page)}
             />
 
-            {/* 删除地址二次确认（DeleteRecord 对照） */}
+            {/* 删除地址二次确认（DeleteRecord 对照）。
+                后端删除默认地址后不递补默认（user_address_client delete 仅删行），
+                删默认时须明示后果，避免用户删完才发现已无默认地址。 */}
             <MemberDeleteConfirm
                 visible={Boolean(deleteId)}
-                text={t('您确认要删除该地址吗？')}
+                text={rows.some((row) => row.addressId === deleteId && Number(row.isDefault) === 1)
+                    ? t('该地址是默认地址，删除后将没有默认地址。您确认要删除吗？')
+                    : t('您确认要删除该地址吗？')}
                 onCancel={() => setDeleteId(0)}
                 onConfirm={remove}
             />

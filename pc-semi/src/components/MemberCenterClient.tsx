@@ -94,6 +94,8 @@ export default function MemberCenterClient() {
   const [recommend, setRecommend] = useState<RecommendProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [needLogin, setNeedLogin] = useState(false);
+  /** 非登录类加载失败（如网络/服务异常）：不能把空仪表盘当真实数据展示，单独给错误态+重试 */
+  const [loadError, setLoadError] = useState('');
   const [recommendLoading, setRecommendLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   /** D1146：评价总开关（原版 commonStore.productCommentEnabled） */
@@ -122,7 +124,11 @@ export default function MemberCenterClient() {
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : '';
-        setNeedLogin(message.includes('登录') || message.includes('401'));
+        if (message.includes('登录') || message.includes('401')) {
+          setNeedLogin(true);
+        } else {
+          setLoadError(message || (t('会员信息加载失败') as string));
+        }
         Toast.error({ content: message || t('会员信息加载失败') });
       })
       .finally(() => setLoading(false));
@@ -217,6 +223,16 @@ export default function MemberCenterClient() {
     );
   }
 
+  if (loadError) {
+    return (
+      <Card className="mh-login">
+        <h2>{t('会员信息加载失败')}</h2>
+        <p>{loadError}</p>
+        <button type="button" className="mh-login__btn" onClick={() => window.location.reload()}>{t('重试')}</button>
+      </Card>
+    );
+  }
+
   const verified = Number(info.isCompanyAuth) > 0;
   // 原版：v-if="isB2B() && commonStore.closeAuth === 1"
   const showAuthBadge = IS_B2B && closeAuth === 1;
@@ -239,7 +255,7 @@ export default function MemberCenterClient() {
                 <Link
                   href="/member/usercertification/info"
                   className={`mh-hero__auth${verified ? ' is-verified' : ''}`}
-                  title={verified ? t('已认证') : '未认证'}
+                  title={verified ? t('已认证') : t('未认证')}
                 >
                   <i className="mh-hero__auth-ico" aria-hidden="true">
                     <svg viewBox="0 0 48 48" aria-hidden="true">

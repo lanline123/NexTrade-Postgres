@@ -156,7 +156,7 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
     apiGet<AfterSaleDetail>('user/aftersales/detail', { id })
       .then((result) => {
         setDetail(result || null);
-        setLogInfo(result?.aftersalesLog?.[0]?.logInfo ? '' : '');
+        setLogInfo('');
         setReturnAddress(result?.returnAddress || '');
         setLogisticsName(result?.logisticsName || '');
         setTrackingNo(result?.trackingNo || '');
@@ -164,7 +164,12 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : '';
-        setNeedLogin(message.includes('登录') || message.includes('401'));
+        if (message.includes('登录') || message.includes('401')) {
+          setNeedLogin(true);
+        } else {
+          // 非登录类失败不能伪装成「售后单不存在」，显式报错
+          Toast.error({ content: message || t('售后详情加载失败') });
+        }
       })
       .finally(() => setLoading(false));
   };

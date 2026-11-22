@@ -110,12 +110,12 @@ export default function MemberCouponCard({
           </div>
         ) : null}
         {status === 4 ? (
-          <div className="use-btn disable-btn" onClick={handleUse}>
+          <div className="use-btn disable-btn">
             {t('已使用')}
           </div>
         ) : null}
         {status === 5 ? (
-          <div className="use-btn disable-btn" onClick={handleUse}>
+          <div className="use-btn disable-btn">
             {t('已过期')}
           </div>
         ) : null}

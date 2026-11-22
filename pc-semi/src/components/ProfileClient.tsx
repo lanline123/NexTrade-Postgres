@@ -88,6 +88,8 @@ export default function ProfileClient() {
 
   const submit = async () => {
     if (!form.birthday) return Toast.error({ content: '请选择生日' });
+    // 后端 updateInformation 对 birthday 不做任何校验、原样落库，未来日期须在前端拦下。
+    if (form.birthday > new Date().toISOString().slice(0, 10)) return Toast.error({ content: '生日不能晚于今天' });
     if (!form.nickname.trim()) return Toast.error({ content: '请输入昵称' });
     setSaving(true);
     try {
@@ -141,7 +143,7 @@ export default function ProfileClient() {
 
       <div className="security-form profile-form">
         <label>{t('生日')}</label>
-        <input type="date" value={form.birthday} onChange={(event) => setForm((current) => ({ ...current, birthday: event.target.value }))} />
+        <input type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={(event) => setForm((current) => ({ ...current, birthday: event.target.value }))} />
 
         <label>{t('昵称')}</label>
         <input value={form.nickname} onChange={(event) => setForm((current) => ({ ...current, nickname: event.target.value }))} placeholder={t('请输入昵称')} />

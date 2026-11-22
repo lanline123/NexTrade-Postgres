@@ -37,6 +37,9 @@ interface HistoryProduct {
   picThumb?: string;
   productPrice?: string | number;
   price?: string | number;
+  /** 后端 HistoryProductVO 下发 virtualSales（原注释误判接口无此字段） */
+  virtualSales?: number;
+  sales?: number;
 }
 
 function imageUrl(src?: string): string {
@@ -117,8 +120,13 @@ export default function BrowsingHistoryClient() {
         setNeedLogin(false);
       })
       .catch((error) => {
+        if (current !== generation.current) return;
         const message = error instanceof Error ? error.message : '';
         setNeedLogin(message.includes('登录') || message.includes('401'));
+        // 非登录类失败不能伪装成「您还没有留下任何足迹」，显式报错（与 CollectProductClient 同口径）
+        if (!message.includes('登录') && !message.includes('401')) {
+          Toast.error({ content: message || t('浏览历史加载失败') });
+        }
       })
       .finally(() => {
         if (current === generation.current) setLoading(false);
@@ -227,8 +235,8 @@ export default function BrowsingHistoryClient() {
 
                 <div className="collect-card__body">
                   <div className="collect-card__name">{name}</div>
-                  {/* 旧版 ProductCard：.desc-wrap > .virtual-sales（历史接口无销量字段，按 0 展示） */}
-                  <div className="collect-card__sales">{t('已售 {n}', { n: 0 })}</div>
+                  {/* 旧版 ProductCard：.desc-wrap > .virtual-sales（后端 HistoryProductVO 有 virtualSales 字段，实读展示） */}
+                  <div className="collect-card__sales">{t('已售 {n}', { n: Number(item.virtualSales ?? item.sales ?? 0) })}</div>
                   {/* 旧版：拼团 tag 或 24px 占位，保证价格行起始高度一致 */}
                   <div className="collect-card__tag-slot" />
                   <div className="collect-card__price-row">

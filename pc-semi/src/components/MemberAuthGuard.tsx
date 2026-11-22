@@ -16,6 +16,10 @@ export default function MemberAuthGuard({ children }: { children: React.ReactNod
   const pathname = usePathname();
 
   useEffect(() => {
+    // 未登录可达页（登录/注册/找回密码/微信首登绑手机）不做跳转，
+    // 与 middleware.ts 的放行名单保持一致：找回密码与首登绑手机都没有
+    // token，守卫若拦截会把用户弹回登录页、流程中断。
+    if (/^\/member\/(login|register|reset|bindmobilephone)\/?$/.test(pathname || '')) return;
     let cookieToken: string | undefined;
     document.cookie.split(';').some((part) => {
       const [name, ...rest] = part.trim().split('=');

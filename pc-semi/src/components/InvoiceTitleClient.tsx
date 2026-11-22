@@ -70,6 +70,8 @@ export default function InvoiceTitleClient() {
     if (!form) return;
     if (!form.titleName.trim()) return Toast.error({ content: t('请输入抬头名称') });
     if (form.titleType === 2 && !form.taxNo.trim()) return Toast.error({ content: t('企业抬头必须填写纳税人识别号') });
+    // 与后端 validate_tax_no 同规：18 位统一社会信用代码或 15 位老税号，字母数字。
+    if (form.taxNo.trim() && !/^([0-9A-Za-z]{18}|[0-9A-Za-z]{15})$/.test(form.taxNo.trim())) return Toast.error({ content: t('纳税人识别号格式不正确') });
     setSaving(true);
     try {
       const payload = {
@@ -105,7 +107,7 @@ export default function InvoiceTitleClient() {
       <div className="invoice-form">
         <div className="invoice-actions" style={{ justifyContent: 'space-between' }}>
           <span>{t('常用发票抬头最多保存10条，申请发票时自动填充默认抬头')}</span>
-          <Button theme="solid" type="primary" onClick={() => setForm({ ...EMPTY_FORM })}>{t('新建抬头')}</Button>
+          <Button theme="solid" type="primary" disabled={titles.length >= 10} onClick={() => setForm({ ...EMPTY_FORM })}>{t('新建抬头')}</Button>
         </div>
         {loading ? <p className="invoice-hint">{t('加载中…')}</p> : null}
         {!loading && titles.length === 0 ? <p className="invoice-hint">{t('暂无常用抬头')}</p> : null}
@@ -127,7 +129,7 @@ export default function InvoiceTitleClient() {
             <Button size="small" type="danger" onClick={() => {
               Modal.confirm({
                 title: t('删除该抬头？'),
-                content: title.isDefault ? t('删除默认抬头后，系统会自动将最近使用的抬头设为默认') : undefined,
+                content: title.isDefault ? t('删除默认抬头后，系统会自动将最近更新的抬头设为默认') : undefined,
                 onOk: () => act(() => apiPost('user/invoiceTitle/del', { id: title.id }), t('已删除')),
               });
             }}>{t('删除')}</Button>

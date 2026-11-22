@@ -159,12 +159,14 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
       return options.filter(([, label]) => label !== '退货/退款' && label !== '换货');
     }, [config.aftersaleType, data?.order?.orderStatus]);
 
-    // 选项被过滤后把 type 夹回现存选项：待发货订单过滤掉 type=1/3 后，state 仍停在初始 1，
-    // 界面无任何单选被选中、提交却发出被过滤掉的类型（2026-11-22 体检修复）
-    useEffect(() => {
-      if (aftersaleTypeOptions.length && !aftersaleTypeOptions.some(([key]) => Number(key) === type)) {
-        setType(Number(aftersaleTypeOptions[0][0]));
-      }
+    /**
+     * 生效售后类型：待发货订单过滤掉「退货/退款」「换货」后，默认 type=1 已不在选项内，
+     * 若仍按 type 提交会绕过页面限制且单选无一项选中；此时回落到首个可用选项。
+     */
+    const effectiveType = useMemo(() => {
+      if (aftersaleTypeOptions.some(([key]) => Number(key) === type)) return type;
+      const first = aftersaleTypeOptions[0];
+      return first ? Number(first[0]) : type;
     }, [aftersaleTypeOptions, type]);
 
     const selectedItems = useMemo(
@@ -174,11 +176,11 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
                 .map(([id, number]) => ({
                     orderItemId: Number(id),
                     number: Number(number),
-                    ...(type === 3 && exchangeTargets[Number(id)]
+                    ...(effectiveType === 3 && exchangeTargets[Number(id)]
                         ? { exchangeSkuId: exchangeTargets[Number(id)] }
                         : {}),
                 })),
-        [quantities, type, exchangeTargets],
+        [quantities, effectiveType, exchangeTargets],
     );
 
     /**
@@ -252,6 +254,7 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
   };
 
   const submit = async () => {
+    if (submitting) return;
     if (!selectedItems.length) {
       Toast.warning({ content: '请选择售后商品' });
       return;
@@ -269,7 +272,7 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
     try {
       await apiPost('user/aftersales/create', {
         orderId,
-        aftersaleType: type,
+        aftersaleType: effectiveType,
         aftersaleReason: reason,
         description,
         pics,
@@ -421,10 +424,10 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
                             type="radio"
                             className="mp-el-radio__original"
                             name="aftersaleType"
-                            checked={type === Number(key)}
+                            checked={effectiveType === Number(key)}
                             onChange={() => setType(Number(key))}
                           />
-                          <span className={`mp-el-radio__inner${type === Number(key) ? ' is-checked' : ''}`} />
+                          <span className={`mp-el-radio__inner${effectiveType === Number(key) ? ' is-checked' : ''}`} />
                           <span className="mp-el-radio__label">{label}</span>
                         </label>
                       ))}
@@ -432,7 +435,7 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
                   </div>
                 </div>
 
-                {type === 3 ? (
+                {effectiveType === 3 ? (
                   <div className="el-form-item">
                     <label className="el-form-item__label">{t('换货规格')}：</label>
                     <div className="el-form-item__content">
@@ -497,7 +500,7 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
                   </div>
                 ) : null}
 
-                {type !== 3 ? (
+                {effectiveType !== 3 ? (
                   <div className="el-form-item">
                     <label className="el-form-item__label">{t('预计退款金额')}：</label>
                     <div className="el-form-item__content">

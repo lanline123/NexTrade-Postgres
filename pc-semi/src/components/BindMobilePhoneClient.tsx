@@ -57,9 +57,14 @@ export default function BindMobilePhoneClient() {
     }, 1000);
   };
 
+  // 手机号校验按区号分流（与后端 validate_sms_mobile 口径衔接）：+86 用大陆
+  // 11 位口径，其它区号（如 +61）只校验纯数字长度——此前 +61 号码永远过不了。
+  const isValidMobile = (value: string) =>
+    areaCode === '+86' ? /^1\d{10}$/.test(value.trim()) : /^\d{6,15}$/.test(value.trim());
+
   const sendCode = async () => {
     if (countdown > 0 || sending) return;
-    if (registType === 'mobile' && !/^1\d{10}$/.test(mobile.trim())) {
+    if (registType === 'mobile' && !isValidMobile(mobile)) {
       setError('请填写正确的手机号码，以便接收订单通知，找回密码等');
       return;
     }
@@ -89,12 +94,15 @@ export default function BindMobilePhoneClient() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (registType === 'mobile' && !/^1\d{10}$/.test(mobile.trim())) return setError('请填写正确的手机号码');
+    if (registType === 'mobile' && !isValidMobile(mobile)) return setError('请填写正确的手机号码');
     if (registType === 'mail' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail.trim())) return setError('请填写正确的邮箱地址');
     if (!code.trim()) return setError('请输入验证码');
     if (password.length < 6 || password.length > 20) return setError('密码应为6-20位字符');
     if (/\s/.test(password)) return setError('密码中不允许有空格');
     if (/^\d+$/.test(password) || /^[a-zA-Z]+$/.test(password)) return setError('密码不能全为数字或全为字母');
+    // 补齐与后端 validate_password_strength 的剩余两条（建号分支服务端会校验）
+    if (/^[^0-9a-zA-Z_]+$/.test(password)) return setError('密码不能全为符号');
+    if (/^(.)\1+$/.test(password)) return setError('密码不能全为相同字符或数字');
 
     setSaving(true);
     setError('');
@@ -164,7 +172,7 @@ export default function BindMobilePhoneClient() {
                     value={mobile}
                     onChange={(event) => setMobile(event.target.value)}
                     placeholder={t('请输入手机号')}
-                    maxLength={11}
+                    maxLength={15}
                   />
                 </div>
                 <p className="bind-tip">{t('请填写正确的手机号码，以便接收订单通知，找回密码等')}</p>

@@ -79,7 +79,18 @@ export default function SecurityClient() {
 
   const submitPassword = async () => {
     if (!code || !password) return Toast.error({ content: '请输入验证码和新密码' });
-    if (password.length < 6) return Toast.error({ content: '新密码至少 6 位' });
+    // 与后端 validate_password_strength 逐条同规（6–20 位 / 无空白 / 不全为数字·字母·符号 / 不全为相同字符），
+    // 此前前端只查 ≥6 位，用户填「123456」等弱密码要等提交后才被后端驳回。
+    if (password.length < 6 || password.length > 20) return Toast.error({ content: '密码应为6-20位字符' });
+    if (/\s/.test(password)) return Toast.error({ content: '密码中不允许有空格' });
+    // 分类口径与后端一致：数字 [0-9]、字母 [a-zA-Z]、符号 = 非 [0-9a-zA-Z_]（下划线不计符号）。
+    const hasDigit = /\d/.test(password);
+    const hasLetter = /[a-zA-Z]/.test(password);
+    const hasSymbol = /[^0-9a-zA-Z_]/.test(password);
+    if (!hasLetter && !hasSymbol) return Toast.error({ content: '密码不能全为数字' });
+    if (!hasDigit && !hasSymbol) return Toast.error({ content: '密码不能全为字母' });
+    if (!hasLetter && !hasDigit) return Toast.error({ content: '密码不能全为符号' });
+    if (password.split('').every((c) => c === password[0])) return Toast.error({ content: '密码不能全为相同字符或数字' });
     if (password !== confirm) return Toast.error({ content: '两次密码输入不一致' });
     setSubmitting(true);
     try {
@@ -133,9 +144,11 @@ export default function SecurityClient() {
     try {
       if (bindType === 'mobile') {
         if (!newMobile) return Toast.error({ content: '请输入新手机号' });
+        if (!/^1[3-9]\d{9}$/.test(newMobile.trim())) return Toast.error({ content: '请输入正确的手机号' });
         await apiPost('user/user/sendMobileCodeByModifyMobile', { mobile: newMobile });
       } else {
         if (!newEmail) return Toast.error({ content: '请输入新邮箱' });
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())) return Toast.error({ content: '请输入正确的邮箱地址' });
         await apiPost('user/user/sendEmailCodeByModifyEmail', { email: newEmail });
       }
       setNewCountdown(60);
@@ -151,9 +164,11 @@ export default function SecurityClient() {
     try {
       if (bindType === 'mobile') {
         if (!newMobile) throw new Error('请输入新手机号');
+        if (!/^1[3-9]\d{9}$/.test(newMobile.trim())) throw new Error('请输入正确的手机号');
         await apiPost('user/user/modifyMobile', { mobile: newMobile, code: newCode });
       } else {
         if (!newEmail) throw new Error('请输入新邮箱');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())) throw new Error('请输入正确的邮箱地址');
         await apiPost('user/user/modifyEmail', { email: newEmail, code: newCode });
       }
       Toast.success({ content: '换绑成功' });

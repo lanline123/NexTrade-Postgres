@@ -42,6 +42,7 @@ export default function PointsClient({
   /** 动态积分名：优先取服务端传入的 integralName，未配置时再由公共配置接口兜底。 */
   const [name, setName] = useState(integralName);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => { setName(integralName); }, [integralName]);
 
@@ -66,13 +67,15 @@ export default function PointsClient({
       let loginHint = false;
       try {
         // 原版 getPointList：user/pointsLog/list
-        result = await apiGet<PointResult>('user/pointsLog/list', { page, size: PAGE_SIZE });
+        // 后端 MyPointsQuery 只认 pageSize（serde camelCase），传 size 会被忽略并回落每页 20 条，
+        // 与本页 PAGE_SIZE=30 的分页计算对不齐（尾页记录不可达），故必须传 pageSize。
+        result = await apiGet<PointResult>('user/pointsLog/list', { page, pageSize: PAGE_SIZE });
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
         loginHint = message.includes('登录') || message.includes('401');
         // 兜底：部分部署的积分明细路径为 user/userPointLog/list
         try {
-          result = await apiGet<PointResult>('user/userPointLog/list', { page, size: PAGE_SIZE });
+          result = await apiGet<PointResult>('user/userPointLog/list', { page, pageSize: PAGE_SIZE });
         } catch {
           result = null;
         }
@@ -90,6 +93,8 @@ export default function PointsClient({
         setLoading(false);
         return;
       }
+      // 两个路径都失败且非登录问题：不能伪装成「还没有积分明细」，显式报错
+      setLoadError(result === null ? t('积分明细加载失败，请稍后重试') : '');
       const list = Array.isArray(result?.records) ? (result?.records as PointLog[]) : [];
       setRows(list);
       setTotal(Number(result?.total || 0));
@@ -140,7 +145,7 @@ export default function PointsClient({
           ) : (
             <tbody>
               <tr>
-                <td className="no-table-result" colSpan={4}>{loading ? '' : t('您还没有{name}明细', { name })}</td>
+                <td className="no-table-result" colSpan={4}>{loading ? '' : loadError || t('您还没有{name}明细', { name })}</td>
               </tr>
             </tbody>
           )}

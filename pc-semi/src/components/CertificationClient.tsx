@@ -198,8 +198,14 @@ export default function CertificationClient() {
     if (!data.documentType) return Toast.error({ content: '请选择证件类型' });
     if (!data.corporateName?.trim()) return Toast.error({ content: '请输入姓名' });
     if (!data.documentNumber?.trim()) return Toast.error({ content: '请输入证件号码' });
+    // 后端 apply 只校验顶层三字段非空，companyData 内证件号/信用代码格式完全不查，
+    // 垃圾值会直接进审核队列；以下格式校验与证件类型口径对齐（大陆身份证 18 位、统一社会信用代码 18 位）。
+    if (String(data.documentType) === '1' && !/^\d{17}[\dXx]$/.test(data.documentNumber.trim())) return Toast.error({ content: '请输入正确的18位身份证号码' });
     if (!data.contactPhone?.trim()) return Toast.error({ content: '请输入联系人手机' });
+    if (!/^1[3-9]\d{9}$/.test(data.contactPhone.trim())) return Toast.error({ content: '请输入正确的联系人手机' });
     if (Number(form.type) === 2 && !data.companyName?.trim()) return Toast.error({ content: '请输入企业名称' });
+    if (Number(form.type) === 2 && !data.businessLicenseId?.trim()) return Toast.error({ content: '请输入统一社会信用代码' });
+    if (Number(form.type) === 2 && !/^[0-9A-Z]{18}$/.test(data.businessLicenseId!.trim().toUpperCase())) return Toast.error({ content: '统一社会信用代码应为18位数字或大写字母' });
     setSaving(true);
     try {
       // 后端 apply DTO：type / contactName / contactMobile / companyName / companyData，

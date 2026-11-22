@@ -67,6 +67,7 @@ interface ProductBrief {
   productStock?: number;
   virtualSales?: number;
   sales?: number;
+  productSku?: unknown[];
 }
 
 interface PageResult<T> {
@@ -237,7 +238,10 @@ export default function CollectProductClient() {
     event.preventDefault();
     event.stopPropagation();
     // 原版：多 SKU 商品不直接加购，跳详情页选规格
-    if (Array.isArray(row.productSku) && row.productSku.length > 1) {
+    // 注意：收藏 VO（CollectProductVO）不下发 productSku，只看 row.productSku 守卫恒不触发，
+    // 须同时看商品列表补齐的 brief.productSku。
+    const skuList = row.productSku ?? briefs[Number(row.productId)]?.productSku;
+    if (Array.isArray(skuList) && skuList.length > 1) {
       window.open(href, '_blank', 'noopener,noreferrer');
       return;
     }

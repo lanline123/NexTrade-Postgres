@@ -124,7 +124,10 @@ export async function middleware(request: NextRequest) {
 
   // 3) 会员中心登录守卫（按内部路径判断；/login、/register 及其历史别名直接放行）
   if (internalPath === '/member' || internalPath.startsWith('/member/')) {
-    if (/^\/member\/(login|register)\/?$/.test(internalPath)) {
+    // reset（找回密码）与 bindmobilephone（微信首登绑手机）同样是未登录可达页：
+    // 二者都没有 token 即可进入，纳入守卫会把找回密码跳回登录页成死循环、
+    // 把微信首登绑手机流程拦断（体检 A 组 2026-11-22 修复）。
+    if (/^\/member\/(login|register|reset|bindmobilephone)\/?$/.test(internalPath)) {
       return passThrough(request, internalPath, prefixLocale);
     }
     const token = request.cookies.get('accessToken')?.value;

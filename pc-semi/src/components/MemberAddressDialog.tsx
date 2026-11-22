@@ -326,9 +326,16 @@ export default function MemberAddressDialog({
     const { consignee, mobile, address, regionIds } = form;
     if (!consignee.trim()) return Toast.warning({ content: t('请您填写收货人姓名') });
     if (!regionIds.length) return Toast.warning({ content: t('请选择收货人所在地区') });
+    // 此前只查 regionIds 非空：只选省（甚至省+市）也能保存，后端照单落库、地区名残缺。
+    // 至少选到市；当前市下有区县选项时必须选到区县（无下级区县的直筒子市不拦）。
+    if (!regionIds[1]) return Toast.warning({ content: t('请选择收货人所在城市') });
+    if (districts.length > 0 && !regionIds[2]) return Toast.warning({ content: t('请选择收货人所在区县') });
     if (!address.trim()) return Toast.warning({ content: t('请您填写详细收货地址') });
     if (address.trim().length < ADDRESS_MIN_LENGTH) return Toast.warning({ content: t('收货人地址过短') });
     if (!mobile.trim()) return Toast.warning({ content: t('请您填写收货人手机号码') });
+    // 后端 create/update 对 mobile/email 不做格式校验，错号会静默落库导致配送联系不上。
+    if (!/^1[3-9]\d{9}$/.test(mobile.trim())) return Toast.warning({ content: t('请输入正确的手机号码') });
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return Toast.warning({ content: t('请输入正确的邮箱地址') });
 
     setSaving(true);
     try {

@@ -47,7 +47,12 @@ export default function CouponClient() {
             })
             .catch((error) => {
                 const message = error instanceof Error ? error.message : '';
-                setNeedLogin(message.includes('登录') || message.includes('401'));
+                if (message.includes('登录') || message.includes('401')) {
+                    setNeedLogin(true);
+                } else {
+                    // 非登录类失败不能伪装成「您还没有优惠券」，显式报错
+                    Toast.error({ content: message || t('优惠券加载失败') });
+                }
             })
             .finally(() => setLoading(false));
     };

@@ -274,7 +274,15 @@ export default function RegisterClient({
     if (mode === 'mobile' && !/^1\d{10}$/.test(mobile.trim())) return setError('请输入正确的手机号');
     if (mode === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError('请输入正确的邮箱');
     if (!code.trim()) return setError('请输入验证码');
-    if (password.length < 6) return setError('密码至少 6 位');
+    // 与后端 validate_password_strength 逐条同规（security/src/password.rs）：
+    // 6–20 位、不含空白、不能全为数字/字母/符号、不能全为相同字符。
+    // 此前只校验 ≥6 位，用户提交后才被后端驳回，提示往返一次才知道。
+    if (password.length < 6 || password.length > 20) return setError('密码应为6-20位字符');
+    if (/\s/.test(password)) return setError('密码中不允许有空格');
+    if (/^\d+$/.test(password)) return setError('密码不能全为数字');
+    if (/^[a-zA-Z]+$/.test(password)) return setError('密码不能全为字母');
+    if (/^[^0-9a-zA-Z_]+$/.test(password)) return setError('密码不能全为符号');
+    if (/^(.)\1+$/.test(password)) return setError('密码不能全为相同字符或数字');
     if (password !== confirm) return setError('两次输入的密码不一致');
     if (!agree) return setError('请先阅读并同意注册协议与隐私政策');
 

@@ -36,7 +36,13 @@ export default function OAuthCallbackPage() {
         localStorage.setItem('accessToken', token);
         document.cookie = `accessToken=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
         const returnUrl = data.returnUrl || '/';
-        window.location.replace(typeof returnUrl === 'string' && returnUrl.startsWith('/') ? returnUrl : '/');
+        // 只允许站内路径：startsWith('/') 拦不住协议相对 URL（//evil.com 会被
+        // 浏览器解析为外站），必须同时排除 '//' 开头与反斜杠。
+        const safeReturn =
+          typeof returnUrl === 'string' && returnUrl.startsWith('/') && !returnUrl.startsWith('//') && !returnUrl.includes('\\')
+            ? returnUrl
+            : '/';
+        window.location.replace(safeReturn);
       } catch (reason) {
         setMessage(reason instanceof Error ? reason.message : '第三方登录失败');
       }

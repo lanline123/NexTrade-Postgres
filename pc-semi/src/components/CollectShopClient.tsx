@@ -45,6 +45,7 @@ export default function CollectShopClient() {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     /** 每个收藏项的商品 Tab 与偏移：key = 收藏 id */
     const [tabs, setTabs] = useState<Record<string, ProductTab>>({});
     const [offsets, setOffsets] = useState<Record<string, number>>({});
@@ -58,12 +59,20 @@ export default function CollectShopClient() {
 
   const load = () => {
     setLoading(true);
+    setError('');
     apiGet<{ records?: CollectShop[]; total?: number }>('user/user/collectionShop', { page, size })
       .then((result) => {
-        setRows(Array.isArray(result?.records) ? result.records : []);
+        // 后端 CollectShopVO.shop 在店铺行缺失时为 null，无店铺信息的行无法渲染/进店，直接剔除防整页崩溃
+        const records = (Array.isArray(result?.records) ? result.records : []).filter((item) => item.shop);
+        setRows(records);
         setTotal(Number(result?.total || 0));
       })
-      .catch(() => setRows([]))
+      .catch((reason) => {
+        // 加载失败（含未登录）不能伪装成「您还没有收藏的店铺」，显式报错
+        setRows([]);
+        setTotal(0);
+        setError(reason instanceof Error ? reason.message : t('收藏店铺加载失败'));
+      })
       .finally(() => setLoading(false));
   };
 
@@ -138,7 +147,11 @@ export default function CollectShopClient() {
                             <div
                               key={name}
                               className={`inner-div${tab === name ? ' inner-div-hover' : ''}`}
-                              onClick={() => setTabs((current) => ({ ...current, [key]: name }))}
+                              onClick={() => {
+                                // 切 Tab 必须重置该卡的商品偏移，否则旧 Tab 的 offset 套到新列表会翻出空白
+                                setTabs((current) => ({ ...current, [key]: name }));
+                                setOffsets((current) => ({ ...current, [key]: 0 }));
+                              }}
                             >
                               {TAB_LABEL[name]}
                             </div>
@@ -149,7 +162,7 @@ export default function CollectShopClient() {
                             <div className="inner-div" onClick={() => setOffsets((c) => ({ ...c, [key]: Math.max(0, offset - PAGE_SIZE) }))}>
                               <span className="iconfont-pc icon-jiantou_zuo" />
                             </div>
-                            <div className="inner-div" onClick={() => setOffsets((c) => ({ ...c, [key]: offset + PAGE_SIZE }))}>
+                            <div className="inner-div" onClick={() => { if (canNext) setOffsets((c) => ({ ...c, [key]: offset + PAGE_SIZE })); }}>
                               <span className="iconfont-pc icon-jiantou_you" />
                             </div>
                           </div>
@@ -203,7 +216,7 @@ export default function CollectShopClient() {
             <div className="no-result">
               <div className="empty">
                 <img className="empty-img" src="/assets/images/empty-box.png" alt="" />
-                <div className="empty-text">{emptyText}</div>
+                <div className="empty-text">{loading ? '' : error || emptyText}</div>
               </div>
             </div>
           )}

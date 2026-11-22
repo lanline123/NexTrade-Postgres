@@ -104,6 +104,8 @@ export default function CouponCenterClient() {
   }, [shopIdFromQuery]);
 
   const claim = async (coupon: Coupon) => {
+    // 整卡可点且按钮也在卡内，领取中再点会重复调 claim 接口，先拦重入
+    if (claimingId) return;
     if (couponStatus(coupon) === '已领取') {
       Toast.warning({ content: '您已超出领取上限' });
       return;

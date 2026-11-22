@@ -71,10 +71,27 @@ async function postJson(path: string, body: unknown, headers: Record<string, str
   return json.data ?? json;
 }
 
+/** 只允许站内绝对路径回跳：拒绝 `//evil.com` 这类协议相对 URL 与外站地址（防开放重定向）。 */
+function safeInternalPath(raw: string | null, fallback = '/member'): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return fallback;
+  return raw;
+}
+
 function redirectAfterLogin() {
   const params = new URLSearchParams(window.location.search);
-  const target = params.get('redirect') || params.get('returnUrl') || '/member';
+  const target = safeInternalPath(params.get('redirect') || params.get('returnUrl'));
   window.location.replace(target);
+}
+
+/**
+ * 手机号校验按区号分流（与后端 validate_sms_mobile 的 6–20 位数字口径衔接）：
+ * +86 保持中国大陆 11 位口径；其它区号（如 +61）只校验纯数字长度，
+ * 此前一律套 ^1\d{10}$ 会让 +61 等国际号码永远无法通过。
+ */
+function isValidMobile(mobile: string, areaCode: string): boolean {
+  const value = mobile.trim();
+  if (areaCode === '+86') return /^1\d{10}$/.test(value);
+  return /^\d{6,15}$/.test(value);
 }
 
 export default function LoginClient({
@@ -118,10 +135,19 @@ export default function LoginClient({
   const sliderPurpose = useRef<'login' | 'sms'>('login');
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
     if (timer.current) clearInterval(timer.current);
     if (poll.current) clearInterval(poll.current);
+    if (pollTimeout.current) clearTimeout(pollTimeout.current);
+  }, []);
+
+  /** 找回密码成功后经 /login?reset=1 回跳：给出明确成功提示（此前参数被忽略、无任何反馈） */
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('reset') === '1') {
+      Toast.success({ content: '密码重置成功，请使用新密码登录' });
+    }
   }, []);
 
   /** 左栏扫码二维码：指向移动端 H5 入口，扫码打开手机版商城 */
@@ -150,7 +176,7 @@ export default function LoginClient({
   /** 点击获取验证码：先校验手机号，再过滑块，成功后才真正发码 */
   const requestSendCode = () => {
     if (countdown > 0) return;
-    if (!/^1\d{10}$/.test(mobile.trim())) return setError('请输入正确的手机号');
+    if (!isValidMobile(mobile, areaCode)) return setError('请输入正确的手机号');
     setError('');
     sliderPurpose.current = 'sms';
     setVerifyOpen(true);
@@ -194,7 +220,7 @@ export default function LoginClient({
         setVerifyOpen(true);
         return;
       }
-    } else if (!/^1\d{10}$/.test(mobile.trim()) || !mobileCode.trim()) {
+    } else if (!isValidMobile(mobile, areaCode) || !mobileCode.trim()) {
       return setError('请输入手机号和验证码');
     }
     setLoading(true);
@@ -233,6 +259,7 @@ export default function LoginClient({
     setWechatMode(true);
     setWechatExpired(false);
     if (poll.current) clearInterval(poll.current);
+    if (pollTimeout.current) clearTimeout(pollTimeout.current);
     try {
       const response = await fetch('/api/user/login/getWxLoginUrl', {
         credentials: 'include',
@@ -261,6 +288,7 @@ export default function LoginClient({
           const data = event?.data || event;
           if (data?.type === 1 && data?.token) {
             if (poll.current) clearInterval(poll.current);
+            if (pollTimeout.current) clearTimeout(pollTimeout.current);
             localStorage.setItem('accessToken', data.token);
             document.cookie = `accessToken=${encodeURIComponent(data.token)}; path=/; max-age=604800; SameSite=Lax`;
             Toast.success({ content: '微信授权成功' });
@@ -268,6 +296,7 @@ export default function LoginClient({
           } else if (data?.type === 2) {
             // 首次微信登录：先绑手机号（后端 bindTicket 一次性凭证在 openData 内）
             if (poll.current) clearInterval(poll.current);
+            if (pollTimeout.current) clearTimeout(pollTimeout.current);
             sessionStorage.setItem('wechatBindOpenData', JSON.stringify(data.openData ?? {}));
             window.location.replace('/member/bindmobilephone');
           }
@@ -275,6 +304,12 @@ export default function LoginClient({
           /* 忽略轮询异常 */
         }
       }, 2000);
+      // 二维码 state 有效期 300 秒（后端 WECHAT_STATE_TTL_SECS）：超时停轮询并提示
+      // 失效，避免像此前一样无限轮询、二维码过期了用户也无从得知。
+      pollTimeout.current = setTimeout(() => {
+        if (poll.current) clearInterval(poll.current);
+        setWechatExpired(true);
+      }, 300_000);
     } catch {
       setWechatExpired(true);
     }
@@ -334,6 +369,7 @@ export default function LoginClient({
                     onClick={() => {
                       setWechatMode(false);
                       if (poll.current) clearInterval(poll.current);
+                      if (pollTimeout.current) clearTimeout(pollTimeout.current);
                     }}
                   >
                     {t('返回')}
@@ -409,7 +445,7 @@ export default function LoginClient({
                           onChange={(event) => setMobile(event.target.value)}
                           placeholder={t('您的手机号')}
                           aria-label={t('您的手机号')}
-                          maxLength={11}
+                          maxLength={15}
                           autoComplete="tel"
                         />
                       </div>

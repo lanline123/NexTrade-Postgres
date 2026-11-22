@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Toast } from '@douyinfe/semi-ui';
 
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
@@ -47,18 +48,27 @@ export default function ResetPasswordClient() {
     return () => window.clearTimeout(timer);
   }, [countdown]);
 
+  const [sending, setSending] = useState(false);
+
   const sendCode = async () => {
-    if (!mobile.trim()) {
-      setError('请输入手机号');
+    // 此前只判非空：格式错误也发请求、且无防重复提交（倒计时在请求成功后
+    // 才开始，狂点可并发多次发码请求；后端有 60 秒冷却兜底，前端仍应先拦）。
+    if (countdown > 0 || sending) return;
+    if (!/^1\d{10}$/.test(mobile.trim())) {
+      setError('请输入正确的手机号');
       return;
     }
+    setSending(true);
     setError('');
     try {
       const csrf = await getCsrf();
       await postJson('user/login/sendMobileCode', { mobile: mobile.trim(), event: 'forgetPassword' }, { 'X-CSRF-Token': csrf });
+      Toast.success({ content: '验证码已发送' });
       setCountdown(60);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '验证码发送失败');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -86,8 +96,18 @@ export default function ResetPasswordClient() {
 
   const reset = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!password || password.length < 6) {
-      setError('请输入至少 6 位新密码');
+    // 与后端 validate_password_strength 逐条同规（forget_password 服务端调用）：
+    // 6–20 位、不含空白、不能全为数字/字母/符号、不能全为相同字符。
+    if (!password || password.length < 6 || password.length > 20) {
+      setError('密码应为6-20位字符');
+      return;
+    }
+    if (/\s/.test(password)) {
+      setError('密码中不允许有空格');
+      return;
+    }
+    if (/^\d+$/.test(password) || /^[a-zA-Z]+$/.test(password) || /^[^0-9a-zA-Z_]+$/.test(password) || /^(.)\1+$/.test(password)) {
+      setError('密码不能全为数字、全为字母、全为符号或全为相同字符');
       return;
     }
     if (password !== password2) {
@@ -146,7 +166,7 @@ export default function ResetPasswordClient() {
                           placeholder={t('验证码')}
                         />
                         <span className="el-input__suffix mobile-code-text">
-                          <button className="el-button" type="button" disabled={countdown > 0} onClick={() => void sendCode()}>
+                          <button className="el-button" type="button" disabled={countdown > 0 || sending} onClick={() => void sendCode()}>
                             {countdown > 0 ? `${countdown}s` : t('获取验证码')}
                           </button>
                         </span>

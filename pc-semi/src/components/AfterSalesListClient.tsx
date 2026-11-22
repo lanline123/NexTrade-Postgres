@@ -32,12 +32,10 @@ const PAGE_SIZE = 20;
 export default function AfterSalesListClient() {
     const { t } = useTranslation();
   const [rows, setRows] = useState<Record[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [needLogin, setNeedLogin] = useState(false);
-  // 分页与错误态（2026-11-22 体检补）：此前写死第 1 页 20 条、第 21 条起不可达；
-  // 且非登录类失败时 rows 保持空，被误呈现为「暂无已申请退换货订单」
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -54,6 +52,9 @@ export default function AfterSalesListClient() {
         if (message.includes('登录') || message.includes('401')) {
           setNeedLogin(true);
         } else {
+          // 非登录类失败不能伪装成「暂无已申请退换货订单」，显式报错
+          setRows([]);
+          setTotal(0);
           setError(message || t('售后列表加载失败'));
         }
       })
@@ -145,10 +146,17 @@ export default function AfterSalesListClient() {
         ) : (
           <div className="no-result">
             <div>
-              <span>{loading ? '' : t('暂无已申请退换货订单')}</span>
+              <span>{loading ? '' : error || t('暂无已申请退换货订单')}</span>
             </div>
           </div>
         )}
+        {rows.length && pages > 1 ? (
+          <nav className="pc-pagination">
+            {page > 1 ? <button type="button" onClick={() => setPage(page - 1)}>{t('上一页')}</button> : <span className="is-disabled">{t('上一页')}</span>}
+            <span>{page} / {pages}</span>
+            {page < pages ? <button type="button" onClick={() => setPage(page + 1)}>{t('下一页')}</button> : <span className="is-disabled">{t('下一页')}</span>}
+          </nav>
+        ) : null}
       </div>
     </div>
   );

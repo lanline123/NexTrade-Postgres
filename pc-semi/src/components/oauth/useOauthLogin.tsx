@@ -66,8 +66,17 @@ export function useOauthLogin(): {
       (async () => {
         try {
           const redirectUri = `${window.location.origin}/oauth/callback`;
+          // 后端 render 只认 returnUrl（RenderQuery），并把它写进 state 供回调页
+          // 回跳。此前前端只传后端不读的 redirectUri、且不透传当前页的 redirect
+          // 参数，OAuth 登录成功后恒回首页、丢失来路。只透传站内路径防开放重定向。
+          const current = new URLSearchParams(window.location.search);
+          const rawReturn = current.get('redirect') || current.get('returnUrl') || '/member';
+          const returnUrl =
+            rawReturn.startsWith('/') && !rawReturn.startsWith('//') && !rawReturn.includes('\\')
+              ? rawReturn
+              : '/member';
           const response = await fetch(
-            `/api/user/oauth/render/${source}?redirectUri=${encodeURIComponent(redirectUri)}&platform=pc`,
+            `/api/user/oauth/render/${source}?redirectUri=${encodeURIComponent(redirectUri)}&returnUrl=${encodeURIComponent(returnUrl)}&platform=pc`,
             { credentials: 'include' },
           );
           const json = await response.json();
