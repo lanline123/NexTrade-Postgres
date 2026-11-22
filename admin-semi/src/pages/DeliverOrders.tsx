@@ -675,24 +675,28 @@ export default function DeliverOrders({
             placeholder={t('请输入交易单号')}
             value={filters.outTradeNo}
             onChange={(next) => setFilters((c) => ({ ...c, outTradeNo: next }))}
+            onEnterPress={search}
             style={{ width: 180 }}
           />
           <Input
             placeholder={t('详细地址')}
             value={filters.address}
             onChange={(next) => setFilters((c) => ({ ...c, address: next }))}
+            onEnterPress={search}
             style={{ width: 160 }}
           />
           <Input
             placeholder="Email"
             value={filters.email}
             onChange={(next) => setFilters((c) => ({ ...c, email: next }))}
+            onEnterPress={search}
             style={{ width: 160 }}
           />
           <Input
             placeholder={t('手机号')}
             value={filters.mobile}
             onChange={(next) => setFilters((c) => ({ ...c, mobile: next }))}
+            onEnterPress={search}
             style={{ width: 150 }}
           />
           <Select
@@ -780,7 +784,20 @@ export default function DeliverOrders({
 
         <Spin spinning={loading}>
           {rows.map((row) => renderOrderCard(row))}
-          {rows.length === 0 && !loading ? <div className="deliver-orders-empty">{t('暂无数据')}</div> : null}
+          {rows.length === 0 && !loading ? (
+            <div className="deliver-orders-empty">
+              {filters.keyword || filters.outTradeNo || filters.address || filters.email || filters.mobile || filters.mark !== -1 || (Array.isArray(filters.addTime) && filters.addTime.length > 0) ? (
+                <>
+                  <div>{t('未找到符合条件的发货单')}</div>
+                  <Button size="small" style={{ marginTop: 12 }} onClick={reset}>
+                    {t('清空筛选')}
+                  </Button>
+                </>
+              ) : (
+                t('暂无数据')
+              )}
+            </div>
+          ) : null}
         </Spin>
 
         <div className="deliver-orders-pagination">

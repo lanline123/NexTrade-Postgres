@@ -3781,6 +3781,16 @@ body[theme-mode='dark'] .order-detail-summary {
   text-align: center;
   color: var(--semi-color-text-2);
 }
+/* 框架列表空状态（与 .aftersales-empty 同形：加载失败重试 / 筛选无结果 / 暂无数据 三态共用） */
+.framework-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+  text-align: center;
+  color: var(--semi-color-text-2);
+}
 .aftersales-pagination {
   display: flex;
   justify-content: flex-end;
@@ -6542,9 +6552,16 @@ body {
   max-width: 640px;
 }
 .base-settings-list__actions {
+  /* 与旧版式 .auto-config-actions 同口径粘性保存栏：长设置页滚动时保存按钮常驻可达 */
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
   display: flex;
   justify-content: flex-end;
-  padding: 2px 0 8px;
+  margin-top: 6px;
+  padding: 14px 0 2px;
+  border-top: 1px solid #f1f4f7;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, #fff 38%);
 }
 .base-settings-list__actions .semi-button {
   min-width: 108px;

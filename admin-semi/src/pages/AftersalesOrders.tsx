@@ -520,12 +520,14 @@ export default function AftersalesOrders() {
             placeholder={t('交易单号')}
             value={filters.outTradeNo}
             onChange={(next) => setFilters((c) => ({ ...c, outTradeNo: next }))}
+            onEnterPress={search}
             style={{ width: 180 }}
           />
           <Input
             placeholder={t('售后编号')}
             value={filters.aftersalesSn}
             onChange={(next) => setFilters((c) => ({ ...c, aftersalesSn: next }))}
+            onEnterPress={search}
             style={{ width: 180 }}
           />
           <Select
@@ -555,7 +557,20 @@ export default function AftersalesOrders() {
 
         <Spin spinning={loading}>
           {rows.map((row) => renderRow(row))}
-          {rows.length === 0 && !loading ? <div className="aftersales-empty">{t('暂无数据')}</div> : null}
+          {rows.length === 0 && !loading ? (
+            <div className="aftersales-empty">
+              {filters.keyword || filters.outTradeNo || filters.aftersalesSn || filters.aftersaleType !== '' || filters.status !== '' ? (
+                <>
+                  <div>{t('未找到符合条件的售后单')}</div>
+                  <Button size="small" style={{ marginTop: 12 }} onClick={reset}>
+                    {t('清空筛选')}
+                  </Button>
+                </>
+              ) : (
+                t('暂无数据')
+              )}
+            </div>
+          ) : null}
         </Spin>
 
         <div className="aftersales-pagination">

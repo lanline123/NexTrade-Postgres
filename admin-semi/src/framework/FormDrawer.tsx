@@ -25,6 +25,7 @@ export default function FormDrawer({
 }: FormDrawerProps) {
   const { t } = useI18n();
   const [formApi, setFormApi] = useState<any>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [activeSection, setActiveSection] = useState(config.sections[0]?.key || '');
   const [values, setValues] = useState<Record<string, any>>(initialValues || {});
 
@@ -44,7 +45,8 @@ export default function FormDrawer({
   };
 
   const submit = async () => {
-    if (!formApi) return;
+    if (!formApi || submitting) return;
+    setSubmitting(true);
     try {
       const formValues = await formApi.validate();
       const payload = config.toPayload
@@ -54,7 +56,19 @@ export default function FormDrawer({
     } catch (error) {
       if (error instanceof Error) {
         Toast.error({ content: error.message });
+      } else {
+        // 校验失败（validate 抛出的是字段错误对象而非 Error）：字段已有行内红字，
+        // 但出错字段可能在抽屉折叠线以下、用户点了保存却毫无反馈——滚动定位到第一处错误
+        requestAnimationFrame(() => {
+          document
+            .querySelector(
+              '.semi-sidesheet .semi-form-field-error-message, .semi-sidesheet [class*="error-message"]',
+            )
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -74,7 +88,13 @@ export default function FormDrawer({
       bodyStyle={{ padding: 0, overflowY: 'auto' }}      footer={
         <div className="modal-footer">
           <Button onClick={onCancel}>{t('取消')}</Button>
-          <Button theme="solid" type="primary" loading={saving} onClick={submit}>
+          <Button
+            theme="solid"
+            type="primary"
+            loading={saving || submitting}
+            disabled={submitting && !saving}
+            onClick={submit}
+          >
             {t('保存')}
           </Button>
         </div>

@@ -2401,3 +2401,16 @@
 - **登录/注册错误播报**：两页的表单错误条 `.login-card__error` 补 `role="alert"`，屏幕阅读器可即时播报提交失败原因（视觉不变）。
 
 报告：`~/workspace/ux-audit-pc/REPORT.md`（含逐面审核结论、各维度评分与登记待拍板项：modern 层大圆角与方角偏好的方向取舍、首页/店铺/分类路由骨架、表单逐字段内联校验等）。
+
+## 0.0.2 续 · 2026-11-22 批次（管理端交互与现代化设计全量审核整改，未部署——待主聊发卡）
+
+### 体验修复（admin-semi，我方新增框架层口径）
+
+- **框架列表页三态补齐（framework/ListPage）**：此前拉取失败只弹 Toast、表格空区与「暂无数据」无从区分且无重试入口。新增 loadError 状态：无存量数据时空状态区显示「加载失败：原因 + 重试按钮」；有存量数据时仍走 Toast、不清表格。空状态按「筛选后无结果（未找到符合条件的数据 + 清空筛选按钮）/ 初始无数据（暂无数据）」分开呈现；删除确认 Popconfirm 补 okType="danger" 危险色；分页补 showTotal 显示总条数。
+- **框架表单抽屉校验反馈（framework/FormDrawer）**：校验失败时 validate 抛出的字段错误对象此前被静默吞掉，出错字段在折叠线以下时点保存毫无反馈——改为滚动定位到第一处行内错误；并加 submitting 守卫封住 validate 异步窗口内的重复提交。
+- **批量删除部分失败如实反馈（TaxRates / LogisticsSettings）**：原 Promise.all 一条失败即全盘报「批量删除失败」、且不清选不刷新（已删成功的行还留在表里，易诱发重复操作）——改 Promise.allSettled：全成报成功、部分成报「成功 X 条，失败 Y 条」警告、全败报失败，三种情况都清选+刷新。
+- **售后/发货列表筛选回车与空状态（AftersalesOrders / DeliverOrders）**：筛选栏此前只有第一个输入框支持回车搜索，其余文本筛选框回车无反应——全部补 onEnterPress；空状态区分筛选无结果（带清空筛选按钮）与初始无数据。
+- **设置页粘性保存栏（styles.css）**：现代版式 .base-settings-list__actions 此前不粘性（旧版式 .auto-config-actions 早已粘性），长设置页改完一项要滚到底才能保存——对齐旧版式改为 sticky 底部栏。
+- **登录页去除假控件（Login）**：「记住登录状态」勾选框从未接线（令牌恒存 localStorage，勾不勾无区别）、「忘记密码？」为 javascript:; 死链——一并去除，换成与手机登录同形的如实提示「忘记密码请联系平台管理员重置」。
+
+报告：`~/workspace/ux-audit-admin/REPORT.md`（含各维度评分与登记待拍板项）。

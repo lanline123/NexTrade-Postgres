@@ -114,6 +114,7 @@ export default function ListPage<T extends Record<string, any>>({
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(!isDemo());
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [filterValues, setFilterValues] = useState<Record<string, any>>(initialFilters ?? {});
   const [selectedKeys, setSelectedKeys] = useState<Array<string | number>>([]);
@@ -234,6 +235,7 @@ export default function ListPage<T extends Record<string, any>>({
     if (!sizeReady) return;
     let alive = true;
     setLoading(true);
+    setLoadError(null);
     const params = {
       page,
       size: effectivePageSize,
@@ -256,7 +258,16 @@ export default function ListPage<T extends Record<string, any>>({
         setTotal(total);
         onDataLoaded?.({ total, rows });
       })
-      .catch((error) => alive && Toast.error({ content: error.message }))
+      .catch((error) => {
+        if (!alive) return;
+        // 有存量数据时错误只是刷新失败，沿用 Toast 提示、不清空表格；
+        // 无数据时把错误落到空状态区（带重试），避免「加载失败」与「暂无数据」混为一谈
+        if (rowsCountRef.current > 0) {
+          Toast.error({ content: error.message });
+        } else {
+          setLoadError(error instanceof Error ? error.message : t('加载失败'));
+        }
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -401,7 +412,7 @@ export default function ListPage<T extends Record<string, any>>({
                   </Button>
                 )}
                 {drawer?.deleteApi && (
-                  <Popconfirm title={t('确定删除？')} onConfirm={() => remove(record)}>
+                  <Popconfirm title={t('确定删除？')} okType="danger" onConfirm={() => remove(record)}>
                     <Button theme="borderless" type="danger" size="small">
                       {t('删除')}
                     </Button>
@@ -527,6 +538,31 @@ export default function ListPage<T extends Record<string, any>>({
         <div ref={tableWrapRef}>
         <Table
           loading={loading}
+          empty={
+            loading ? undefined : loadError ? (
+              <div className="framework-empty">
+                <div>{t('加载失败')}：{loadError}</div>
+                <Button
+                  size="small"
+                  icon={<IconRefresh />}
+                  onClick={() => setReloadKey((key) => key + 1)}
+                >
+                  {t('重试')}
+                </Button>
+              </div>
+            ) : activeEntries.length > 0 ? (
+              <div className="framework-empty">
+                <div>{t('未找到符合条件的数据')}</div>
+                <Button size="small" onClick={reset}>
+                  {t('清空筛选')}
+                </Button>
+              </div>
+            ) : (
+              <div className="framework-empty">
+                <div>{t('暂无数据')}</div>
+              </div>
+            )
+          }
           dataSource={tableRows}
           rowKey={resolvedRowKey}
           rowSelection={
@@ -552,6 +588,7 @@ export default function ListPage<T extends Record<string, any>>({
             currentPage: page,
             pageSize: effectivePageSize,
             total,
+            showTotal: true,
             onChange: (nextPage: number) => setPage(nextPage),
           }}
           columns={tableColumns as any}

@@ -67,14 +67,26 @@ export default function TaxRates() {
       title: t('批量删除税率规则'),
       content: t('确定删除选中的 {count} 条规则？', { count: ids.length }),
       onOk: async () => {
-        try {
-          await Promise.all(ids.map((id) => apiPost('/setting/taxRate/del', { id })));
+        // 逐条删除彼此独立：用 allSettled 收集结果，部分失败如实报数，
+        // 且无论成败都清选+刷新——否则已删成功的行还留在表里、用户会误以为全失败而重复操作
+        const results = await Promise.allSettled(
+          ids.map((id) => apiPost('/setting/taxRate/del', { id })),
+        );
+        const failed = results.filter((result) => result.status === 'rejected').length;
+        if (failed === 0) {
           Toast.success({ content: t('批量删除成功') });
-          clear();
-          setReloadKey((key) => key + 1);
-        } catch (error) {
-          Toast.error({ content: error instanceof Error ? error.message : t('批量删除失败') });
+        } else if (failed < ids.length) {
+          Toast.warning({
+            content: t('批量删除部分成功：成功 {ok} 条，失败 {failed} 条', {
+              ok: ids.length - failed,
+              failed,
+            }),
+          });
+        } else {
+          Toast.error({ content: t('批量删除失败') });
         }
+        clear();
+        setReloadKey((key) => key + 1);
       },
     });
   };

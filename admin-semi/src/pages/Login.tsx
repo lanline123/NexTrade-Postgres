@@ -289,13 +289,11 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
                       autoComplete="current-password"
                     />
 
-                    <div className="login-options">
-                      <label className="login-remember">
-                        <input type="checkbox" /> 记住登录状态
-                      </label>
-                      <a className="login-forgot" href="javascript:;">
-                        忘记密码？
-                      </a>
+                    <div className="login-options login-options--mobile">
+                      {/* 原「记住登录状态」勾选框从未接线（令牌恒存 localStorage）、
+                          「忘记密码？」是 javascript:; 死链——假控件比没有更伤信任，一并去除，
+                          换成与手机登录同形的如实提示（管理员密码由平台管理员在后台重置） */}
+                      <span className="login-mobile-hint">忘记密码请联系平台管理员重置</span>
                     </div>
 
                     <Button
