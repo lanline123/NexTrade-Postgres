@@ -71,7 +71,8 @@ export default function ProductItem({ product }: Props) {
                     <View className="store-card-item-content-right-num"> x{product.quantity}</View>
                 </View>
 
-                {product.originPrice && product.originPrice !== product.price && (
+                {/* 划线价口径：仅原价数值大于售价才展示（此前用 !== 比较，原价 < 售价时反向划线、"100" 与 100 类型不同时等价也划线，2026-11-22 体检修复）；withExact 与同卡主价及购物车明细弹窗的原价渲染同口径双段 */}
+                {Number(product.originPrice) > Number(product.price) && (
                     <View className="discount-box">
                         <FormatPrice
                             fontStyle={{
@@ -80,6 +81,7 @@ export default function ProductItem({ product }: Props) {
                                 fontSize: "12px"
                             }}
                             isBottom={false}
+                            withExact
                             priceData={product.originPrice}
                         />
                         {isOverseas() && <View className="discount-text">{getDiscount(product)}% off</View>}

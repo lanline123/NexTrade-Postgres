@@ -31,13 +31,15 @@ export default function SpecialOffer({ module }: Props) {
         if (module.productSource) {
             const params: any = {};
             if (module.productSource === "products") {
-                const ids = module.productList.map((item: any) => item.productId);
+                const ids = (module.productList ?? []).map((item: any) => item.productId);
                 params.ids = ids.join(",");
                 params.size = ids.length;
             } else if (module.productSource === "all") {
                 // 全部商品（我方新增，论坛 B 类 237824）：仅 size，无任何过滤
                 params.size = Number(module.productNum) > 0 ? Number(module.productNum) : 100;
             } else {
+                // 分组来源但无任何分组（编辑器删空/老数据缺失）：不取数，避免无过滤拉全站商品冒充分组商品
+                if (!module.productGroups?.[0]) return;
                 const { productGroupId, productNum, productNumType } = module.productGroups[0];
                 params.productGroupId = productGroupId;
                 params.size = productNumType === "number" ? productNum : 100;

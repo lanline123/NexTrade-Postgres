@@ -117,7 +117,7 @@ export default function Banner({ module, index }: Props) {
         const designHeight = designPxToRpx(module.bannerContent.height);
         const backgroundHeight = designHeight && index == 0 ? `calc(${designHeight} + ${Number(saveHeight)}px)` : designHeight;
         return `background-image: linear-gradient(${gradientMap[module.bannerContent.gradientType]} ,${module.bannerContent.picList[realIndex]?.gradientColorA},${
-            module.bannerContent.picList[realIndex].gradientColorB
+            module.bannerContent.picList[realIndex]?.gradientColorB
         });height:${backgroundHeight}; border-radius: 0 0 ${module.bannerContent.backgroundRadius}% ${module.bannerContent.backgroundRadius}%;`;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [module.bannerContent, realIndex, index, saveHeight]);
@@ -161,7 +161,7 @@ export default function Banner({ module, index }: Props) {
     };
 
     const windowResizeCallback = async () => {
-        await updateImgInfo(module.bannerContent.picList[0].picUrl, ".image-ad-item", rootRef);
+        await updateImgInfo(module.bannerContent.picList[0]?.picUrl, ".image-ad-item", rootRef);
         // 仅在页顶附近重测，避免滚动中重测把阈值算歪
         if (scrollTopRef.current <= 2) {
             await measureCeilingThreshold();
@@ -170,7 +170,7 @@ export default function Banner({ module, index }: Props) {
 
     // 旧 useImgInfo 默认 immediate：挂载时先测比例再测高度
     useEffect(() => {
-        updateImgInfo(module.bannerContent.picList[0].picUrl, ".image-ad-item", rootRef);
+        updateImgInfo(module.bannerContent.picList[0]?.picUrl, ".image-ad-item", rootRef);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -319,7 +319,7 @@ export default function Banner({ module, index }: Props) {
                     duration={500}
                     onChange={(e: any) => swiperChange(e.detail.current)}
                 >
-                    {module.bannerContent.picList.map((item: any, picIndex: number) => (
+                    {(module.bannerContent.picList ?? []).map((item: any, picIndex: number) => (
                         <SwiperItem key={picIndex}>
                             <View
                                 className="image-ad-item"
@@ -337,7 +337,7 @@ export default function Banner({ module, index }: Props) {
                     ))}
                 </Swiper>
                 <SwiperDots
-                    count={module.bannerContent.picList.length}
+                    count={module.bannerContent.picList?.length ?? 0}
                     current={realIndex}
                     picPageType={module.bannerContent.picPageType}
                     color={module.bannerContent.picPageType == 3 ? "#fff" : ""}

@@ -184,9 +184,13 @@ export function queryParams(param?: AnyObject): string {
 }
 
 /**
- * 获取门店/店铺主页 URL：
- * - O2O（TARO_APP_IS_STORE=1）跳门店首页：/pages/store/index?id=xxx（含平台自营 shopId=0）
- * - 非 O2O 跳店铺首页：/pages/shop/index?shopId=xxx
+ * 获取门店/店铺主页 URL：/pages/shop/index?shopId=xxx（O2O 与非 O2O 同落点）
+ *
+ * 依据（2026-11-22 全站体检子线 A）：本仓 app.config.ts 未注册 pages/store/*，
+ * 不存在独立的门店首页；两种构建的店铺/门店首页均为 pages/shop/index
+ * （该页以 shopId 入参，含平台自营 shopId=0）。现存 O2O 入口均直指该页：
+ * storeNav 模块 toStore、商品页 MerchantShopInfo、搜索 ShopInfo、首页 miniShop
+ * 跳转、tabbar 店铺首页。原 O2O 分支的 /pages/store/index?id= 为死路由，两分支收敛至此。
  */
 export function getStoreOrShopHomeUrl(shopId: string | number, extraQuery?: Record<string, unknown>): string {
     if (shopId === undefined || shopId === null) return "";
@@ -194,7 +198,7 @@ export function getStoreOrShopHomeUrl(shopId: string | number, extraQuery?: Reco
     // O2O 平台自营门店使用 shopId=0，允许进入门店首页；普通版本的 0 仍视为无效店铺。
     if (!idStr || (idStr === "0" && !isO2o())) return "";
 
-    const base = isO2o() ? `/pages/store/index?id=${idStr}` : `/pages/shop/index?shopId=${idStr}`;
+    const base = `/pages/shop/index?shopId=${idStr}`;
     if (!extraQuery || Object.keys(extraQuery).length === 0) return base;
 
     const prefix: "?" | "&" = base.includes("?") ? "&" : "?";
@@ -211,7 +215,7 @@ export type ToStoreOrShopHomeOptions = {
 };
 
 /**
- * 统一「进店/去商家主页」跳转（按 isO2o 自动选择门店/店铺主页）
+ * 统一「进店/去商家主页」跳转（O2O 与非 O2O 同落 pages/shop/index，见 getStoreOrShopHomeUrl 依据注）
  */
 export function toStoreOrShopHome(shopId: string | number, options?: ToStoreOrShopHomeOptions) {
     const url = getStoreOrShopHomeUrl(shopId, options?.extraQuery);

@@ -227,7 +227,7 @@ export default function Groupon({ module }: Props) {
                         allFormat.innerPadding
                     }
                 >
-                {module.title.showTitle == 1 && <CommonTitle module={module.title} />}
+                {module.title?.showTitle == 1 && <CommonTitle module={module.title} />}
                 <View className="goods-ad-warp">
                     <View className="goods-ad-con">
                         {grouponItemList.map((item: any) => (

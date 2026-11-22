@@ -339,10 +339,12 @@ export const useRegionStore = create<RegionState>((set, get) => {
     };
 
     // 将解析到的门店设为当前门店，并直接进入其门店首页
+    // 落点：本仓无 pages/store/*（app.config 未注册），门店首页与店铺首页同为
+    // pages/shop/index（shopId 入参，含自营 shopId=0）；原 /pages/store/index?id= 为死路由（2026-11-22 子线 A 收敛）
     const enterShopHome = (shop: StoreListRecords) => {
         if (!shop || shop.shopId === undefined || shop.shopId === null) return;
         setCurrentShop(shop);
-        void Taro.reLaunch({ url: `/pages/store/index?id=${shop.shopId}` });
+        void Taro.reLaunch({ url: `/pages/shop/index?shopId=${shop.shopId}` });
     };
 
     return {

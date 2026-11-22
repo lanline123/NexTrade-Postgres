@@ -113,7 +113,7 @@ export default function DecorateModules({ modules, pageModles, scrollTop, onLoad
                 </ModuleErrorBoundary>
             )}
 
-            {modules.map((mod: any, index: number) => {
+            {(modules ?? []).map((mod: any, index: number) => {
                 // navbar（页面导航）不是列表模块：原版分发器（旧 modules/index.vue）仅在
                 // 列表之前以 pageModles 渲染页面级标题栏，模块循环内无 navbar 分支。
                 // 列表中的 navbar 条目一律不渲染（标题栏配置走页面设置 pageModule）。

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Popup } from "@nutui/nutui-react-taro";
 import { Image, Text, View } from "@tarojs/components";
 
@@ -48,6 +49,9 @@ export default function AbandonPayDialog({
     onChange
 }: Props) {
     const configStoreIntegralName = useConfigStore((s) => s.integralName);
+    // 2026-11-22 体检：权益图标 payment/rightsAndinterests.png 不在 static/mini 资产树内
+    // （线上实测回 SPA 兜底页、非图片），资产补齐前先在加载失败时隐藏图标位，避免弹窗顶着破图。
+    const [iconFailed, setIconFailed] = useState(false);
 
     // 弹窗右上角关闭/遮罩关闭：与放弃支付同走 abandon（旧 @close="onPopupClose"）
     const onPopupClose = () => {
@@ -66,9 +70,11 @@ export default function AbandonPayDialog({
             style={{ backgroundColor: "#fff", borderRadius: "24rpx 24rpx 0 0" }}
         >
             <View className="abandon">
-                <View className="abandon-icon">
-                    <Image className="icon-img" src={staticResource("payment/rightsAndinterests.png")} mode="aspectFit" />
-                </View>
+                {!iconFailed && (
+                    <View className="abandon-icon">
+                        <Image className="icon-img" src={staticResource("payment/rightsAndinterests.png")} mode="aspectFit" onError={() => setIconFailed(true)} />
+                    </View>
+                )}
                 <View className="abandon-title">{t("本单可享受以下权益")}</View>
                 <View className="benefit-list">
                     {Number(rewardPoints) > 0 && (

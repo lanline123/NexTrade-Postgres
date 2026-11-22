@@ -69,7 +69,10 @@ export default function SearchIndex() {
             }
             redirectPathRef.current = options.redirectPath || "";
             searchHistoryKeyRef.current = options.searchHistoryKey || "searchHistory";
-            setNavbarTitle(options.navbarTitle || "搜索商品");
+            // 仅当入口显式传了 navbarTitle 才覆盖：否则会把上方 shopId 分支刚设的「店铺搜索」冲掉
+            if (options.navbarTitle) {
+                setNavbarTitle(options.navbarTitle);
+            }
             setPlaceholder(options.placeholder || "点击搜索商品");
             isSwitchTabRef.current = options.isSwitchTab;
         }

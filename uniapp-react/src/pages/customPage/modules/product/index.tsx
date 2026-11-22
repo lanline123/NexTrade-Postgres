@@ -211,7 +211,7 @@ export default function Product({ module, shopId = -1 }: Props) {
                         allFormat.innerPadding
                     }
                 >
-                    {module.title.showTitle == 1 && <CommonTitle module={module.title} />}
+                    {module.title?.showTitle == 1 && <CommonTitle module={module.title} />}
                     {productList.length > 0 && (
                         <>
                             {module.style == 7 ? (

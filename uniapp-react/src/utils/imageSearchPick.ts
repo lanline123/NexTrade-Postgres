@@ -14,8 +14,10 @@ export interface CaptureClosedPayload {
     unavailable: boolean;
 }
 
-// App 是内嵌原生取景组件的 nvue 页面，微信小程序是用 camera 组件的普通页面
-let capturePage = "/pages/imageSearch/capture";
+// 微信小程序是用 camera 组件的普通页面 captureMp（已注册）；原 App nvue 取景页（imageSearch/capture，未注册）
+// 在本重构仓不存在（未注册死链）。H5 不走 openCapture（见 startImageSearch 的 weapp 门控，走系统选图），
+// 故默认落点统一为已注册的 captureMp（2026-11-22 全站体检 C 线）。
+let capturePage = "/pages/imageSearch/captureMp";
 // #ifdef MP-WEIXIN
 if (process.env.TARO_ENV === "weapp") {
     capturePage = "/pages/imageSearch/captureMp";

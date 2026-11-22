@@ -145,7 +145,7 @@ export default function ProductGrouping({ module }: Props) {
             currentGroupData.size = Number(module.productNum) > 0 ? Number(module.productNum) : 100;
             void getGroupProductList(currentGroupData);
         } else if (module.productSource && module.productSource === "productGroup") {
-            if (module.groupList.length > 0) {
+            if ((module.groupList?.length ?? 0) > 0) {
                 const { productGroupId, productNum, productNumType } = module.groupList[currentIndex];
                 currentGroupData.productGroupId = productGroupId;
                 currentGroupData.size = productNumType === "number" ? productNum : 100;
@@ -153,7 +153,7 @@ export default function ProductGrouping({ module }: Props) {
             }
         } else {
             if (module.productGroups && module.productGroups.length > 0) {
-                currentGroupData.ids = module.productGroups[currentIndex].productList.map((item: any) => item.productId).join(",");
+                currentGroupData.ids = (module.productGroups[currentIndex]?.productList ?? []).map((item: any) => item.productId).join(",");
                 void getGroupProductList(currentGroupData);
             }
         }

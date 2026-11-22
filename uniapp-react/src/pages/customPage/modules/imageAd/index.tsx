@@ -105,7 +105,7 @@ export default function ImageAd({ module }: Props) {
             style={frameFormat.boxPadding + frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom}
         >
             <View className="module-ad-content" style={frameFormat.backgroundColor + " " + frameFormat.boxRadius}>
-                {module.title.showTitle == 1 && <CommonTitle module={module.title} />}
+                {module.title?.showTitle == 1 && <CommonTitle module={module.title} />}
                 {module.picList && module.picList.length > 0 && (
                     <>
                         {module.picType == 2 ? (

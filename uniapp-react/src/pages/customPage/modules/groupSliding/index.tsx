@@ -38,7 +38,7 @@ export default function GroupSliding({ module }: Props) {
     ];
 
     const formatLabel = (label: string) => {
-        return label.split("\n");
+        return (label ?? "").split("\n");
     };
 
     // 旧 ref({}) 按分组下标写入（Vue proxy 自动响应）；React 侧以 state + 展开写入触发渲染
@@ -89,7 +89,7 @@ export default function GroupSliding({ module }: Props) {
             >
                 <View>
                     <View className="groupsliding">
-                        {module.groupList.map((group: any, index: number) => (
+                        {(module.groupList ?? []).map((group: any, index: number) => (
                             <View
                                 key={index}
                                 className="slide-box"

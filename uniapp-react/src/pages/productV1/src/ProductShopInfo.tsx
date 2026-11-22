@@ -34,13 +34,18 @@ export default function ProductShopInfo({ storeInfo, productId, shopId, formType
     };
 
     const handleToShop = () => {
-        if (!storeInfo?.shopId) return;
+        // 2026-11-22 体检修复：原守卫 !shopId 把平台自营 shopId=0 也拦掉（本组件恰为自营渲染
+        // 「商城自营」兜底标题，整卡点击却无反应）；与 MerchantShopInfo 同口径：仅拦缺失/负数。
+        if (!Number.isInteger(storeInfo?.shopId) || (storeInfo?.shopId as number) < 0) return;
 
         redirect({
-            url: `/pages/store/index?id=${storeInfo.shopId}`
+            // 落点 pages/shop/index（本仓无 pages/store/*，入参名为 shopId；子线 A 收敛）
+            url: `/pages/shop/index?shopId=${storeInfo.shopId}`
         });
     };
 
+    // 待拍板 P-2（REPORT-A）：下方 /pages/storeList/index 未注册，本仓无「按商品切换门店」
+    // 等价页（pages/shop/list 是店铺街、口径不同），暂保留原落点待裁决，勿臆指其他页面
     const handleStoreList = () => {
         if (!productId) return;
 

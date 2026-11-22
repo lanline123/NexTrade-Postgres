@@ -45,7 +45,7 @@ export default function MixedProductDisplay({ module }: Props) {
         const seq = ++fetchSeqRef.current;
         // 重拉时复位 isLoading，使既有 [isLoading] 量高 effect 在新列表渲染后重新量测图高
         setIsLoading(true);
-        const promises = module.productGroups.map(async (group: any, index: number) => {
+        const promises = (module.productGroups ?? []).map(async (group: any, index: number) => {
             try {
                 const ids = (group.pruductList ?? [])
                     .map((item: any) => Number(item.productId))
@@ -147,7 +147,7 @@ export default function MixedProductDisplay({ module }: Props) {
     useEffect(() => {
         const windowResizeCallback = () => {
             setWindowWidth(Taro.getSystemInfoSync().windowWidth);
-            if (module.productGroups.length > 0) {
+            if ((module.productGroups ?? []).length > 0) {
                 setTimeout(() => {
                     void getImgHeight();
                 }, 80);
@@ -217,14 +217,14 @@ export default function MixedProductDisplay({ module }: Props) {
                     <View className="cont">
                         <View
                             onClick={() => {
-                                resolveMoreUrl(module.productGroups[0].moreLink) && redirect({ url: resolveMoreUrl(module.productGroups[0].moreLink) });
+                                resolveMoreUrl(module.productGroups[0]?.moreLink) && redirect({ url: resolveMoreUrl(module.productGroups[0]?.moreLink) });
                             }}
                         >
                             <View className="mk-title" style={`color:${module.moduleColor.titleColor}`}>
-                                <Text className="line1">{t(module.productGroups[0].groupTitle)}</Text>
+                                <Text className="line1">{t(module.productGroups[0]?.groupTitle)}</Text>
                                 {Number(module.showCountdown) === 1 && (
                                     <View className="time" style={`background:${module.moduleColor.countdownBackgroundColor}; color:${module.moduleColor.countdownColor}`}>
-                                        {new Date().getTime() > Number(module.dailyTime[0]) ? (
+                                        {new Date().getTime() > Number(module.dailyTime?.[0]) ? (
                                             <CommonCountdown
                                                 countdownType={module.countdownType}
                                                 format={formtText}
@@ -239,7 +239,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                 )}
                             </View>
                             <View className="mk-stitle line1" style={`color:${module.moduleColor.sellingPointColor}`}>
-                                {t(module.productGroups[0].groupSubTitle)}
+                                {t(module.productGroups[0]?.groupSubTitle)}
                             </View>
                         </View>
                         <View className="item-box">
@@ -303,17 +303,17 @@ export default function MixedProductDisplay({ module }: Props) {
                     <View className="cont">
                         <View
                             onClick={() => {
-                                resolveMoreUrl(module.productGroups[1].moreLink) && redirect({ url: resolveMoreUrl(module.productGroups[1].moreLink) });
+                                resolveMoreUrl(module.productGroups[1]?.moreLink) && redirect({ url: resolveMoreUrl(module.productGroups[1]?.moreLink) });
                             }}
                         >
                             <View className="mk-title line1" style={`color:${module.moduleColor.titleColor}`}>
-                                <Text className="line1">{t(module.productGroups[1].groupTitle)}</Text>
+                                <Text className="line1">{t(module.productGroups[1]?.groupTitle)}</Text>
                                 {module.rightPic?.picUrl ? (
                                     <Image className="mpd-right-pic" src={imageFormat(module.rightPic.picUrl)} mode="heightFix" />
                                 ) : null}
                             </View>
                             <View className="mk-stitle line1" style={`color:${module.moduleColor.sellingPointColor}`}>
-                                {t(module.productGroups[1].groupSubTitle)}
+                                {t(module.productGroups[1]?.groupSubTitle)}
                             </View>
                         </View>
                         <View className="item-box">

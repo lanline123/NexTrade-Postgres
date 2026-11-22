@@ -2325,3 +2325,13 @@
 - **账号安全设置页接通（我方新增，论坛 B 类第 6 项存量接线缺失）**：后端锁定链与 `AccountSecuritySettings.tsx` 页面俱全（接口 `/setting/config/accountSecuritySettings`、`/setting/config/saveAccountSecurity` 前后端逐字对齐，会员详情「登录安全」区块亦已落地），但页面从未接线、菜单亦无入口，管理员无法调整失败次数/锁定时长或关闭锁定。本批先在 App.tsx 接通路由（key `accountSecuritySettings`，可直达），菜单叶子与 pageTitles 补登见体检报告标红项（adminMenu.tsx 本批按冻结口径未动）。
 - **店铺团队设置「显示分类」恒空修复**：`ShopTeamSettings` 调 `/product/category/getAllCategoryList`，后端实名 `/product/category/getAllCategory`（原 Java `CategoryController.getAllCategory`），404 被 catch 吞掉致分类勾选区永远为空、存量勾选无从核对。改对接口名，并按后端分类树契约（children 嵌套）递归拍平后渲染。
 - **顶栏菜单搜索落点修正**：搜索结果命中分组/父级菜单时此前直接以分组/父级 key 导航，落回 dashboard 或「尚未迁移」占位页；改为与 AdminLayout 一级菜单点击同口径（resolveAccessibleRedirect），落到组内第一个可用叶子页（跳过 blank 新标签入口）。
+
+## 0.0.2 续 · 2026-11-22 批次（H5 全站体检修复批，未部署——随下一 H5 合并版上线）
+
+### 修复
+
+- **门店死路由簇收敛（原版有·我方重构未迁入）**：旧 uniapp 的 `pages/store/*`、`pages/storeList/*`、`pages/region/*` 页族在重构时只搬了链接没搬页面，本站 O2O 构建（IS_STORE=1）下多处活入口点了没反应——`utils/index.ts` 的 `getStoreOrShopHomeUrl/toStoreOrShopHome` O2O 分支（购物车/订单详情/收藏店铺/礼品卡订单的进店入口）、`utils/format.ts` 装修链接解析的 store 类型与「最近门店/已选门店」分支、`store/region.ts` 自动进店 `enterShopHome`、拼团页（product/productV1）进店、productV1 商详店铺卡进店、结算门店卡（StoreCardStore）标题进店，统一收敛到现存唯一店铺首页 `/pages/shop/index?shopId=`（参数名 id→shopId）；StoreCardStore 与结算通用 StoreCard 的自营守卫一并修正（原放行条件按旧 `/pages/store/` 前缀判断、永不命中，平台自营 shopId=0 标题恒点不动）；productV1 店铺卡守卫与 MerchantShopInfo 对齐放行自营 0。「选择门店/按商品切换门店/自提点选择/地区选择/门店分组列表」五处无等价页的落点只加待拍板注释未臆改（清单见体检报告）。
+- **价格口径批**：商品标题组件（product/productV1 共用）普通划线价补「市场价 > 售价」门控（原仅判 >0，市场价 ≤ 售价也划线）；拼团标题划线价补同款门控（原无门控、原价为空时渲染 ¥0.00 划线价）；海外预售划线价补门控（原价 ≤ 预售价仍显示「优惠 0%」）；结算商品卡划线门控由 `!==` 改数值 `>`（原价低于售价反向划线、海外算出负数 %off）并补双段 withExact；结算券/积分抵扣额回落分支改 toFixed(2) 精确到分（原裸拼 Number 出现 ￥10.5/￥10，国内与海外口径分裂）；售后申请/列表补 withExact 与详情页对齐。
+- **订单/会员死链批**：线下付款认款提交后周期卡/预约/自提三类订单跳未注册门店订单页、用户被困在认款页——统一改落已内建三类展示的 `/pages/user/order/info?id=`；会员中心装修 userInfo3 通知铃铛跳未注册消息页 → 改落消息中心 `/pages/im/page`（三类未读聚合口径互证）；抽奖页两处指向未注册结算页的不可达死分支删除（商品奖品实际走 Buy 组件加购结算链）；支付页删除过期「未注册」TODO 与恒 false 的 premiumMember 死回跳分支（行为零变化）；图搜 capture 默认落点由未注册页改已注册 captureMp（H5/小程序行为不变）。
+- **装修模块空数据防崩批（16 文件）**：分发器 DecorateModules 与店铺页 shopModules 的 modules 空守卫（接口无 moduleList 时整页渲染抛错）；banner picList 可空守卫；groupSliding/mixedNotice/mixedProductDisplay/productGrouping/specialOffer 的列表字段删空即崩逐处补可选链（specialOffer 分组为空时改为不取数，避免以无过滤参数拉全站商品冒充分组商品）；groupon/imageAd/imageAd2/imageHotarea/product/seckill/titleAd 的 title 子对象缺失守卫；店铺页背景配置缺失时不再生成 `url("undefined")` 无效 CSS（与首页同口径）。
+- **杂项**：店铺内搜索页标题被后续无条件赋值冲掉（「店铺搜索」恒显示「搜索商品」）已修；分销中心推广图引用不存在的 `tuiguang.png!small.webp`（线上实测 404、资产树无此文件）改用现存 `tuiguang.png`；放弃支付挽留弹窗权益图标资产缺失（不在 static/mini 树内）先加加载失败隐藏兜底，资产待补；权限白名单删 5 条指向未注册页面的死条目。

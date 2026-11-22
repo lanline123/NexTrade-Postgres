@@ -106,7 +106,7 @@ export default function ImageHotarea({ module }: Props) {
             style={frameFormat.boxPadding + frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom}
         >
             <View className="module-ad-content" style={frameFormat.backgroundColor + " " + frameFormat.boxRadius}>
-                {module.title.showTitle == 1 && <CommonTitle module={module.title} />}
+                {module.title?.showTitle == 1 && <CommonTitle module={module.title} />}
                 {embed && picListEmpty ? (
                     /* 空态在流占位（PC 口径：paddingTop 30 / paddingBottom 50 / #f2f4f6 /
                        100×100 占位盒 + 文案，总高约 210 设计 px） */

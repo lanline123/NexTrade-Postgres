@@ -212,13 +212,11 @@ export default function OfflinePayment() {
             const firstItem = order?.items?.[0];
             if (firstItem?.productType === 8) {
                 url = `/pages/giftCard/order/info?id=${orderId}`;
-            } else if (order?.cycleCardInfo?.cardId && !order?.cyclePlan) {
-                url = `/pages/store/order/info?id=${orderId}`;
-            } else if (order?.orderType === 9 || order?.orderType === 10 || (order?.orderType === 2 && order?.isPickup && !order?.pickupDetail)) {
-                url = `/pages/store/order/reserveInfo?id=${orderId}`;
-            } else if (order?.isPickup && !order?.cyclePlan) {
-                url = `/pages/store/order/info?id=${orderId}`;
             }
+            // 原周期卡/预约/自提分支指向未注册的门店订单详情/预约详情页（store/order/*，死链，
+            // redirectTo 失败后用户停留在认款页）。现存订单详情 /pages/user/order/info（参数同为 ?id=）已内建
+            // 周期卡（cycleCardInfo/cycleInfo）、预约（orderType 9/10）、自提（isPickup/pickupDetail）展示，
+            // 故统一落默认详情页（2026-11-22 全站体检 C 线）。
         } catch {
             // 查询详情失败时回退到普通订单详情，避免提交成功后停留在认款页。
         }

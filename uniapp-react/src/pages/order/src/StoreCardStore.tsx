@@ -216,6 +216,8 @@ export default function StoreCardStore({
             params += `&stores=${encodeURIComponent(JSON.stringify(stores))}`;
         }
 
+        // 待拍板 P-3（REPORT-A）：/pages/store/selfPick 未注册，本仓无自提点选择等价页，
+        // 暂保留原落点待裁决，勿臆指其他页面
         redirect({ url: `/pages/store/selfPick?${params}` });
     };
 
@@ -258,7 +260,8 @@ export default function StoreCardStore({
         }
     };
     const handleLink = (url: string, id: number) => {
-        if (id === 0) return;
+        // 商品 id=0 无效不跳；店铺首页支持平台自营 shopId=0（与通用版 StoreCard 口径一致）
+        if (id === 0 && !url.includes("/pages/shop/index")) return;
         Taro.navigateTo({
             url: url + id
         });
@@ -340,7 +343,7 @@ export default function StoreCardStore({
                     )}
 
                     <View className="store-card-item" style={{ paddingTop: item.isNotReachMinOrderAmount ? "0rpx" : "20rpx" }}>
-                        <View className="store-card-item-title" onClick={() => handleLink(`/pages/store/index?id=`, item.shopId)}>
+                        <View className="store-card-item-title" onClick={() => handleLink(`/pages/shop/index?shopId=`, item.shopId)}>
                             {item.shopId === 0 && <View className="store-card-item-label">{t("自营")}</View>}
                             <View className="store-card-item-name">{item.shopTitle ? item.shopTitle : t("自营")}</View>
                         </View>

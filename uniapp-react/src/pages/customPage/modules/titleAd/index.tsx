@@ -41,13 +41,13 @@ export default function TitleAd({ module }: Props) {
                                 <View className={`image-ad-title ad-title_style__${module?.title?.titleStyle}`}>
                                     <View className="image-ad-title-l">
                                         <View className="image-ad-title-h" style={allFormat.titleColor}>
-                                            {t(module.title.titleText)}
+                                            {t(module.title?.titleText)}
                                         </View>
                                         <View className="image-ad-title-d" style={allFormat.descColor}>
-                                            {t(module.title.descText)}
+                                            {t(module.title?.descText)}
                                         </View>
                                     </View>
-                                    {module.title.showMore == 1 && (
+                                    {module.title?.showMore == 1 && (
                                         <View className="image-ad-title-r">
                                             {/* 旧版为 navigator :url="module.title.moreLink[0]"，React 端按项目惯例改为点击跳转 */}
                                             <View

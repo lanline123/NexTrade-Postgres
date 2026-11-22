@@ -205,7 +205,8 @@ export default function CouponInfo({
                                     />
                                 </View>
                             ) : (
-                                <View className="coupon-text">-{dualCouponAmount ?? currency + couponAmount}</View>
+                                {/* 未触发缩写回落精确拼接：金额须精确到分（此前裸拼 Number 值，10.5 显示为 ￥10.5、10 显示为 ￥10，2026-11-22 体检修复） */}
+                                <View className="coupon-text">-{dualCouponAmount ?? currency + Number(couponAmount).toFixed(2)}</View>
                             )
                         ) : null}
                         <View className="iconfont-h5 icon-fanhui" />

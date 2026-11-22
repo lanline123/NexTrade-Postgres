@@ -42,10 +42,10 @@ export default function MixedNotice({ module }: Props) {
             >
                 <View className="mixed-notice">
                     <View className="notices">
-                        {module.noticeGroups.map((item: any, index: number) => (
+                        {(module.noticeGroups ?? []).map((item: any, index: number) => (
                             <View className="notices-item-box" key={index}>
-                                {item.notices.length === 1 ? (
-                                    item.notices.map((subItem: any, subIndex: number) => (
+                                {(item.notices?.length ?? 0) === 1 ? (
+                                    (item.notices ?? []).map((subItem: any, subIndex: number) => (
                                         <View
                                             className="notices-item"
                                             key={subIndex}
@@ -77,7 +77,7 @@ export default function MixedNotice({ module }: Props) {
                                         vertical
                                         duration={800}
                                     >
-                                        {item.notices.map((notice: any, noticeIndex: number) => (
+                                        {(item.notices ?? []).map((notice: any, noticeIndex: number) => (
                                             <SwiperItem key={noticeIndex}>
                                                 <View
                                                     className="notices-item"

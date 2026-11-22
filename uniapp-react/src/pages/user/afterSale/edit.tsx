@@ -424,6 +424,7 @@ export default function AfterSaleEdit() {
                                         <View className="right-price-pricenum">
                                             <FormatPrice
                                                 showText={false}
+                                                withExact
                                                 decimalsStyle={{ fontSize: "24rpx", fontWeight: "bold" }}
                                                 currencyStyle={{ fontSize: "22rpx", fontWeight: "bold" }}
                                                 priceData={getDisplayPrice(item)}

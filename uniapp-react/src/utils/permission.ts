@@ -27,21 +27,19 @@ const whiteList = [
     "/pages/product/index",
     "/pages/shop/index",
     "/pages/shop/list",
-    "/pages/category/index",
     "/pages/im/index",
     "/pages/user/bindMobilePhone/index",
     "/pages/salesman/salesmanCard",
     "/pages/salesman/shop",
     "/pages/reset/index",
     "/pages/customPage/index",
-    "/pages/store/index",
-    "/pages/storeList/index",
-    "/pages/region/index",
     "/pages/buyerShow/index",
     "/pages/buyerShow/addBuyerShow",
     "/pages/buyerShow/buyerShowDetail",
     // 以图搜图不设登录门槛，游客可拍照和查看结果
-    "/pages/imageSearch/capture",
+    // （2026-11-22 体检清理：删去 /pages/category/index、/pages/store/index、/pages/storeList/index、
+    // /pages/region/index、/pages/imageSearch/capture 五条指向未注册页面的死条目——这些页面不存在、
+    // 永不命中，仅误导排查；分类页实际为 /pages/productCate/index，已在上方。）
     "/pages/imageSearch/captureMp",
     "/pages/search/image",
     "/pages/langSet/index"

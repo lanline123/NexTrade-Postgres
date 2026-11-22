@@ -337,7 +337,10 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
             handleLogin();
             return;
         }
-        redirect({ url: "/pages/user/message/index" });
+        // 消息中心落点为 /pages/im/page：铃铛红点聚合 userMessageCount/orderMessageCount/imMessageCount 三类未读，
+        // im/page 正是聚合页（订单通知/站内消息入口 + 会话列表）；/pages/user/messageLog/index 仅站内信一类，非同一功能。
+        // 原 user/message 页未注册（死链），2026-11-22 全站体检 C 线修正。
+        redirect({ url: "/pages/im/page" });
     };
 
     const maskedPhone = (() => {

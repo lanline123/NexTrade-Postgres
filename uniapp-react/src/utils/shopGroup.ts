@@ -35,6 +35,9 @@ export function groupLinkUrl(link: Record<string, any>): string {
     const value = link.groupIds ?? link.data?.groupIds ?? link.id ?? link.data?.id;
     const groupIds = Array.isArray(value) ? value.join(",") : String(value ?? "");
     if (!validGroupParams({ groupIds })) return "";
+    // 待拍板 P-5（REPORT-A）：storeGroup 分支的 /pages/storeList/list 未注册，本仓无门店分组
+    // 列表页（pages/shop/list 为店铺分组 shopType=1、走 shop/shop/list 接口，口径不同不可代指），
+    // 暂保留原落点待裁决
     const path = link.path === "storeGroup" ? "/pages/storeList/list" : "/pages/shop/list";
     return `${path}?groupIds=${encodeURIComponent([...new Set(groupIds.split(",").map(Number))].join(","))}`;
 }

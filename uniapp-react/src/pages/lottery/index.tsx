@@ -619,17 +619,9 @@ export default function LotteryIndex() {
             case 1: // 积分
                 redirect({ url: "/pages/user/point/detail" });
                 break;
-            case 2: // 商品 - 需要领取
-                // 跳转到订单确认页
-                redirect({
-                    url: "/pages/order/confirm/index",
-                    param: {
-                        prizeId: drawResult.prizeId,
-                        productId: drawResult.prizeValue,
-                        fromLottery: 1
-                    }
-                });
-                break;
+            // case 2（商品）不在此处理：结果弹窗中奖品类型为商品时按钮由 <Buy isQuick lotteryRecordId>
+            // 组件接管（加购后跳 /pages/order/check?flowType=…&lotteryRecordId=…），不会走到本函数；
+            // 原指向未注册的订单确认页（order/confirm）的死分支已删除（2026-11-22 全站体检 C 线）。
             case 3: // 优惠券
                 redirect({ url: "/pages/coupon/index?type=2" });
                 break;
@@ -647,16 +639,8 @@ export default function LotteryIndex() {
             case 1: // 积分
                 redirect({ url: "/pages/user/point/detail" });
                 break;
-            case 2: // 商品
-                // 跳转到订单确认页进行领取
-                redirect({
-                    url: "/pages/order/confirm/index",
-                    param: {
-                        recordId: record.recordId,
-                        fromLottery: 1
-                    }
-                });
-                break;
+            // case 2（商品）不在此处理：记录列表中奖品类型为商品时按钮由 <Buy isQuick lotteryRecordId>
+            // 组件接管（加购后跳 /pages/order/check），不会走到本函数；原死分支已删除（同 handleResultAction）。
             case 3: // 优惠券
                 redirect({ url: "/pages/coupon/index?type=2" });
                 break;

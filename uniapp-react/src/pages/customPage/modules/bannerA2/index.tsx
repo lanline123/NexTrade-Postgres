@@ -125,6 +125,9 @@ export default function BannerA2({ module, index, needStatusBar = true }: Props)
     }, [isShopMode, regionStore, latestAddressName]);
     void entryText;
 
+    // 现状：本函数与 entryText 均被 void、模板未渲染门店/地址入口，当前不可达。
+    // 两分支落点 /pages/store/select/index（待拍板 P-1）、/pages/region/index（待拍板 P-4）
+    // 均未注册且本仓无等价页，暂保留原落点待裁决（REPORT-A）；入口恢复渲染前须先定落点。
     const handleAreaClick = () => {
         if (!canSwitch) return;
         if (isShopMode) {

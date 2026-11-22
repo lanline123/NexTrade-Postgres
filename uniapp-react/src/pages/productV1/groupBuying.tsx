@@ -170,7 +170,8 @@ export default function GroupBuying() {
             const regionStore = useRegionStore.getState();
             const location = regionStore.currentLocationInfo;
             Taro.navigateTo({
-                url: `/pages/store/index?id=${shopInfo.shopId}&latitude=${location.latitude ?? ""}&longitude=${location.longitude ?? ""}`
+                // 落点 pages/shop/index（本仓无 pages/store/*，入参名为 shopId；子线 A 收敛）
+                url: `/pages/shop/index?shopId=${shopInfo.shopId}&latitude=${location.latitude ?? ""}&longitude=${location.longitude ?? ""}`
             });
         }
     };

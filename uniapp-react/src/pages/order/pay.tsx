@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Text, View } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
 
-// TODO(MIGRATION)：跳转目标 /pages/user/order/list、/pages/user/account/index 属用户中心/订单列表后续批次，当前未注册，跳转失败时由 redirect fail 兜底（保持旧路径不臆改）
+// 注：本页跳转目标 /pages/user/order/list、/pages/user/account/index 均已在 app.config.ts 注册（旧 TODO(MIGRATION) 声称未注册已过期，2026-11-22 全站体检 C 线核实删除）。
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import TigButton from "@/components/tig/tig-button/TigButton";
 import FormatPrice from "@/components/format-price/FormatPrice";
@@ -54,8 +54,7 @@ export default function Pay() {
     const [presaleInfo, setPresaleInfo] = useState<OrderPresaleInfo | null>(null);
     const [typeText, setTypeText] = useState("");
     const [payTypeText, setPayTypeText] = useState("");
-    // 旧 isPremiumMember ref（源码中仅声明与读取，赋值随旧版保持恒 false）
-    const isPremiumMemberRef = useRef(false);
+    // 旧 isPremiumMember ref 已删除：全仓无任何赋值点（恒 false），其 premiumMember 跳转分支不可达且该页未注册（死链），2026-11-22 全站体检 C 线随死分支一并清除。
 
     const orderIdRef = useRef<number | null>(null);
 
@@ -168,17 +167,10 @@ export default function Pay() {
     };
 
     const redirectAfterPaymentSuccess = () => {
-        if (isPremiumMemberRef.current) {
-            Taro.showToast({ title: t("支付完成"), icon: "success", duration: 2000 });
-            setTimeout(() => redirect({ url: "/pages/user/premiumMember/index", mode: "redirectTo" }), 2000);
-            return;
-        }
         Taro.showToast({ title: t("支付成功"), duration: 1500, icon: "none" });
         setTimeout(() => {
             if (typeText === "recharge") {
                 redirect({ url: "/pages/user/account/index", mode: "redirectTo" });
-            } else if (isPremiumMemberRef.current) {
-                redirect({ url: "/pages/user/premiumMember/index", mode: "redirectTo" });
             } else {
                 redirect({
                     url: `/pages/order/payStatus?id=${orderIdRef.current}${
@@ -209,12 +201,7 @@ export default function Pay() {
                 settlePayment(() => {
                     Taro.showToast({ title: t("支付已超时"), duration: 1500, icon: "none" });
                     redirect({
-                        url:
-                            typeText === "recharge"
-                                ? "/pages/user/account/index"
-                                : isPremiumMemberRef.current
-                                  ? "/pages/user/premiumMember/index"
-                                  : "/pages/user/order/list",
+                        url: typeText === "recharge" ? "/pages/user/account/index" : "/pages/user/order/list",
                         mode: "redirectTo"
                     });
                 });

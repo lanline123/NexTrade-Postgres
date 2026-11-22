@@ -77,7 +77,7 @@ interface Props {
 export default function ShopModules({ modules, shopInfo, onRefreshShopDetail, moduleErrorPlaceholder }: Props) {
     return (
         <View>
-            {modules.map((mod: any, index: number) => {
+            {(modules ?? []).map((mod: any, index: number) => {
                 if (mod.isShow === false || !SHOP_MODULE_TYPE_SET.has(mod.type)) return null;
                 const Registered = MODULE_REGISTRY[mod.type] as ComponentType<any> | undefined;
                 if (!Registered) {

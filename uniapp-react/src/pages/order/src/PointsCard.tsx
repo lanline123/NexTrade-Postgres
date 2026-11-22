@@ -112,7 +112,8 @@ export default function PointsCard({ points, availablePoints, pointsAmount, useP
                 <View className="points-content">
                     {pointsAmount > 0 ? (
                         <View className="points-text">
-                            -{dualPointsAmount ?? (isOverseas() ? currency + displayPointsAmount : currency + pointsAmount)}
+                            {/* 未触发缩写回落精确拼接：金额须精确到分（此前裸拼 Number 值，10.5 显示为 ￥10.5、10 显示为 ￥10；displayPointsAmount 已经 moneyFormat 两位小数，逐字不变，2026-11-22 体检修复） */}
+                            -{dualPointsAmount ?? (isOverseas() ? currency + displayPointsAmount : currency + Number(pointsAmount).toFixed(2))}
                         </View>
                     ) : (
                         points === 0 && pointsAmount === 0 && <View className="points-text">{`${t("暂无可用")}${configIntegralName}`}</View>

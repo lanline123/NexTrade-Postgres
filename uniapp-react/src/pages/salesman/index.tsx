@@ -374,7 +374,7 @@ export default function SalesmanIndex() {
                                     <View className="promotion-item__desc">{t("专属店面分享获客")}</View>
                                 </View>
                                 <View className="van-image">
-                                    <Image src={staticResource("salesman/tuiguang.png!small.webp")} className="van-image__img" />
+                                    <Image src={staticResource("salesman/tuiguang.png")} className="van-image__img" />
                                 </View>
                             </View>
                         </View>

@@ -118,10 +118,10 @@ export default function ShopIndex() {
             "4": "repeat-y"
         };
         return {
-            backgroundColor: `${pageModulesData.backgroundColor}`,
-            backgroundImage: `url("${pageModulesData.backgroundImage?.picUrl}")`,
-            backgroundSize: `${sizeMap[pageModulesData.backgroundSize]}`,
-            backgroundRepeat: `${repeatMap[pageModulesData.backgroundRepeat]}`
+            backgroundColor: pageModulesData.backgroundColor || undefined,
+            backgroundImage: pageModulesData.backgroundImage?.picUrl ? `url("${pageModulesData.backgroundImage.picUrl}")` : undefined,
+            backgroundSize: sizeMap[pageModulesData.backgroundSize] || undefined,
+            backgroundRepeat: repeatMap[pageModulesData.backgroundRepeat] || undefined
         } as CSSProperties;
     }, [pageModulesData]);
 

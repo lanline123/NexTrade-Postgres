@@ -221,9 +221,11 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
     }, [productInfo?.suppliersId]);
 
     const normalStrikePrice = useMemo(() => {
+        // 划线价口径（用户拍板）：仅当候选价 >0 且大于售价才展示——三条分支统一此门控，
+        // 此前供应商分支与市场价兜底分支只判 >0，市场价 ≤ 售价时也会划线（2026-11-22 体检修复）
         // 供应商商品：仅使用市场价作为划线价，没有市场价则不展示划线价
         if (isSupplierProduct) {
-            if (productInfo.marketPrice && Number(productInfo.marketPrice) > 0) {
+            if (productInfo.marketPrice && Number(productInfo.marketPrice) > Number(productPrice)) {
                 return productInfo.marketPrice;
             }
             return null;
@@ -231,7 +233,7 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
         if (productOriginPrice && Number(productOriginPrice) > Number(productPrice)) {
             return productOriginPrice;
         }
-        if (productInfo.marketPrice && Number(productInfo.marketPrice) > 0) {
+        if (productInfo.marketPrice && Number(productInfo.marketPrice) > Number(productPrice)) {
             return productInfo.marketPrice;
         }
         return null;

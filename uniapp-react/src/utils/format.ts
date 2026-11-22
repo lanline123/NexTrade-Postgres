@@ -252,6 +252,7 @@ const baseList = [
         url: "/pages/user/subCard/index"
     },
     {
+        // 待拍板 P-1（REPORT-A）：url 指向未注册的「选择门店」页，本仓无等价页，暂保留原落点待裁决
         name: "选择门店",
         link: "store/select/index",
         url: "/pages/store/select/index"
@@ -303,10 +304,12 @@ export function urlFormat(params: string | { path: string; [key: string]: any },
                 // 文章
                 return `/pages/shop/index?shopId=${params.data.id}`;
             case "store": {
-                // 门店首页
+                // 门店/店铺首页：本仓无 pages/store/*（app.config 未注册），唯一首页为
+                // pages/shop/index（shopId 入参）；原 /pages/store/index?id= 为死路由（子线 A 收敛）
                 const storeId = normalizeShopId(params.data?.id);
+                // 待拍板 P-1：无 id 时原落点「选择门店」页不存在且无等价页，暂保留待裁决（REPORT-A）
                 if (storeId === null) return "/pages/store/select/index";
-                return `/pages/store/index?id=${storeId}`;
+                return `/pages/shop/index?shopId=${storeId}`;
             }
             case "brand":
                 // 品牌
@@ -329,8 +332,9 @@ export function urlFormat(params: string | { path: string; [key: string]: any },
                         .map(normalizeShopId)
                         .find((id) => id !== null);
                     if (targetShopId !== undefined) {
-                        return `/pages/store/index?id=${targetShopId}`;
+                        return `/pages/shop/index?shopId=${targetShopId}`;
                     }
+                    // 待拍板 P-1：无可用门店时原落点「选择门店」页不存在且无等价页，暂保留待裁决（REPORT-A）
                     return "/pages/store/select/index";
                 }
                 // 选择门店：已选过门店则直接进入该门店，否则进入选择门店页
@@ -338,8 +342,9 @@ export function urlFormat(params: string | { path: string; [key: string]: any },
                     const regionStore = useRegionStore.getState();
                     const selectedShopId = normalizeShopId(regionStore.currentShop?.shopId);
                     if (selectedShopId !== null) {
-                        return `/pages/store/index?id=${selectedShopId}`;
+                        return `/pages/shop/index?shopId=${selectedShopId}`;
                     }
+                    // 待拍板 P-1：未选门店时原落点「选择门店」页不存在且无等价页，暂保留待裁决（REPORT-A）
                     return "/pages/store/select/index";
                 }
                 // 基础页面

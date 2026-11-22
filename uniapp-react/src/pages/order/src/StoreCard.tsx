@@ -100,7 +100,9 @@ export default function StoreCard({
 
     const handleLink = (url: string, id: number) => {
         // 商品 id 无效时不跳转；门店支持平台自营 shopId=0
-        if (id === 0 && !url.includes("/pages/store/")) return;
+        // 2026-11-22 体检修复：原放行条件写的是旧门店页前缀 /pages/store/，而本文件标题链接
+        // 早已是 /pages/shop/index?shopId=，条件永不命中、自营店标题点击恒被拦——改按实际链接判。
+        if (id === 0 && !url.includes("/pages/shop/index")) return;
         Taro.navigateTo({
             url: url + id
         });

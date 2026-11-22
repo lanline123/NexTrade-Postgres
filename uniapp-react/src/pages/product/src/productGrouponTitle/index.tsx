@@ -131,7 +131,8 @@ export default function ProductGrouponTitle({
                             </View>
                         </View>
                         <View className="title-top-market_price flex align-center">
-                            {!showB2bText && (
+                            {/* 划线价口径：仅原价 >0 且大于拼团价才展示（此前无门控，原价为空/0 时渲染 ¥0.00 划线价，2026-11-22 体检修复；与秒杀/折扣标题的 showOriginPrice 同口径，比较对象为本标题展示的拼团价） */}
+                            {!showB2bText && Number(productOriginPrice) > Number(grouponValue.grouponPrice) && (
                                 <View className="originalprice-box">
                                     <View>
                                         <FormatPrice displayPrice

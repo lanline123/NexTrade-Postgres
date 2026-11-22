@@ -136,6 +136,7 @@ export default function AfterSaleList() {
                                                         <View className="product-item-pricenum">
                                                             <FormatPrice
                                                                 showText={false}
+                                                                withExact
                                                                 decimalsStyle={{ fontSize: "25rpx" }}
                                                                 currencyStyle={{ fontSize: "23rpx" }}
                                                                 priceData={getDisplayPrice(subItem)}

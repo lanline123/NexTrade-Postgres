@@ -88,7 +88,8 @@ export default function ProductPresaleTitle({
                             priceData={productPrice}
                         />
                     </View>
-                    {overseas && originPriceNum > 0 ? (
+                    {/* 划线价口径：仅原价 > 预售价才展示（此前只判 >0，原价 ≤ 预售价时仍划线并显示「优惠0%」，2026-11-22 体检修复） */}
+                    {overseas && originPriceNum > currentPriceNum ? (
                         <View className="origin-discount-line flex align-center">
                             <FormatPrice displayPrice
                                 priceData={originPrice}
