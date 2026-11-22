@@ -492,8 +492,10 @@ mod tests {
         assert!(sql.contains("regexp_replace(shop_region_id"));
         assert!(sql.contains("regexp_replace(s2.shop_region_id"));
         assert!(!sql.contains("shop_region_id ILIKE"));
-        // 地区 ID 两处均走绑定参数
-        assert_eq!(sql.matches('$').count(), 2);
+        // 地区 ID 两处均走绑定参数：占位符恰为 $1/$2（全文 `$` 共 4 个，
+        // 另 2 个是硬匹配正则 '^...$' 的行尾锚，非占位符——原断言以
+        // matches('$') 计数含锚误判，2026-11-22 CI 实测 left 4 vs right 2）
+        assert!(sql.contains("$1") && sql.contains("$2") && !sql.contains("$3"));
         assert!(!sql.contains("110105"), "地区 ID 必须走绑定参数");
     }
 

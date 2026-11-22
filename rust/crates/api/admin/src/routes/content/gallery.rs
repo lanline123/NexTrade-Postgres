@@ -301,11 +301,14 @@ mod tests {
         h
     }
 
-    /// `implemented_routes()` 必须与 Java 契约逐字符一致（9 条，含 `/adminapi` 前缀）。
+    /// `implemented_routes()` 必须与契约清单逐字符一致（含 `/adminapi` 前缀）：
+    /// 原 Java `GalleryController` 9 条 + 我方新增 1 条
+    /// （`setShared` 平台/门店相册互通，迁移 026，提交 3faf30e3；
+    /// 管理端 MaterialCenter 实际调用该端点）。
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 9, "契约中 gallery 域共 9 条接口");
+        assert_eq!(docs.len(), 10, "gallery 域共 10 条接口（原 Java 9 + 我方新增 1）");
 
         let expected = [
             ("GET", "/adminapi/setting/gallery/list"),
@@ -317,6 +320,7 @@ mod tests {
             ("GET", "/adminapi/setting/gallery/tree"),
             ("POST", "/adminapi/setting/gallery/sort"),
             ("POST", "/adminapi/setting/gallery/move"),
+            ("POST", "/adminapi/setting/gallery/setShared"),
         ];
         for (method, path) in expected {
             assert!(

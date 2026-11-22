@@ -277,7 +277,10 @@ mod tests {
         assert_eq!(PayOrderType::try_from(0).unwrap().name(), "商品订单");
         assert_eq!(PayOrderType::try_from(1).unwrap().name(), "充值单");
         assert_eq!(PayOrderType::try_from(2).unwrap().name(), "付费会员订单");
-        assert!(PayOrderType::try_from(3).is_err());
+        // 3 = HubCrossOrder 联邦跨店订单（联邦三期设计 §③ 定案：
+        // federation-phase3/DESIGN.md「PayOrderType 新增 HubCrossOrder=3」）
+        assert_eq!(PayOrderType::try_from(3).unwrap().name(), "联邦跨店订单");
+        assert!(PayOrderType::try_from(9).is_err());
     }
 
     #[test]

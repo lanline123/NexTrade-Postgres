@@ -265,16 +265,21 @@ mod tests {
 
     #[test]
     fn implemented_routes_match_java_contract() {
+        // 原 Java `GalleryVideoController` 7 条 + `/treeList` 别名 1 条
+        // （与 getAllCategory 同一 Java 方法的双路径注册）
+        // + 我方新增 1 条（`setShared` 相册互通，迁移 026，提交 3faf30e3）。
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 8);
+        assert_eq!(docs.len(), 9);
         let expected = [
             ("GET", "/adminapi/setting/galleryVideo/getAllCategory"),
+            ("GET", "/adminapi/setting/galleryVideo/treeList"),
             ("GET", "/adminapi/setting/galleryVideo/list"),
             ("GET", "/adminapi/setting/galleryVideo/detail"),
             ("POST", "/adminapi/setting/galleryVideo/del"),
             ("POST", "/adminapi/setting/galleryVideo/create"),
             ("POST", "/adminapi/setting/galleryVideo/update"),
             ("POST", "/adminapi/setting/galleryVideo/batch"),
+            ("POST", "/adminapi/setting/galleryVideo/setShared"),
         ];
         for (method, path) in expected {
             assert!(

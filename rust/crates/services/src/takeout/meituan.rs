@@ -486,6 +486,8 @@ mod tests {
     /// secret = a00ba58f000001aa697ab000006d52d
     /// → sig = dbb4d444d68596d03dbcb79a4e4a4e3f
     #[test]
+    // 暂 ignore（用户 2026-11-22 裁定）：官方向量复现未决——转录 app_secret 仅 31 个十六进制字符疑漏字、官方文档在本环境不可达、无中间待签字符串可比对；联调期以美团开发者中心签名工具实测复核为准，复核通过后去掉本 ignore。
+    #[ignore]
     fn sign_matches_official_doc_vector() {
         let params = vec![
             ("app_id".to_string(), "0000".to_string()),

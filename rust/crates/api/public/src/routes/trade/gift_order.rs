@@ -196,9 +196,13 @@ mod tests {
 
     #[test]
     fn source_pins_no_price_in_claim_surface() {
-        // 领取面铁律：路由层不得引入任何金额型 VO
+        // 领取面铁律：路由层不得引入任何金额型 VO。
+        // 扫描范围收窄到实现部分（`#[cfg(test)]` 之前）：全文件扫描会命中
+        // 本测试自身的针字面量而自伤（2026-11-22 CI 实测失败即此因——实现
+        // 部分与领取面 VO 经逐行核查均无金额字段，非价格泄漏）。
         let src = include_str!("gift_order.rs");
-        assert!(!src.contains("total_amount"));
-        assert!(!src.contains("paid_amount"));
+        let impl_src = src.split("#[cfg(test)]").next().unwrap_or("");
+        assert!(!impl_src.contains("total_amount"));
+        assert!(!impl_src.contains("paid_amount"));
     }
 }
