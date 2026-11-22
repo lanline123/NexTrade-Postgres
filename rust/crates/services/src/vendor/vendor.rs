@@ -162,7 +162,10 @@ impl VendorService {
         let kefu_phone = json_str(&p.vendor_data, VENDOR_DATA_CUSTOMER_SERVICE_PHONE);
         let vendor_data = json_to_string(&p.vendor_data);
         let person_data = json_to_string(&p.person_data);
-        let now = nextrade_common::utils::now_millis() as i32;
+        // vendor.add_time 为 Unix 秒口径（读端 format_unix_time 按秒格式化）；
+        // 此前误用 now_millis() as i32（毫秒截断溢出成乱码/负值），
+        // 与历史 payee 秒毫秒 bug 同类（site-audit-backend 修复）。
+        let now = nextrade_common::utils::now_seconds() as i32;
 
         let vendor_id = self
             .vendor_repo()

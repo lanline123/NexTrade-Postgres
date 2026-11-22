@@ -102,7 +102,10 @@ impl SelectProductListQuery {
     pub fn page_query(&self) -> crate::types::PageQuery {
         crate::types::PageQuery {
             page: u64::from(self.page.unwrap_or(1).max(1)),
-            page_size: u64::from(self.size.unwrap_or(20).max(1)),
+            // 上限 100（对齐 Java `BasePage.getSize()` 截断口径）：仓储层直接以
+            // 此处 page_size 作 LIMIT，此前无上限可一次拉全表
+            // （site-audit-backend 修复）。
+            page_size: u64::from(self.size.unwrap_or(20).clamp(1, 100)),
         }
     }
 }
@@ -177,7 +180,8 @@ impl FeedbackListQuery {
     pub fn page_query(&self) -> crate::types::PageQuery {
         crate::types::PageQuery {
             page: u64::from(self.page.unwrap_or(1).max(1)),
-            page_size: u64::from(self.size.unwrap_or(10).max(1)),
+            // 上限 100（同 SelectProductListQuery 口径，site-audit-backend 修复）。
+            page_size: u64::from(self.size.unwrap_or(10).clamp(1, 100)),
         }
     }
 
@@ -249,7 +253,8 @@ impl HistoryProductQuery {
     pub fn page_query(&self) -> crate::types::PageQuery {
         crate::types::PageQuery {
             page: u64::from(self.page.unwrap_or(1).max(1)),
-            page_size: u64::from(self.size.unwrap_or(10).max(1)),
+            // 上限 100（同 SelectProductListQuery 口径，site-audit-backend 修复）。
+            page_size: u64::from(self.size.unwrap_or(10).clamp(1, 100)),
         }
     }
 }

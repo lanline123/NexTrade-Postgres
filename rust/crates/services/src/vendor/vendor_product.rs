@@ -352,7 +352,12 @@ impl VendorProductService {
             .product_repo()
             .find_skus_by_product_ids(&products.iter().map(|p| p.id).collect::<Vec<_>>())
             .await?;
-        let now = nextrade_common::utils::now_millis() as i32;
+        // 此 now 落 product.add_time / last_update / vendor_shop_bind.add_time，
+        // 均为 Unix 秒口径（商品主链一律 now_seconds）；此前误用
+        // now_millis() as i32（毫秒截断溢出成乱码/负值），与历史 payee
+        // 秒毫秒 bug 同类（site-audit-backend 修复）。注意 vendor_product
+        // 自身的 create_time/update_time 是 bigint 毫秒口径，不在此列。
+        let now = nextrade_common::utils::now_seconds() as i32;
 
         for vp in &products {
             let vp_skus: Vec<_> = skus
@@ -429,7 +434,7 @@ impl VendorProductService {
             .first()
             .map(|s| s.supply_price)
             .unwrap_or(rust_decimal::Decimal::ZERO);
-        let now = nextrade_common::utils::now_millis() as i32;
+        let now = nextrade_common::utils::now_seconds() as i32;
         self.product_repo()
             .update_product_from_vendor(product_id, &vp, product_stock, product_price, now)
             .await?;

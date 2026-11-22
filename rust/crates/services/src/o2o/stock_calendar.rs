@@ -206,7 +206,10 @@ impl StockCalendarService {
             return Err(Error::Validation("timeSlotStockChanges 不能为空".into()));
         }
         let sku_id = dto.sku_id.unwrap_or(0);
-        let now = nextrade_common::utils::now_millis() as i32;
+        // 此 now 落 product_reservation_stock.add_time，为 Unix 秒口径；
+        // 此前误用 now_millis() as i32（毫秒截断溢出成乱码/负值），
+        // 与历史 payee 秒毫秒 bug 同类（site-audit-backend 修复，本文件三处同改）。
+        let now = nextrade_common::utils::now_seconds() as i32;
         for change in &dto.time_slot_stock_changes {
             self.apply_change(dto.product_id, dto.shop_id, sku_id, &dto.stock_date, change, now)
                 .await?;
@@ -272,7 +275,7 @@ impl StockCalendarService {
             });
         }
         let sku_id = dto.sku_id.unwrap_or(0);
-        let now = nextrade_common::utils::now_millis() as i32;
+        let now = nextrade_common::utils::now_seconds() as i32;
         let mut affected: u64 = 0;
         for shop_id in &shops {
             for date in &dates {
@@ -310,7 +313,7 @@ impl StockCalendarService {
             return Ok(0);
         }
         let sku_id = dto.sku_id.unwrap_or(0);
-        let now = nextrade_common::utils::now_millis() as i32;
+        let now = nextrade_common::utils::now_seconds() as i32;
         let mut affected: u64 = 0;
         for shop_id in &shops {
             for date in &dates {

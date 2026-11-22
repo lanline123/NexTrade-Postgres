@@ -50,7 +50,10 @@ impl SalesStatisticsQuery {
     pub fn page_query(&self) -> crate::types::PageQuery {
         crate::types::PageQuery {
             page: self.page.unwrap_or(1).max(1) as u64,
-            page_size: self.size.unwrap_or(20).max(1) as u64,
+            // 上限 100（对齐 Java `BasePage.getSize()` 截断口径）：服务层直接以
+            // 此处 page_size 作 LIMIT，此前无上限可一次拉全量统计行
+            // （site-audit-backend 修复）。
+            page_size: self.size.unwrap_or(20).clamp(1, 100) as u64,
         }
     }
 

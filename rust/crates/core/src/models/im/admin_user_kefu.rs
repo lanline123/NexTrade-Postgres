@@ -57,7 +57,10 @@ impl AdminUserKefuPageQuery {
     pub fn page_query(&self) -> crate::types::PageQuery {
         crate::types::PageQuery {
             page: u64::try_from(self.page.unwrap_or(1).max(1)).unwrap_or(1),
-            page_size: u64::try_from(self.size.unwrap_or(15).max(1)).unwrap_or(15),
+            // 上限 100（对齐 Java `BasePage.getSize()` 截断口径）：本结构体的
+            // `limit_offset` 直接使用此处 page_size 拼 LIMIT，此前无上限，
+            // `size` 传大数可一次拉全表（site-audit-backend 修复）。
+            page_size: u64::try_from(self.size.unwrap_or(15).clamp(1, 100)).unwrap_or(15),
         }
     }
 

@@ -2335,3 +2335,10 @@
 - **订单/会员死链批**：线下付款认款提交后周期卡/预约/自提三类订单跳未注册门店订单页、用户被困在认款页——统一改落已内建三类展示的 `/pages/user/order/info?id=`；会员中心装修 userInfo3 通知铃铛跳未注册消息页 → 改落消息中心 `/pages/im/page`（三类未读聚合口径互证）；抽奖页两处指向未注册结算页的不可达死分支删除（商品奖品实际走 Buy 组件加购结算链）；支付页删除过期「未注册」TODO 与恒 false 的 premiumMember 死回跳分支（行为零变化）；图搜 capture 默认落点由未注册页改已注册 captureMp（H5/小程序行为不变）。
 - **装修模块空数据防崩批（16 文件）**：分发器 DecorateModules 与店铺页 shopModules 的 modules 空守卫（接口无 moduleList 时整页渲染抛错）；banner picList 可空守卫；groupSliding/mixedNotice/mixedProductDisplay/productGrouping/specialOffer 的列表字段删空即崩逐处补可选链（specialOffer 分组为空时改为不取数，避免以无过滤参数拉全站商品冒充分组商品）；groupon/imageAd/imageAd2/imageHotarea/product/seckill/titleAd 的 title 子对象缺失守卫；店铺页背景配置缺失时不再生成 `url("undefined")` 无效 CSS（与首页同口径）。
 - **杂项**：店铺内搜索页标题被后续无条件赋值冲掉（「店铺搜索」恒显示「搜索商品」）已修；分销中心推广图引用不存在的 `tuiguang.png!small.webp`（线上实测 404、资产树无此文件）改用现存 `tuiguang.png`；放弃支付挽留弹窗权益图标资产缺失（不在 static/mini 树内）先加加载失败隐藏兜底，资产待补；权限白名单删 5 条指向未注册页面的死条目。
+
+## 0.0.2 续 · 2026-11-22 批次（全站体检线 6：后端契约与健壮性修复，未部署——无迁移，随下一后端合并版上线）
+
+### 修复
+
+- **时间单位混用（秒/毫秒）同类残留清理（存量 bug，我方代码）**：全仓扫 `now_millis() as i32` 落库点，确认 6 处把毫秒截断成 i32 写入 **Unix 秒口径** 的时间列（值溢出成乱码/负数，与 2026-11-20 已修的 payee 秒毫秒 bug 同类）：① 供应商创建 `vendor.add_time`（读端按秒格式化，创建时间显示为 1938 年前后的错误日期）；② 供应商商品导入/重导链的 `product.add_time`、`product.last_update`、`vendor_shop_bind.add_time`（商品主链一律秒口径）；③ 预约库存 `product_reservation_stock.add_time`（三处入口）。统一改 `now_seconds() as i32`。注意 `vendor_product` 自身 `create_time/update_time`（bigint 毫秒）与 `pos_device` 时间列（i64 毫秒、模块内自洽）不在此列，未动。已落库的存量错误值不自动修复（供应商系统尚无真实业务数据，影响面为空表/测试数据级）。
+- **分页参数无上限同类清理（存量健壮性缺口）**：全仓扫各查询结构体的 `page_query/limit_offset`，确认 6 处 `size` 无上限且被服务/仓储层直接作 LIMIT（传 `size=1000000` 可一次拉全表）：管理端 SKU 列表（`/adminapi/product/product/skuList`）、管理端客服账号列表、销售统计明细、商品选择列表、买家端商品咨询列表、买家端浏览历史。统一在模型层 `clamp(1, 100)`（对齐 Java `BasePage.getSize()` 截断口径）。经 `types::PageQuery::limit_offset`（已夹 1..=200）消费的其余列表不在此列。
