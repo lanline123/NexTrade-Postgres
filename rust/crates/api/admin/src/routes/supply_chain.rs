@@ -633,7 +633,7 @@ fn extract_supplier_form(body: &Value) -> SupplierFormExtract {
 
 /// 把 patch 合并进既有 vendor_data JSON 文本（非对象/非法 JSON 按空对象处理）。
 fn merge_vendor_data(existing: Option<&str>, patch: &Map<String, Value>) -> String {
-    let mut base = parse_vendor_data(&existing.map(|s| Value::String(s.to_string())));
+    let mut base = parse_vendor_data(existing.map(|s| Value::String(s.to_string())).as_ref());
     for (k, v) in patch {
         base.insert(k.clone(), v.clone());
     }

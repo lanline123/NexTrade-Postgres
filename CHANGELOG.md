@@ -2452,3 +2452,9 @@
 ### 修复
 
 - **services 类型层 9 个编译错误 + 测试层 22 个编译错误清零（我方存量代码修复，无功能口径变化）**：解析层修复（字面量脱敏损伤、括号截断）入 main 后，类型检查首次走到 services 层，暴露 6 站点：① 热更新 `UpdaterStatus` 标了容器级 serde 默认值却未实现 Default，derive 补 Default（字段 String×3+i64 均可默认）；② 建单事务内两处幂等登记 SQL 的 execute 解引用层数与 tx 绑定形态脱节（tx 为 begin() 返回的事务值、函数内其余调用一律单层解引用，两处改齐；经查该两行系订单幂等提交引入时即按引用形参形态误写，非后续合并改坏）；③ 微信开放平台 token 缓存读取的绑定注解多包一层 Option，改回记录本体（缓存未命中/已过期仍回 None，语义不变）；④ 跨站结算两处读凭证字段名与结构实名不符，改 credential_id；⑤ 接单大厅距离计算调用点未随函数签名 Option 化同步包裹（四值在调用前已全数解包在手，包裹后计算口径不变，缺失仍恒空不造数）；⑥ 联邦服务测试模块缺整行父级导入，补齐（被测函数与常量俱在同文件/父级导入内）；⑦ 视频号测试一处 into 类型推断歧义，按被测签名直传字符串字面量。同类全仓扫查另查出管理端两处同形态结构体（系统更新状态查询、客户端发版概览查询，同为容器级 serde 默认值缺 Default 实现）一并补齐；其余扫查项（同式解引用、字段名、距离函数全部调用点、其余测试模块导入、其余 serde 默认值结构体）逐项核实为形态正确或仅序列化方向惰性属性，无第二处真问题。验收口径：check-rust 两 job（Cargo Check / Cargo Test）全绿；services 修好后 api 层若再暴露下游错误另行处置。
+
+## 0.0.2 续 · 2026-11-22 批次（供应链单点类型修复：check-rust 门禁第四轮，未部署——无迁移，随下一后端合并版上线）
+
+### 修复
+
+- **采购域 - `merge_vendor_data` 调用实参类型对齐【原版有·我方修复】**：部署轮 check-rust 门禁第四轮仅剩 1 个错误（run 44979618787 @fff924f）：`api/admin/src/routes/supply_chain.rs:636` 把 `&existing.map(|s| Value::String(s.to_string()))`（类型 `&Option<Value>`）传给签名为 `parse_vendor_data(raw: Option<&Value>)` 的函数，E0308 自 @46104bd2（供应商主数据修复）入仓起即存在、被上游错误遮蔽至今。`existing` 为 `Option<&str>`，`.map(...)` 产出的临时 `Option<Value>` 在 let 语句内生命期足够，按编译器建议改为 `existing.map(|s| Value::String(s.to_string())).as_ref()` 产出 `Option<&Value>`，语义逐字等价（Some 时仍走 JSON 文本解析、None 时仍为空对象），函数签名与函数体零改动。同文件其余调用点（711/735 行 `obj.get("vendor_data")` 本即 `Option<&Value>`）与同签名族 `parse_decimal_flex`/`parse_pay_date` 全部调用点逐一核对均合规；全仓 `&ident.map(` 同式站点扫查为零。验收：本修复入 main 后 check-rust 两 job（Cargo Check + Cargo Test）全绿为唯一标准——下游 bin（nextrade-server）此前从未受检、测试本体从未运行，均待本轮门禁见分晓；报告 ~/workspace/push-queue/fix-supply-chain-arg/REPORT.md（随包报告在工作区 fix-supply-chain-arg 线目录）。
