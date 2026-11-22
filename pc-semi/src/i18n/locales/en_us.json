@@ -2864,5 +2864,7 @@
   "不限": "Unlimited",
   "· 评分 {v} 星": " · {v} stars",
   "· 客服 {p}": " · Service: {p}",
-  "系统自动评价": "System Auto Review"
+  "系统自动评价": "System Auto Review",
+  "系统已关闭注册": "Registration is closed",
+  "注册通道已关闭，如需帮助请联系客服": "Registration is currently closed. Please contact customer service for help."
 }

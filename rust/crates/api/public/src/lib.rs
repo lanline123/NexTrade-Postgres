@@ -338,12 +338,28 @@ struct IdQuery {
 
 // ————————————————————— 用户 —————————————————————
 
-/// 注册请求。
+/// 注册请求（原版 `RegisterParam`）。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RegisterDTO {
-    mobile: String,
-    password: String,
+    /// 手机号（手机注册必填；邮箱注册为空）。
+    #[serde(default)]
+    mobile: Option<String>,
+    /// 手机验证码（原版 `mobileCode`；注册落库前必须经后端校验并消费）。
+    #[serde(default)]
+    mobile_code: Option<String>,
+    /// 邮箱（邮箱注册必填）。
+    #[serde(default)]
+    email: Option<String>,
+    /// 邮箱验证码（原版 `emailCode`）。
+    #[serde(default)]
+    email_code: Option<String>,
+    /// 注册类型：`email` 为邮箱注册，其余（空 / `phone`）为手机注册
+    /// （原版 `RegisterParam.registType` 分发口径）；PC 端不传此字段，
+    /// 按「无手机号且有邮箱」推断邮箱通道。
+    #[serde(default)]
+    regist_type: Option<String>,
+    password: <redacted>
     nickname: Option<String>,
     /// 分销归属（H5 注册页从分享链接 `bindSalesmanId` 透传；原版
     /// `RegisterController` → `UserServiceImpl.registerByMobile` 的 salesmanId）。
@@ -351,19 +367,57 @@ struct RegisterDTO {
     salesman_id: Option<i32>,
 }
 
-/// `POST /api/user/register`。
+/// `POST /api/user/regist/registAct`（原版 `RegisterController.register`）。
+///
+/// 处理顺序与原版 `UserServiceImpl#registerByMobile/#registerByEmail`
+/// 一致：注册开关 → 验证码校验并一次性消费 → 查重落库。此前本移植三
+/// 处缺口（体检线 2 登记 A-R1/R2/R4）：不验短信验证码（任意 6 位数即
+/// 可注册）、不查注册关闭开关、无邮箱注册契约（邮箱页签提交恒反序列
+/// 化失败），本批一并补齐。
 async fn user_register(
     State(state): State<PublicState>,
     Json(dto): Json<RegisterDTO>,
 ) -> ApiResult<i32> {
-    let id = state.member.user
-        .register_with_salesman(
-            &dto.mobile,
-            &dto.password,
-            dto.nickname.as_deref(),
-            dto.salesman_id,
-        )
-        .await?;
+    let blank = |v: &Option<String>| v.as_deref().map(str::trim).unwrap_or("").is_empty();
+    let by_email = dto.regist_type.as_deref().map(str::trim) == Some("email")
+        || (blank(&dto.mobile) && !blank(&dto.email));
+    // 注册开关先行（关闭时不消耗验证码，与原版顺序一致）。
+    state.member.user.ensure_registration_open().await?;
+    let id = if by_email {
+        // 邮箱验证码校验并消费（login 命名空间，与发码侧同键同 TTL）。
+        let email = state
+            .member
+            .login
+            .consume_register_email_code(dto.email.as_deref(), dto.email_code.as_deref())
+            .await?;
+        state
+            .member
+            .user
+            .register_by_email_with_salesman(
+                &email,
+                &dto.password,
+                dto.nickname.as_deref(),
+                dto.salesman_id,
+            )
+            .await?
+    } else {
+        // 短信验证码校验并消费（会员登录命名空间，与发码侧同键同 TTL）。
+        let mobile = state
+            .member
+            .login
+            .consume_register_sms_code(dto.mobile.as_deref(), dto.mobile_code.as_deref())
+            .await?;
+        state
+            .member
+            .user
+            .register_with_salesman(
+                &mobile,
+                &dto.password,
+                dto.nickname.as_deref(),
+                dto.salesman_id,
+            )
+            .await?
+    };
     ok(id)
 }
 

@@ -1620,6 +1620,66 @@ impl LoginService {
         Ok(())
     }
 
+    // ————————————————————— 注册验证码消费 —————————————————————
+
+    /// 注册接口（`POST /api/user/regist/registAct` 手机通道）校验并一次性
+    /// 消费短信验证码，返回校验后的手机号。
+    ///
+    /// 原版 `UserServiceImpl#registerByMobile` 用
+    /// `validateVerificationCode("login" + mobile, mobileCode)` 在落库前
+    /// 验码、成功后删键；注册页发码（原版 MobileCode 默认 `event="login"`，
+    /// 本移植对应 `send_member_mobile_code`）在本移植中写入会员登录命名
+    /// 空间 `{mobile}:member-sms-login`，故直接复用短信登录/绑手机同一
+    /// 消费路径 [`Self::consume_member_sms_code`]（同键、同 5 分钟 TTL、
+    /// 同一次性消费与 5 次尝试上限），不另设注册专用验证码存储。
+    ///
+    /// # Errors
+    /// 手机号非法、验证码格式/不匹配/已过期、缓存不可用 → 1001 业务错误
+    /// （文案与既有验码路径逐字一致）。
+    pub async fn consume_register_sms_code(
+        &self,
+        mobile: Option<&str>,
+        code: Option<&str>,
+    ) -> Result<String> {
+        let mobile = validate_sms_mobile(mobile)?.to_string();
+        self.consume_member_sms_code(&mobile, code).await?;
+        Ok(mobile)
+    }
+
+    /// 注册接口（邮箱通道）校验并一次性消费邮箱验证码，返回校验后的邮箱。
+    ///
+    /// 原版 `UserServiceImpl#registerByEmail` 用
+    /// `validateVerificationCode("login" + email, emailCode)`；注册页发码
+    /// 带 `event="login"`（原版 MobileCode 默认值、H5 VerificationCode
+    /// 同口径），`send_email_code` 按 [`email_code_key`] 写入
+    /// `login{email}` 键（TTL 5 分钟），此处同键原子比对+删除消费，
+    /// 尝试上限与短信侧同规（5 次 / TTL 窗口）。
+    ///
+    /// # Errors
+    /// 邮箱非法、验证码格式/不匹配/已过期、缓存不可用 → 1001 业务错误。
+    pub async fn consume_register_email_code(
+        &self,
+        email: Option<&str>,
+        code: Option<&str>,
+    ) -> Result<String> {
+        let email = email.map(str::trim).filter(|e| !e.is_empty());
+        let email = validate_email_basic(email)?.to_string();
+        let code = validate_code_format(code)?;
+        let cache = self.cache()?;
+        let attempts_key = format!("{email}:register-email-attempts");
+        if cache.incr(&attempts_key, CODE_TTL_SECS).await? > 5 {
+            return Err(Error::biz(
+                SERVICE_DATA_ERROR,
+                "验证码尝试次数过多，请稍后再试",
+            ));
+        }
+        let key = email_code_key(Some("login"), &email);
+        if !cache.consume_matching_json(&key, code).await? {
+            return Err(Error::biz(SERVICE_DATA_ERROR, CODE_INVALID));
+        }
+        Ok(email)
+    }
+
     // ————————————————————— 内部 —————————————————————
 
     /// 缓存句柄（Redis 不可用时给出明确 1001，而不是伪造成功）。

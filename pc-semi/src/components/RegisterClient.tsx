@@ -65,11 +65,14 @@ function EyeIcon({ off = false }: { off?: boolean }) {
 export default function RegisterClient({
   shopName = '万物新生',
   shopLogo = '',
+  shopRegClosed = 0,
 }: {
   /** 店铺名称（logo 缺省时展示文字），来自 common/config/base */
   shopName?: string;
   /** 店铺 logo（顶栏展示） */
   shopLogo?: string;
+  /** 注册关闭开关（shopRegClosed）：非 0 时整页禁用注册入口、只显提示（后端 registAct 同步强制校验） */
+  shopRegClosed?: number;
   /** 登录页装修配置（页面保留传参兼容；背景图/背景色不使用，与登录页一致） */
   decorate?: PcLoginDecorate | null;
 }) {
@@ -243,7 +246,10 @@ export default function RegisterClient({
     setError('');
     try {
       const url = mode === 'mobile' ? '/api/user/login/sendMobileCode' : '/api/user/login/sendEmailCode';
-      const payload = mode === 'mobile' ? { mobile: mobile.trim(), verifyToken } : { email: email.trim(), verifyToken };
+      // event 与原版 MobileCode 默认值一致（login）：邮箱码须落 login 命名
+      // 空间，后端注册验码按同键消费；此前缺省 event 时邮箱码落在裸邮箱
+      // 键上、与 H5（VerificationCode 默认 event=login）不一致。
+      const payload = mode === 'mobile' ? { mobile: mobile.trim(), verifyToken } : { email: email.trim(), verifyToken, event: 'login' };
       const response = await fetch(url, {
         method: 'POST',
         credentials: 'include',
@@ -363,9 +369,17 @@ export default function RegisterClient({
             <p className="login-card__qr-tip">{t('使用手机浏览器或微信扫一扫')}</p>
           </aside>
 
-          {/* 右栏：注册表单 / 微信扫码面板 */}
+          {/* 右栏：注册表单 / 微信扫码面板（注册关闭时整体换为关闭提示） */}
           <div className="login-card__main">
-            {mode === 'wechat' ? (
+            {shopRegClosed !== 0 ? (
+              <div className="login-card__wechat-panel">
+                <h2 className="login-card__title login-card__title--center">{t('系统已关闭注册')}</h2>
+                <p className="register-card__wechat-tip">{t('注册通道已关闭，如需帮助请联系客服')}</p>
+                <div className="login-card__wechat-actions">
+                  <Link className="login-card__btn-secondary" href="/login">{t('去登录')}</Link>
+                </div>
+              </div>
+            ) : mode === 'wechat' ? (
               <div className="login-card__wechat-panel">
                 <h2 className="login-card__title login-card__title--center">{t('请使用微信扫码安全登录')}</h2>
                 {wechatQr && !wechatExpired ? (

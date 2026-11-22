@@ -184,6 +184,21 @@ export default function Register() {
         });
     };
 
+    // 注册关闭开关（shopRegClosed）：登录页以此隐藏注册入口，直达本页时
+    // 整体换为关闭提示，不再渲染注册表单（后端 registAct 同步强制校验，
+    // 文案与后端「系统已关闭注册」一致）。
+    if (configStore.shopRegClosed !== 0) {
+        return (
+            <TigLayout title={t("注册")}>
+                <View className="register-container">
+                    <View className="register-warp">
+                        <View className="h1_tit">{t("系统已关闭注册")}</View>
+                    </View>
+                </View>
+            </TigLayout>
+        );
+    }
+
     return (
         <TigLayout title={t("注册")}>
             <View className="register-container">

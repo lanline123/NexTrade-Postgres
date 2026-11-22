@@ -2291,3 +2291,15 @@
 ### 登记（未修，待后端/产品拍板，详见体检报告）
 
 - 注册后端契约残缺：RegisterDTO 只有 mobile，邮箱注册页签提交恒反序列化失败（假功能）；手机注册短信验证码后端从未校验，任意 6 位数可注册（安全，需后端补验码）；邀请码被后端忽略；注册关闭开关前后端均未生效；删默认地址后端无递补；认证未知状态值误标待审核；401 响应泄漏内部错误细节（Base64 解析错误原文）等共 23 条登记项，见 `~/workspace/site-audit-pc-member/REPORT.md`。
+
+## 0.0.2 续 · 2026-11-22 批次（注册安全三缺口修复，未部署——无迁移，随下一后端 + PC + H5 合并版上线）
+
+### 修复
+
+- **手机注册短信验证码后端补验（原版有·我方补齐，安全）**：原版 `UserServiceImpl#registerByMobile` 落库前以 `validateVerificationCode("login" + mobile, mobileCode)` 验码、成功后删键；我方移植 `POST /api/user/regist/registAct` 从未消费验证码，任意 6 位数字即可拿任意手机号注册（体检线 2 登记 A-R2）。本批在注册接口落库前强制校验并一次性消费：复用短信登录/绑手机同一消费路径（会员登录命名空间、同 5 分钟 TTL、同原子比对删除与 5 次尝试上限），不另设注册专用验证码存储；错码/无码/过期一律按既有信封回 1001「验证码错误或已过期，请重试」，同码二次提交必失败。
+- **注册关闭开关生效（原版有·我方补齐）**：原版 `registerByMobile/#registerByEmail` 均先查 `SHOP_REG_CLOSED`，为 1 抛「系统已关闭注册」；我方此前仅短信登录建号与微信绑手机两条分支查了该开关，注册主通道与注册页均未消费（A-R4）。本批后端在 `UserService::register / register_by_email` 入口与注册接口编排层双重先行校验（关闭时不消耗验证码，顺序与原版一致，文案/错误码与既有分支同口径）；PC 注册页改读 `shopRegClosed` 并在关闭时整体换为关闭提示、H5 注册页直达时同口径拦截，登录页隐藏入口的既有行为不变。
+- **邮箱注册补齐契约与落库（原版有·我方补齐）**：原版 `RegisterParam` 含 `registType/email/emailCode`、`UserServiceImpl#registerByEmail` 完整存在（验码键 `"login" + email`、邮箱唯一、生成唯一用户名建号）；我方 `RegisterDTO` 只有必填 mobile，PC/H5 邮箱注册页签提交恒反序列化失败（A-R1）。本批 DTO 补齐 `mobileCode/email/emailCode/registType` 并按原版分发（registType=email 或无手机号有邮箱 → 邮箱通道），邮箱码按发码侧 `login` 命名空间同键校验消费（PC 注册页发码同步补 `event: 'login'`，与原版 MobileCode 默认值及 H5 口径对齐），落库走新增 `UserService::register_by_email`（邮箱唯一性「该邮箱已注册」、密码强度同规、`email_validated=1`、分销绑定与批发自动注册同手机通道口径）。
+
+### 验收口径
+
+- CI check-rust + build-pc + build-h5 绿后随合并版上线；真实验收：① 错码/乱填 6 位数注册应失败（1001 验证码错误）、对码注册成功且同码立即二次提交必失败；② 后台置 `shopRegClosed=1` 后 registAct 两通道均回「系统已关闭注册」、PC/H5 注册页只显关闭提示，恢复 0 后注册恢复；③ 邮箱通道：错码失败、对码成功建号（email_validated=1、可邮箱登录）、同邮箱再注册回「该邮箱已注册」。
