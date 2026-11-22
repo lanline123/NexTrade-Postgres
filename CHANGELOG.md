@@ -2371,3 +2371,9 @@
 ### 安全
 
 - **联邦（万象互联）管理端全域补平台守卫（全站体检线 6 登记 R1，我方新增模块的权限缺口）**：联邦端点不在权限生成表内（`/hub/` 条目为 0）、权限中间件对无条目路由放行、各 handler 的 `gate()` 只查联邦总开关不查角色——联邦开启时任一店铺级管理账号可调用凭证签发/重置密钥、中央账本记账、跨站结算确认等中枢管理面。修法（`rust/crates/api/admin/src/routes/hub/federation.rs`，路由集合 59 条与改前逐条一致、路径与 handler 零变更）：中枢管理面 46 条整域拆入独立 Router 并挂 `platform_only`（与 systemUpdate / siteClone / federationSettings 先例同口径，非平台账号一律 403「仅平台账号可访问该系统配置」）；成员侧自助面 13 条（myLinks/*、配置落地列表/确认、跨店路由单与状态同步、账本镜像）保持仅登录可达。两面共用的 `GET /hub/links/list` 不整端点挂守卫，改在 handler 内按 role 分流：非平台账号仅可查 role=2（本机作为成员站的出站连接，「我的连接」页口径），查 role=1 中枢侧或不带 role 全量一律同文案拒绝。结算单管理端 confirm 为中枢本方确认（对端确认走签名联邦 API `receive_settle_confirm` 置 peer_confirm），归中枢面不影响成员侧双确认链。报告：`~/workspace/site-audit-hub-guard/REPORT.md`。
+
+## 0.0.2 续 · 2026-11-22 批次（万象互联三期前台接缝① 中枢授权页，未部署——零迁移，随下一 PC 合并版上线）
+
+### 新增
+
+- **中枢授权页（我方新增，联邦三期① 前台接缝补线）**：补上三期① 登记的接缝——中枢 PC 前台新增授权页 `/federation/authorize?requestId=<id>`（地址形态即后端发起时回的 authorizeUrl 约定）。会员本人登录态下调既有 `GET /api/federation/sso/requestInfo` 展示申请方实例名/地址/发起时间，点同意/拒绝调既有 `POST /api/federation/sso/consent`，成功后按后端回的 redirectUrl 整页跳回成员站（同意带 code+state、拒绝带 federationSso=denied）；未登录先跳本站登录页、登录后按 redirect 参数回本页续办；请求已同意/已拒绝/已过期时只展示终态文案不出按钮。当前账号手机号未验证时后端明确拒绝（身份锚点不成立），页面如实展示原文案并引导先去会员中心完成手机验证，不伪造同意结果。fail-soft：本页为独立路由，加载失败只在本页报错，不影响商城与登录主链。后端零改动（requestInfo/consent 两端点三期①已就绪）。验收：CI build-pc 绿后随合并版上线；成员站发起 → 跳中枢未登录先登录 → 授权页显示申请方名 → 同意回跳成员站落号；拒绝回带 denied；未验证手机号点同意被拒且文案如实。
