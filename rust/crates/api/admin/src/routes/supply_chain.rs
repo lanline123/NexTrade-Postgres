@@ -213,6 +213,10 @@ struct Pg {
     status: Option<i32>,
     shop_id: Option<i32>,
     vendor_id: Option<i32>,
+    /// 采购订单物流单号搜索（C-12 后端侧，site-audit-backend2）。
+    tracking_no: Option<String>,
+    /// 对账单号搜索（C-12 后端侧；与 keyword 等效，兼容旧前端参数名）。
+    reconciliation_sn: Option<String>,
 }
 
 fn page_of(q: &Pg) -> (u64, u64, i64) {
@@ -266,25 +270,89 @@ async fn list_table(
         cq.push(" AND shop_id = ").push_bind(shop_id);
         rq.push(" AND shop_id = ").push_bind(shop_id);
     }
+    // 供应商过滤（C-12 后端侧，site-audit-backend2）：此前 Pg 有 vendorId
+    // 字段但 list_table 从不消费，供应商商品/采购单据按供应商筛选无效。
+    // 仅对确有 vendor_id 列的表生效。
+    if matches!(
+        table,
+        "vendor_product"
+            | "purchase_order"
+            | "purchase_receipt"
+            | "purchase_return"
+            | "purchase_reconciliation"
+    ) {
+        if let Some(vendor_id) = q.vendor_id {
+            cq.push(" AND vendor_id = ").push_bind(vendor_id);
+            rq.push(" AND vendor_id = ").push_bind(vendor_id);
+        }
+    }
     if let Some(status) = q.status {
         cq.push(format!(" AND {status_col} = ")).push_bind(status);
         rq.push(format!(" AND {status_col} = ")).push_bind(status);
     }
-    if let Some(kw) = q
+    // 采购订单物流单号搜索（C-12 后端侧，site-audit-backend2）。
+    if table == "purchase_order" {
+        if let Some(tn) = q
+            .tracking_no
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            let like = format!("%{tn}%");
+            for qb in [&mut cq, &mut rq] {
+                qb.push(" AND tracking_no ILIKE ").push_bind(like.clone());
+            }
+        }
+    }
+    // 对账列表兼容 reconciliationSn 参数名（与 keyword 等效）。
+    let kw_owned: Option<String> = q
         .keyword
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-    {
-        if !keyword_cols.is_empty() {
+        .map(ToString::to_string)
+        .or_else(|| {
+            if table == "purchase_reconciliation" {
+                q.reconciliation_sn
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(ToString::to_string)
+            } else {
+                None
+            }
+        });
+    if let Some(kw) = kw_owned.as_deref() {
+        // 关键词子句按表定制（C-12 后端侧，site-audit-backend2）：入库单
+        // 可按采购单号/供应商名搜（本表无此二列，走子查询）；退货单可按
+        // 入库单号搜；其余表走 list_filter_columns 的本表列集合。
+        let clauses: Vec<String> = match table {
+            "purchase_receipt" => vec![
+                "receipt_sn ILIKE ".to_string(),
+                "order_id IN (SELECT id FROM purchase_order WHERE order_sn ILIKE ".to_string(),
+                "vendor_id IN (SELECT vendor_id FROM vendor WHERE vendor_name ILIKE ".to_string(),
+            ],
+            "purchase_return" => vec![
+                "return_sn ILIKE ".to_string(),
+                "receipt_id IN (SELECT id FROM purchase_receipt WHERE receipt_sn ILIKE ".to_string(),
+            ],
+            _ => keyword_cols
+                .iter()
+                .map(|col| format!("{col} ILIKE "))
+                .collect(),
+        };
+        if !clauses.is_empty() {
             let like = format!("%{kw}%");
             for qb in [&mut cq, &mut rq] {
                 qb.push(" AND (");
-                for (i, col) in keyword_cols.iter().enumerate() {
+                for (i, clause) in clauses.iter().enumerate() {
                     if i > 0 {
                         qb.push(" OR ");
                     }
-                    qb.push(format!("{col} ILIKE ")).push_bind(like.clone());
+                    qb.push(clause.clone()).push_bind(like.clone());
+                    if clause.contains(" IN (SELECT") {
+                        qb.push(")");
+                    }
                 }
                 qb.push(")");
             }
@@ -302,8 +370,87 @@ async fn list_table(
         .await
         .map_err(db)?;
     let rows = rq.build().fetch_all(&state.repos.pool).await.map_err(db)?;
-    let records: Vec<Value> = rows.iter().map(row_to_json).collect();
+    let mut records: Vec<Value> = rows.iter().map(row_to_json).collect();
+    // 采购四单据补驼峰别名层（C-19，site-audit-backend2）。
+    if PURCHASE_DOC_TABLES.contains(&table) {
+        for record in records.iter_mut() {
+            add_camel_aliases(record);
+        }
+    }
     Ok(json!({"records": records, "total": total, "page": page, "size": size}))
+}
+
+/// 采购四单据（C-19）：list/detail 出参在蛇形原键之外补驼峰别名，
+/// 照 supplier_list 的手工别名范式；蛇形键保留不动，前端旧读法不受影响。
+const PURCHASE_DOC_TABLES: [&str; 4] = [
+    "purchase_order",
+    "purchase_receipt",
+    "purchase_return",
+    "purchase_reconciliation",
+];
+
+/// 值为 Unix 秒的列：驼峰别名按 supplier createTime 范式格式化为
+/// `yyyy-MM-dd HH:mm:ss` 字符串（蛇形原键仍保留原始数值）。
+const EPOCH_SECOND_COLS: [&str; 7] = [
+    "create_time",
+    "update_time",
+    "confirm_time",
+    "finish_time",
+    "business_date",
+    "review_time",
+    "expected_delivery_date",
+];
+
+fn snake_to_camel(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut upper_next = false;
+    for ch in name.chars() {
+        if ch == '_' {
+            upper_next = true;
+        } else if upper_next {
+            out.extend(ch.to_uppercase());
+            upper_next = false;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// 给一行 JSON 补驼峰别名（已存在同名键不覆盖）。
+fn add_camel_aliases(v: &mut Value) {
+    let Some(obj) = v.as_object_mut() else {
+        return;
+    };
+    let keys: Vec<String> = obj.keys().cloned().collect();
+    for key in keys {
+        if !key.contains('_') {
+            continue;
+        }
+        let camel = snake_to_camel(&key);
+        if camel == key || obj.contains_key(&camel) {
+            continue;
+        }
+        let mut val = obj.get(&key).cloned().unwrap_or(Value::Null);
+        if EPOCH_SECOND_COLS.contains(&key.as_str()) {
+            if let Some(secs) = val.as_i64().filter(|s| *s > 0) {
+                val = json!(format_unix_seconds(secs));
+            }
+        }
+        obj.insert(camel, val);
+    }
+}
+
+/// 给 detail 的主行与明细数组逐行补驼峰别名（C-19）。
+fn alias_detail_with_items(v: &mut Value, item_keys: &[&str]) {
+    add_camel_aliases(v);
+    for key in item_keys {
+        if let Some(arr) = v.get_mut(*key).and_then(Value::as_array_mut) {
+            for row in arr.iter_mut() {
+                add_camel_aliases(row);
+            }
+        }
+    }
 }
 
 async fn detail_table(state: &AdminState, table: &str, id: i64) -> Result<Value, AppError> {
@@ -1142,6 +1289,7 @@ async fn order_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> A
     if let Some(obj) = order.as_object_mut() {
         obj.insert("items".into(), Value::Array(items));
     }
+    alias_detail_with_items(&mut order, &["items"]);
     ok(order)
 }
 /// 金额入参双口径解析（我方修复，门店采购全流程批）：历史实现只认字符串，
@@ -1737,6 +1885,7 @@ async fn receipt_detail(State(state): State<AdminState>, Query(q): Query<Pg>) ->
             Value::Array(rows.iter().map(row_to_json).collect()),
         );
     }
+    alias_detail_with_items(&mut receipt, &["items"]);
     ok(receipt)
 }
 /// 采购设置 `allow_over_receive` 的生效值（组织行优先、平台行兜底、
@@ -2025,6 +2174,7 @@ async fn reconciliation_detail(
             Value::Array(items.iter().map(row_to_json).collect()),
         );
     }
+    alias_detail_with_items(&mut rec, &["sources", "items"]);
     ok(rec)
 }
 /// 对账候选来源（我方重写，门店采购全流程批）：历史实现直接把
@@ -2186,10 +2336,14 @@ async fn reconciliation_candidates(
     ok(json!({"records": records, "total": total, "page": page, "size": size}))
 }
 
+/// 对账导出（C-13 后端侧，site-audit-backend2）：此前返回 JSON 信封，
+/// 前端存成无扩展名文件冒充 Excel。现真生成 xlsx 并带
+/// Content-Disposition；过滤口径与列表一致（shopId/status/keyword，
+/// keyword 与 reconciliationSn 均匹配对账单号）。
 async fn reconciliation_export(
     State(state): State<AdminState>,
     Query(q): Query<Pg>,
-) -> ApiResult<Value> {
+) -> std::result::Result<axum::response::Response, AppError> {
     let mut qb: QueryBuilder<'_, Postgres> =
         QueryBuilder::new("SELECT * FROM purchase_reconciliation WHERE is_del=0");
     if let Some(shop_id) = q.shop_id {
@@ -2198,9 +2352,80 @@ async fn reconciliation_export(
     if let Some(status) = q.status {
         qb.push(" AND status=").push_bind(status);
     }
+    let kw = q
+        .keyword
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            q.reconciliation_sn
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+        });
+    if let Some(kw) = kw {
+        qb.push(" AND reconciliation_sn ILIKE ")
+            .push_bind(format!("%{kw}%"));
+    }
     qb.push(" ORDER BY id DESC LIMIT 5000");
     let rows = qb.build().fetch_all(&state.repos.pool).await.map_err(db)?;
-    ok(json!(rows.iter().map(row_to_json).collect::<Vec<_>>()))
+    let cell = |row: &Value, key: &str| -> String {
+        match row.get(key) {
+            Some(Value::String(s)) => s.clone(),
+            Some(Value::Number(n)) => n.to_string(),
+            _ => String::new(),
+        }
+    };
+    let data: Vec<Vec<String>> = rows
+        .iter()
+        .map(row_to_json)
+        .map(|row| {
+            let status_name = match cell(&row, "status").as_str() {
+                "1" => "待审核",
+                "2" => "已通过",
+                "3" => "已驳回",
+                "4" => "已作废",
+                _ => "",
+            };
+            let create_time = row
+                .get("create_time")
+                .and_then(Value::as_i64)
+                .filter(|s| *s > 0)
+                .map(format_unix_seconds)
+                .unwrap_or_default();
+            vec![
+                cell(&row, "reconciliation_sn"),
+                cell(&row, "vendor_id"),
+                status_name.to_string(),
+                cell(&row, "receipt_amount"),
+                cell(&row, "return_amount"),
+                cell(&row, "total_amount"),
+                cell(&row, "remark"),
+                cell(&row, "review_remark"),
+                create_time,
+            ]
+        })
+        .collect();
+    let bytes = nextrade_services::system::excel::build_xlsx(
+        &[
+            "对账单号",
+            "供应商ID",
+            "状态",
+            "入库金额",
+            "退货金额",
+            "对账金额",
+            "备注",
+            "审核备注",
+            "创建时间",
+        ],
+        &data,
+        "采购对账单",
+    )
+    .map_err(AppError)?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "purchase_reconciliation.xlsx",
+    ))
 }
 async fn reconciliation_create(
     State(state): State<AdminState>,
@@ -2871,7 +3096,9 @@ async fn return_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> Ap
     ok(list_table(&state, "purchase_return", &q, false).await?)
 }
 async fn return_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
-    ok(detail_table(&state, "purchase_return", q.id.unwrap_or(0)).await?)
+    let mut detail = detail_table(&state, "purchase_return", q.id.unwrap_or(0)).await?;
+    add_camel_aliases(&mut detail);
+    ok(detail)
 }
 /// 退货校验前置的收齐行（return_save 专用，口径同 ReceiptLine）。
 struct ReturnLine {
@@ -3191,6 +3418,43 @@ async fn setting_save(State(state): State<AdminState>, Json(body): Json<Value>) 
 }
 
 // ————————————————— 采购单草稿（我方新增）口径测试 —————————————————
+#[cfg(test)]
+mod camel_alias_tests {
+    use super::*;
+
+    #[test]
+    fn snake_to_camel_converts_doc_keys() {
+        assert_eq!(snake_to_camel("order_sn"), "orderSn");
+        assert_eq!(snake_to_camel("product_amount"), "productAmount");
+        assert_eq!(snake_to_camel("create_time"), "createTime");
+        assert_eq!(snake_to_camel("id"), "id");
+        assert_eq!(snake_to_camel("is_del"), "isDel");
+    }
+
+    #[test]
+    fn add_camel_aliases_keeps_snake_and_formats_epoch() {
+        let mut v = json!({
+            "order_sn": "PO1",
+            "product_amount": "12.30",
+            "create_time": 1_700_000_000,
+            "status": 1
+        });
+        add_camel_aliases(&mut v);
+        // 蛇形原键保留
+        assert_eq!(v["order_sn"], json!("PO1"));
+        assert_eq!(v["create_time"], json!(1_700_000_000));
+        // 驼峰别名补齐；时间列按 supplier 范式格式化为字符串
+        assert_eq!(v["orderSn"], json!("PO1"));
+        assert_eq!(v["productAmount"], json!("12.30"));
+        let ct = v["createTime"].as_str().expect("createTime 应为字符串");
+        assert_eq!(ct.len(), 19);
+        assert!(ct.contains('-') && ct.contains(':'));
+        // 无下划线键不产生别名
+        assert!(v.get("status").is_some());
+        assert!(v.get("Status").is_none());
+    }
+}
+
 #[cfg(test)]
 mod purchase_draft_tests {
     use super::*;

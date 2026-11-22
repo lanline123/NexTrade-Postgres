@@ -79,6 +79,9 @@ pub struct VendorProductClientPageQuery {
     pub product_category_id: Option<i32>,
     /// 是否可导入；1 时附加「审核通过 + 在售 + 未回收」条件（Java 语义的可用子集）。
     pub is_can_import: Option<i32>,
+    /// 商品名称模糊（site-audit-backend2 补：此前 Query 无此字段，
+    /// 管理端 VendorProducts 页的关键词搜索被 serde 静默忽略、恒不过滤）。
+    pub keyword: Option<String>,
 }
 
 impl VendorProductClientPageQuery {
@@ -115,6 +118,22 @@ pub struct VendorProductPageVO {
     pub vendor_id: Option<i32>,
     pub vendor_name: Option<String>,
     pub source_product_id: Option<i32>,
+    /// 供货价（site-audit-backend2 补：该供应商商品全部 SKU 的最低
+    /// 供货价；无 SKU 时为 None。此前 VO 无此字段，管理端供货价列
+    /// 恒显示 ¥0.00）。
+    pub supply_price: Option<rust_decimal::Decimal>,
+    /// 商品分类名（site-audit-backend2 补，此前分类列恒 --）。
+    pub product_category_name: Option<String>,
+    /// 已导入的平台商品 ID（site-audit-backend2 补：按
+    /// `product.vendor_product_id` 反查，未导入为 None；此前前端
+    /// 上下架按钮以此字段为门控、恒不出现）。
+    pub product_id: Option<i32>,
+    /// 是否已导入平台商品库（site-audit-backend2 补：1 是 / 0 否；
+    /// 此前导入按钮恒显、已导入商品也可重复点导入）。
+    pub is_imported: Option<i32>,
+    /// 平台商品上下架状态（site-audit-backend2 补：0 下架 / 1 上架，
+    /// 未导入为 None）。
+    pub product_status: Option<i32>,
     /// 创建时间（毫秒，bigint 原样）。
     pub create_time: Option<i64>,
     pub create_by_name: Option<String>,

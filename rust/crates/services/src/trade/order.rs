@@ -1983,6 +1983,14 @@ impl OrderService {
             .latest_for_order(order_id)
             .await?;
         let mut vo = to_vo(&order, &items, claim.as_ref());
+        // 支付截止时间（site-audit-backend2）：与自动取消调度器同源配置
+        vo.pay_end_time = pay_end_time_of(
+            order.order_status,
+            order.add_time,
+            self.pay_cancel_minutes().await,
+        );
+        // 售后回填（site-audit-backend2）：每项最新售后 + 已占用数量
+        attach_aftersales_info(&self.repos, order_id, &mut vo).await;
         // 买家取消直退（我方新增）：附加入口动作与退款进度
         let paid_cancel_enabled = self.paid_cancel_enabled().await;
         let latest_cancel = self
@@ -2201,6 +2209,8 @@ impl OrderService {
             .await?;
         // 买家取消直退（我方新增）：批量预取各单最新一笔买家取消申请
         let paid_cancel_enabled = self.paid_cancel_enabled().await;
+        // 支付截止时间配置（site-audit-backend2）：整页只读一次
+        let pay_cancel_minutes = self.pay_cancel_minutes().await;
         let buyer_cancel_map = self
             .repos
             .payment
@@ -2234,6 +2244,8 @@ impl OrderService {
         for o in &orders {
             let items = self.repos.trade.order.find_items(o.order_id).await?;
             let mut vo = to_vo(o, &items, claims.get(&o.order_id));
+            vo.pay_end_time = pay_end_time_of(o.order_status, o.add_time, pay_cancel_minutes);
+            attach_aftersales_info(&self.repos, o.order_id, &mut vo).await;
             attach_paid_cancel_refund(
                 &mut vo,
                 o,
@@ -2256,6 +2268,21 @@ impl OrderService {
             list.push(vo);
         }
         Ok(PageResult::new(total, list, page))
+    }
+
+    /// 自动取消分钟数（`config.autoCancelOrderMinute` 生效值，与调度器
+    /// `run_auto_cancel` 同源同解析；缺失/非法/读取失败 → None，表示
+    /// 无自动取消截止，见 [`pay_end_time_of`]）。
+    async fn pay_cancel_minutes(&self) -> Option<i64> {
+        let raw = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code(crate::system::scheduler::CFG_AUTO_CANCEL_ORDER_MINUTE)
+            .await
+            .ok()
+            .flatten();
+        crate::system::scheduler::parse_positive_i64(raw.as_deref())
     }
 
     /// 买家取消直退主开关（生效值；读取失败按关处理，零行为变化）。
@@ -3237,7 +3264,11 @@ fn to_vo(o: &Order, items: &[OrderItem], claim: Option<&OfflinePaymentClaim>) ->
         "cancelOrder": to_pay,
         "delOrder": matches!(o.order_status, 3 | 4 | 5 | 40 | 50),
         "confirmReceipt": o.order_status == 2,
-        "toAftersales": matches!(o.order_status, 2 | 5),
+        // 待发货（1，已付款未发货）同样可申请售后：售后 create 只要求
+        // pay_status=已付，aftersales_client 对 CONFIRMED 状态有专门的
+        // 退款额口径，前端申请页对 status=1 只开放「仅退款」类型；
+        // 此前只给 2|5 导致待发货订单全站无售后入口（site-audit-backend2）。
+        "toAftersales": matches!(o.order_status, 1 | 2 | 5),
         "rebuy": true,
         "toComment": to_comment,
         "offlinePaymentClaimDetail": claim_detail,
@@ -3405,6 +3436,78 @@ fn attach_paid_cancel_refund(
                 "cancelPaidRefund".to_string(),
                 serde_json::Value::Bool(true),
             );
+        }
+    }
+}
+
+/// 待付款订单支付截止时间（site-audit-backend2 补齐，此前 VO 硬编码
+/// `pay_end_time: None`，PC 详情倒计时永不显示）。
+///
+/// 口径与自动取消调度器同源：`config.autoCancelOrderMinute` 为正整数时
+/// 截止 = 下单时间 + 该分钟数；配置缺失/非法时调度器本身不执行自动
+/// 取消（run_auto_cancel 直接跳过），此时无真实截止时间、保持 None，
+/// 不学 order_admin VO 的 30 分钟硬编码兜底（会展示错误倒计时）。
+fn pay_end_time_of(order_status: i32, add_time: i32, minutes: Option<i64>) -> Option<String> {
+    if order_status != status::UNPAID || add_time <= 0 {
+        return None;
+    }
+    let minutes = minutes?;
+    let deadline = i64::from(add_time).saturating_add(minutes.saturating_mul(60));
+    let deadline = i32::try_from(deadline).unwrap_or(i32::MAX);
+    Some(fmt_time(deadline))
+}
+
+/// 买家订单 VO 售后回填（原版 `OrderItemVO.aftersalesItem` /
+/// `aftersalesNumber`，此前 to_vo 硬编码 Null / 0，订单列表与详情的
+/// 「售后详情」入口永不出现、剩余可申请数量恒按全量计算）。
+///
+/// - `aftersalesItem`：该订单项最新一笔售后（aftersaleId + 状态文案，
+///   文案走买家端口径 `client_status_name`，财务驳回细分标志此处无
+///   数据源、按 false 处理）；
+/// - `aftersalesNumber`：有效状态（`valid_statuses`，与申请数量校验
+///   `valid_quantity_by_item` 同口径，不含审核未通过）已占用数量。
+/// 查询失败静默跳过（展示增强，不阻断订单主链）。
+async fn attach_aftersales_info(
+    repos: &nextrade_infrastructure::db::Repositories,
+    order_id: i32,
+    vo: &mut OrderVO,
+) {
+    let repo = &repos.trade.aftersales_client;
+    let latest = repo
+        .latest_aftersales_by_order(order_id)
+        .await
+        .unwrap_or_default();
+    let used = repo
+        .valid_quantity_by_item(
+            order_id,
+            &nextrade_core::models::trade::aftersales_client::aftersales_status::valid_statuses(),
+            None,
+        )
+        .await
+        .unwrap_or_default();
+    if latest.is_empty() && used.is_empty() {
+        return;
+    }
+    for item in vo.items.iter_mut() {
+        let Some(item_id) = item.get("itemId").and_then(serde_json::Value::as_i64) else {
+            continue;
+        };
+        let item_id = i32::try_from(item_id).unwrap_or(0);
+        if let Some((aftersale_id, ty, st, close_type)) = latest.get(&item_id) {
+            let status_name = nextrade_core::models::trade::aftersales_client::client_status_name(
+                Some(*ty),
+                Some(*st),
+                Some(*close_type),
+                false,
+            );
+            item["aftersalesItem"] = serde_json::json!({
+                "aftersaleId": aftersale_id,
+                "status": st,
+                "statusName": status_name.unwrap_or_default(),
+            });
+        }
+        if let Some(n) = used.get(&item_id) {
+            item["aftersalesNumber"] = serde_json::json!(n);
         }
     }
 }
@@ -3599,8 +3702,25 @@ mod order_list_filter_tests {
 
 #[cfg(test)]
 mod order_contract_tests {
+    use super::pay_end_time_of;
     use super::status_tip;
     use super::virtual_sample_for;
+
+    #[test]
+    fn pay_end_time_only_for_unpaid_with_configured_minutes() {
+        // 待付款 + 配置分钟数 → 有截止时间，且随分钟数变化
+        let base = 1_700_000_000;
+        let t30 = pay_end_time_of(0, base, Some(30)).expect("应有截止时间");
+        let t60 = pay_end_time_of(0, base, Some(60)).expect("应有截止时间");
+        assert_ne!(t30, t60);
+        // 非待付款状态恒 None
+        assert_eq!(pay_end_time_of(1, base, Some(30)), None);
+        assert_eq!(pay_end_time_of(5, base, Some(30)), None);
+        // 配置缺失（调度器不自动取消）→ 无真实截止，保持 None
+        assert_eq!(pay_end_time_of(0, base, None), None);
+        // 下单时间异常 → None
+        assert_eq!(pay_end_time_of(0, 0, Some(30)), None);
+    }
 
     #[test]
     fn status_tip_matches_java_order_status_enum() {

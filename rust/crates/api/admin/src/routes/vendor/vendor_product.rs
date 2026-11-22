@@ -149,17 +149,101 @@ fn xlsx_response(bytes: Vec<u8>) -> Response {
     (headers, bytes).into_response()
 }
 
+/// 行 VO 展示字段回填（site-audit-backend2，补 C-09 契约缺口）：
+/// supplyPrice（SKU 最低供货价）/ productCategoryName / productId /
+/// isImported / productStatus（按 product.vendor_product_id 反查）。
+/// 服务层 to_vos 只出基础字段，这五个字段在此批量回填避免 N+1；
+/// 任一查询失败静默跳过（字段保持 None，不阻断列表主链）。
+async fn enrich_page_vos(state: &AdminState, page: &mut PageResult<VendorProductPageVO>) {
+    if page.list.is_empty() {
+        return;
+    }
+    let ids: Vec<i64> = page.list.iter().map(|v| v.id).collect();
+    if let Ok(skus) = state
+        .repos
+        .vendor
+        .vendor_product
+        .find_skus_by_product_ids(&ids)
+        .await
+    {
+        let mut min_price: std::collections::HashMap<i64, rust_decimal::Decimal> =
+            std::collections::HashMap::new();
+        for sku in &skus {
+            let key = i64::from(sku.vendor_product_id);
+            min_price
+                .entry(key)
+                .and_modify(|cur| {
+                    if sku.supply_price < *cur {
+                        *cur = sku.supply_price;
+                    }
+                })
+                .or_insert(sku.supply_price);
+        }
+        for vo in page.list.iter_mut() {
+            if let Some(price) = min_price.get(&vo.id) {
+                vo.supply_price = Some(*price);
+            }
+        }
+    }
+    let category_ids: Vec<i32> = page
+        .list
+        .iter()
+        .filter_map(|v| v.product_category_id)
+        .collect();
+    if let Ok(names) = state
+        .repos
+        .vendor
+        .vendor
+        .find_category_names(&category_ids)
+        .await
+    {
+        let name_map: std::collections::HashMap<i32, String> = names.into_iter().collect();
+        for vo in page.list.iter_mut() {
+            if let Some(cid) = vo.product_category_id {
+                vo.product_category_name = name_map.get(&cid).cloned();
+            }
+        }
+    }
+    let ids_i32: Vec<i32> = ids.iter().map(|id| *id as i32).collect();
+    if let Ok(refs) = state
+        .repos
+        .catalog
+        .product
+        .find_refs_by_vendor_product_ids(&ids_i32)
+        .await
+    {
+        let ref_map: std::collections::HashMap<i32, (i32, i32)> = refs
+            .into_iter()
+            .map(|(vp_id, product_id, status)| (vp_id, (product_id, status)))
+            .collect();
+        for vo in page.list.iter_mut() {
+            match ref_map.get(&(vo.id as i32)) {
+                Some((product_id, status)) => {
+                    vo.product_id = Some(*product_id);
+                    vo.product_status = Some(*status);
+                    vo.is_imported = Some(1);
+                }
+                None => {
+                    vo.is_imported = Some(0);
+                }
+            }
+        }
+    }
+}
+
 /// `GET /adminapi/vendor/product/pageList`：供应商商品分页。
 async fn page_list(
     State(state): State<AdminState>,
     Extension(tenant): Extension<TenantContext>,
     Query(q): Query<VendorProductPageQuery>,
 ) -> ApiResult<PageResult<VendorProductPageVO>> {
-    ok(state
+    let mut page = state
         .vendor
         .vendor_product
         .page_list(&q, tenant.vendor_scope())
-        .await?)
+        .await?;
+    enrich_page_vos(&state, &mut page).await;
+    ok(page)
 }
 
 /// `GET /adminapi/vendor/product/clientPage`：供应商商品客户端分页。
@@ -168,11 +252,13 @@ async fn client_page(
     Extension(tenant): Extension<TenantContext>,
     Query(q): Query<VendorProductClientPageQuery>,
 ) -> ApiResult<PageResult<VendorProductPageVO>> {
-    ok(state
+    let mut page = state
         .vendor
         .vendor_product
         .client_page(&q, tenant.vendor_scope())
-        .await?)
+        .await?;
+    enrich_page_vos(&state, &mut page).await;
+    ok(page)
 }
 
 /// `GET /adminapi/vendor/productBatch/downloadTemplate`：导入模板 xlsx。

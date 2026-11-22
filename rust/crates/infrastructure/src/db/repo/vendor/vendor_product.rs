@@ -92,6 +92,9 @@ impl VendorProductRepository {
             brand_id: q.product_brand_id,
             category_id: q.product_category_id,
             vendor_id: q.vendor_id,
+            // 关键词（site-audit-backend2 补传：Query 新增 keyword 字段，
+            // 复用 pageList 的 product_name ILIKE 过滤）。
+            keyword: q.keyword.clone(),
             // clientPage 语义：只给可导入/可售数据看
             audit_state: q.is_can_import.filter(|v| *v == 1).map(|_| 1),
             product_state: q.is_can_import.filter(|v| *v == 1).map(|_| 1),

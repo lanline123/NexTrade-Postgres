@@ -124,6 +124,13 @@ impl VendorProductService {
                 vendor_id: Some(r.vendor_id),
                 vendor_name: name_map.get(&r.vendor_id).cloned(),
                 source_product_id: r.source_product_id,
+                // 以下五字段由管理端路由层回填（site-audit-backend2，
+                // 见 routes/vendor/vendor_product.rs 的 enrich_page_vos）。
+                supply_price: None,
+                product_category_name: None,
+                product_id: None,
+                is_imported: None,
+                product_status: None,
                 create_time: Some(r.create_time),
                 create_by_name: r.create_by_name.clone(),
                 update_time: Some(r.update_time),

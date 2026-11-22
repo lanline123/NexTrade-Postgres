@@ -220,6 +220,36 @@ impl ProductRepository {
         q.fetch_all(&self.pool).await.map_err(map_err)
     }
 
+    /// 按供应商商品 ID 批量反查已导入的平台商品（site-audit-backend2：
+    /// VendorProducts 行 VO 的 productId/productStatus/isImported 回填）。
+    ///
+    /// 返回 `(vendor_product_id, product_id, product_status)`，仅未删除
+    /// 商品；同一供应商商品多于一条时取 product_id 最大的一条（最近导入）。
+    pub async fn find_refs_by_vendor_product_ids(
+        &self,
+        vendor_product_ids: &[i32],
+    ) -> Result<Vec<(i32, i32, i32)>> {
+        if vendor_product_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = vec!["?"; vendor_product_ids.len()].join(", ");
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT vendor_product_id, product_id, product_status FROM product \
+             WHERE vendor_product_id IN ({placeholders}) AND is_delete = 0 \
+             ORDER BY product_id DESC"
+        ));
+        let mut q = sqlx::query_as::<_, (i32, i32, i32)>(&sql);
+        for id in vendor_product_ids {
+            q = q.bind(id);
+        }
+        let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+        let mut seen = std::collections::HashSet::new();
+        Ok(rows
+            .into_iter()
+            .filter(|(vp_id, _, _)| seen.insert(*vp_id))
+            .collect())
+    }
+
     /// 查询商品 SKU 列表。
     pub async fn find_skus(&self, product_id: i32) -> Result<Vec<ProductSku>> {
         sqlx::query_as::<_, ProductSku>(

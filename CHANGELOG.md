@@ -2342,3 +2342,20 @@
 
 - **时间单位混用（秒/毫秒）同类残留清理（存量 bug，我方代码）**：全仓扫 `now_millis() as i32` 落库点，确认 6 处把毫秒截断成 i32 写入 **Unix 秒口径** 的时间列（值溢出成乱码/负数，与 2026-11-20 已修的 payee 秒毫秒 bug 同类）：① 供应商创建 `vendor.add_time`（读端按秒格式化，创建时间显示为 1938 年前后的错误日期）；② 供应商商品导入/重导链的 `product.add_time`、`product.last_update`、`vendor_shop_bind.add_time`（商品主链一律秒口径）；③ 预约库存 `product_reservation_stock.add_time`（三处入口）。统一改 `now_seconds() as i32`。注意 `vendor_product` 自身 `create_time/update_time`（bigint 毫秒）与 `pos_device` 时间列（i64 毫秒、模块内自洽）不在此列，未动。已落库的存量错误值不自动修复（供应商系统尚无真实业务数据，影响面为空表/测试数据级）。
 - **分页参数无上限同类清理（存量健壮性缺口）**：全仓扫各查询结构体的 `page_query/limit_offset`，确认 6 处 `size` 无上限且被服务/仓储层直接作 LIMIT（传 `size=1000000` 可一次拉全表）：管理端 SKU 列表（`/adminapi/product/product/skuList`）、管理端客服账号列表、销售统计明细、商品选择列表、买家端商品咨询列表、买家端浏览历史。统一在模型层 `clamp(1, 100)`（对齐 Java `BasePage.getSize()` 截断口径）。经 `types::PageQuery::limit_offset`（已夹 1..=200）消费的其余列表不在此列。
+
+## 0.0.2 续 · 2026-11-22 批次（全站体检后端补修：订单售后/倒计时/VO 回填 + 采购契约层，未部署——无迁移，随下一后端合并版上线）
+
+### 修复
+
+- **待发货订单售后入口（原版有·我方修复）**：买家订单 VO 的 `availableActions.toAftersales` 此前只对订单状态 2（已发货）/5（已完成）下发，状态 1（已付款待发货）恒假，前端为该状态专设的「仅退款」类型过滤成死代码、待发货订单全站无售后入口。后端售后 create 本就只要求 pay_status=已付且对已确认待发货状态有专门退款额口径，现下发口径放宽为 1|2|5（`services/trade/order.rs`）。
+- **订单详情待付款倒计时（原版有·我方修复）**：买家订单 VO 硬编码 `pay_end_time: None`，PC 详情倒计时永不显示。现按自动取消调度器同源口径补齐：读 `config.autoCancelOrderMinute`（与 `run_auto_cancel` 同解析），待付款订单下发「下单时间 + 配置分钟数」；配置缺失时调度器本身不执行自动取消、无真实截止，保持 None（不套 order_admin VO 的 30 分钟硬编码兜底）。列表与详情同口径，列表整页只读一次配置。附纯函数单测。
+- **订单 VO 售后回填（原版有·我方修复）**：`to_vo` 把每个订单项的 `aftersalesItem` 硬编码 Null、`aftersalesNumber` 硬编码 0，订单列表/详情的「售后详情」入口永不出现、剩余可申请数量恒按全量计算。现 list/detail 后置回填：每项最新一笔售后（aftersaleId + 买家端状态文案，走 `client_status_name`）与有效状态占用数量（与申请数量校验 `valid_quantity_by_item` 同口径，不含审核未通过）；仓储新增 `latest_aftersales_by_order`。注：`eCard` 与 `virtualSample` 详情侧已有后置回填（卡密分配/虚拟内容下发），线 1 报告所指 to_vo 硬编码属实但详情并非永不出现，本次未动；订单**列表**仍不下发 eCard（列表无卡密展示位，维持现状）。
+- **采购四单据键名契约（C-19，原版有·我方修复）**：`purchase_order/purchase_receipt/purchase_return/purchase_reconciliation` 的 list/detail 此前以 PG 蛇形列名原样出键、前端通篇读驼峰键，订单号/金额/时间等多列恒空。现照 supplier 手工别名范式给四单据 list/detail（含明细/来源数组）补驼峰别名层：蛇形原键保留，时间类列（createTime 等）的别名按 supplier 范式格式化为 `yyyy-MM-dd HH:mm:ss` 字符串。**前端对接**：采购订单金额列 dataIndex `totalAmount` 应改读 `productAmount`（后端金额列为 `product_amount`，无 total_amount）；入库/退货/对账的 `totalAmount` 别名已由 `total_amount` 自动生成，无需改。
+- **供应商商品行 VO（C-09，原版有·我方修复）**：`VendorProductPageVO` 补 `supplyPrice`（SKU 最低供货价）/`productCategoryName`/`productId`（按 `product.vendor_product_id` 反查已导入平台商品）/`isImported`/`productStatus` 五字段，pageList/clientPage 路由层批量回填；`VendorProductClientPageQuery` 补 `keyword` 并贯通至 pageList 的商品名过滤（此前搜索被 serde 静默忽略）。此前供货价恒 ¥0.00、分类恒 --、上下架按钮永不出现、已导入商品仍显导入按钮。
+- **对账导出真 Excel（C-13 后端侧，原版有·我方修复）**：`purchaseReconciliation/export` 此前返回 JSON 信封冒充 Excel，现真生成 xlsx 并带 Content-Disposition（文件名 `purchase_reconciliation.xlsx`，列：对账单号/供应商ID/状态文案/入库金额/退货金额/对账金额/备注/审核备注/创建时间），过滤与列表同口径（shopId/status/keyword，keyword 与 reconciliationSn 均匹配对账单号）。**前端对接**：线 3 已止损的「导出JSON」按钮可切回 Excel 口径走本端点下载。
+- **供应商编辑/新建字段落库（原版有·我方修复）**：`/vendor/vendor/update` 此前只覆盖 vendorName/contactMobile/status，现扩展 vendorLogo 与 type 两列，contactName 合并进 `vendor_data`（不覆盖既有键）；`VendorCreateParam` 补 status（缺省开启、传值校验开/关枚举，此前新建选「关闭」静默不生效）与平铺 contactName/contactMobile（合并进 vendor_data 并同步 contact_mobile 列，此前新建填的联系人/电话静默丢失）。
+- **采购筛选后端补齐（C-12 后端侧，原版有·我方修复）**：`list_table` 此前从不消费 `vendorId`（供应商商品按供应商过滤无效），现对确有 vendor_id 列的五表生效；采购订单新增 `trackingNo` 物流单号搜索；入库单 keyword 扩为入库单号/采购单号（子查询）/供应商名（子查询）；退货单 keyword 扩为退货单号/入库单号（子查询）；对账列表与导出兼容 `reconciliationSn` 参数名。
+
+### 碰撞提示
+
+- 本包含 `rust/crates/services/src/vendor/vendor.rs` 与 `rust/crates/services/src/vendor/vendor_product.rs` 两文件，与体检线 6 暂存包（site-audit-backend）同文件：线 6 改动为 import/re-import 与 create 的 `now_millis → now_seconds` 两处（vendor.rs 约 L165、vendor_product.rs 约 L355/L432），本包改动在 vendor.rs 的 create 状态/联系人段（约 L161–215）与 vendor_product.rs 的 to_vos 字段段（约 L127），区域相邻但不重叠，推送时请三方合并并双签名核验。

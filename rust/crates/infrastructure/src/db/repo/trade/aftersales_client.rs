@@ -589,6 +589,36 @@ impl AftersalesClientRepository {
             .collect())
     }
 
+    /// 按订单取每个订单项的最新一笔售后（买家订单 VO 的
+    /// `aftersalesItem` 回填用，site-audit-backend2）：按 aftersale_id
+    /// 降序取每项第一条（即最近一次申请，不限状态——终态单也要能从
+    /// 订单页点进售后详情）。
+    ///
+    /// 返回 `order_item_id -> (aftersale_id, aftersale_type, status, close_type)`。
+    pub async fn latest_aftersales_by_order(
+        &self,
+        order_id: i32,
+    ) -> Result<HashMap<i32, (i32, i32, i32, i32)>> {
+        let sql = crate::db::to_pg_placeholders(
+            "SELECT ai.order_item_id, a.aftersale_id, a.aftersale_type, a.status, a.close_type \
+               FROM aftersales_item ai \
+               JOIN aftersales a ON a.aftersale_id = ai.aftersale_id \
+              WHERE a.order_id = ? AND ai.order_item_id IS NOT NULL \
+              ORDER BY a.aftersale_id DESC",
+        );
+        let rows = sqlx::query_as::<_, (i32, i32, i32, i32, i32)>(&sql)
+            .bind(order_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let mut out: HashMap<i32, (i32, i32, i32, i32)> = HashMap::new();
+        for (item_id, aftersale_id, aftersale_type, status, close_type) in rows {
+            out.entry(item_id)
+                .or_insert((aftersale_id, aftersale_type, status, close_type));
+        }
+        Ok(out)
+    }
+
     /// 该订单项是否已有「售后进行中」的申请
     /// （对应 Java `getApplyAftersalesCount(orderId, itemId) > 0`）。
     pub async fn has_applied_aftersales(

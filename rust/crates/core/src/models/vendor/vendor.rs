@@ -98,6 +98,15 @@ pub struct VendorCreateParam {
     /// 类型 1个人 2企业。
     pub r#type: Option<i32>,
     pub vendor_name: Option<String>,
+    /// 状态 1开启 2关闭（site-audit-backend2 补：此前入参无此字段，
+    /// 新建时所选「关闭」静默不生效、恒按开启落库；缺省仍为开启）。
+    pub status: Option<i32>,
+    /// 平铺联系人姓名（管理端表单契约）：与 `vendorData.contactName`
+    /// 等义，create 时合并进 vendor_data 落库。
+    pub contact_name: Option<String>,
+    /// 平铺联系电话：与 `vendorData.contactPhone` 等义，create 时
+    /// 合并进 vendor_data 并同步落 `contact_mobile` 列。
+    pub contact_mobile: Option<String>,
     /// 主账号绑定信息（Java `VendorCreateParam.AdminData`）。
     #[serde(default)]
     pub admin_data: Option<VendorAdminInfo>,

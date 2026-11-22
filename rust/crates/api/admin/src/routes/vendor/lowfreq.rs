@@ -990,11 +990,49 @@ async fn h_vendor_update(
         .or_else(|| body.get("id"))
         .and_then(Value::as_i64)
         .unwrap_or(0);
-    sqlx::query("UPDATE vendor SET vendor_name=COALESCE(NULLIF($1,''),vendor_name), contact_mobile=COALESCE(NULLIF($2,''),contact_mobile), status=COALESCE($3,status) WHERE vendor_id=$4")
+    sqlx::query("UPDATE vendor SET vendor_name=COALESCE(NULLIF($1,''),vendor_name), contact_mobile=COALESCE(NULLIF($2,''),contact_mobile), status=COALESCE($3,status), vendor_logo=COALESCE(NULLIF($4,''),vendor_logo), \"type\"=COALESCE($5,\"type\") WHERE vendor_id=$6")
         .bind(body.get("vendorName").and_then(Value::as_str).unwrap_or(""))
         .bind(body.get("contactMobile").and_then(Value::as_str).unwrap_or(""))
         .bind(body.get("status").and_then(Value::as_i64).map(|v| v as i32))
+        .bind(body.get("vendorLogo").and_then(Value::as_str).unwrap_or(""))
+        .bind(body.get("type").and_then(Value::as_i64).map(|v| v as i32))
         .bind(id).execute(&pool(&state)).await.map_err(db)?;
+    // 联系人姓名（site-audit-backend2 补，此前编辑不落库）：联系人存
+    // vendor_data.contactName（与 supplier 读端口径一致），合并写入不
+    // 覆盖既有键；表单同时回传完整 vendorData 对象时以其为准、不再合并。
+    if body.get("vendorData").is_none() {
+        if let Some(contact_name) = body
+            .get("contactName")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            let raw: Option<(Option<String>,)> =
+                sqlx::query_as("SELECT vendor_data FROM vendor WHERE vendor_id=$1")
+                    .bind(id)
+                    .fetch_optional(&pool(&state))
+                    .await
+                    .map_err(db)?;
+            if let Some((existing,)) = raw {
+                let mut data: Value = existing
+                    .as_deref()
+                    .and_then(|s| serde_json::from_str(s).ok())
+                    .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+                if let Some(obj) = data.as_object_mut() {
+                    obj.insert(
+                        "contactName".to_string(),
+                        Value::String(contact_name.to_string()),
+                    );
+                    sqlx::query("UPDATE vendor SET vendor_data=$1 WHERE vendor_id=$2")
+                        .bind(data.to_string())
+                        .bind(id)
+                        .execute(&pool(&state))
+                        .await
+                        .map_err(db)?;
+                }
+            }
+        }
+    }
     ok(())
 }
 

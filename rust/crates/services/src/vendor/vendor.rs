@@ -158,9 +158,50 @@ impl VendorService {
         if p.vendor_name.as_deref().unwrap_or("").trim().is_empty() {
             return Err(Error::Validation("供应商名称不能为空".into()));
         }
-        let contact_phone = json_str(&p.vendor_data, VENDOR_DATA_CONTACT_PHONE);
-        let kefu_phone = json_str(&p.vendor_data, VENDOR_DATA_CUSTOMER_SERVICE_PHONE);
-        let vendor_data = json_to_string(&p.vendor_data);
+        // 状态入参（site-audit-backend2 补）：缺省开启，传值须为开/关枚举。
+        let status = match p.status {
+            None => VENDOR_STATUS_OPEN,
+            Some(s @ (VENDOR_STATUS_OPEN | VENDOR_STATUS_CLOSE)) => s,
+            Some(_) => return Err(Error::Validation("供应商状态不合法".into())),
+        };
+        // 平铺联系人/电话（管理端表单契约）合并进 vendor_data：
+        // vendorData 内既有键优先，平铺值只补缺（site-audit-backend2）。
+        let mut vendor_data_value = p.vendor_data.clone();
+        if vendor_data_value.is_null() && (p.contact_name.is_some() || p.contact_mobile.is_some())
+        {
+            vendor_data_value = serde_json::Value::Object(serde_json::Map::new());
+        }
+        if let Some(obj) = vendor_data_value.as_object_mut() {
+            if !obj.contains_key(VENDOR_DATA_CONTACT_NAME) {
+                if let Some(name) = p
+                    .contact_name
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                {
+                    obj.insert(
+                        VENDOR_DATA_CONTACT_NAME.to_string(),
+                        serde_json::Value::String(name.to_string()),
+                    );
+                }
+            }
+            if !obj.contains_key(VENDOR_DATA_CONTACT_PHONE) {
+                if let Some(mobile) = p
+                    .contact_mobile
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                {
+                    obj.insert(
+                        VENDOR_DATA_CONTACT_PHONE.to_string(),
+                        serde_json::Value::String(mobile.to_string()),
+                    );
+                }
+            }
+        }
+        let contact_phone = json_str(&vendor_data_value, VENDOR_DATA_CONTACT_PHONE);
+        let kefu_phone = json_str(&vendor_data_value, VENDOR_DATA_CUSTOMER_SERVICE_PHONE);
+        let vendor_data = json_to_string(&vendor_data_value);
         let person_data = json_to_string(&p.person_data);
         // vendor.add_time 为 Unix 秒口径（读端 format_unix_time 按秒格式化）；
         // 此前误用 now_millis() as i32（毫秒截断溢出成乱码/负值），
@@ -174,7 +215,7 @@ impl VendorService {
                 contact_phone.as_deref(),
                 vendor_data.as_deref(),
                 person_data.as_deref(),
-                VENDOR_STATUS_OPEN,
+                status,
                 p.r#type,
                 p.vendor_name.as_deref(),
                 kefu_phone.as_deref(),
