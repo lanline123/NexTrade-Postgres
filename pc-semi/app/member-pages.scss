@@ -302,11 +302,6 @@
           box-sizing: border-box;
           gap: 16px;
 
-          // CouponCard 根节点固定 475px，此处让它填满栅格轨道
-          .coupon-container {
-              width: 100%;
-          }
-
           .el-page,
           .no-result {
               grid-column: 1 / -1;

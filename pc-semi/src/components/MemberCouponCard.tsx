@@ -76,7 +76,10 @@ export default function MemberCouponCard({
   };
 
   // 旧版 CouponCard.vue：status 不是 1/2/3 时整卡加 `disable`
-  const containerClass = ['mp-coupon-card', 'coupon-container', disabled ? 'disable' : '', selected ? 'is-selected' : '']
+  // 结构口径：mp-coupon-card 是生成样式（member-pages.scss）的命名空间包裹层，
+  // coupon-container 必须是它的后代，券卡整块后代选择器才命中（同 .mp-coupon-list 的包裹式用法）；
+  // 两个类挂同一元素时 .mp-coupon-card .coupon-container 永远匹配不上。
+  const containerClass = ['coupon-container', disabled ? 'disable' : '', selected ? 'is-selected' : '']
     .filter(Boolean)
     .join(' ');
 
@@ -126,11 +129,17 @@ export default function MemberCouponCard({
 
   if (onSelect) {
     return (
-      <button type="button" className={containerClass} onClick={() => onSelect(coupon)}>
-        {content}
-      </button>
+      <div className="mp-coupon-card">
+        <button type="button" className={containerClass} onClick={() => onSelect(coupon)}>
+          {content}
+        </button>
+      </div>
     );
   }
 
-  return <div className={containerClass}>{content}</div>;
+  return (
+    <div className="mp-coupon-card">
+      <div className={containerClass}>{content}</div>
+    </div>
+  );
 }

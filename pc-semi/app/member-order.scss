@@ -845,28 +845,36 @@
   transform: rotate(45deg);
 }
 
-/* 优惠券页：旧版页头右侧只有「领取更多优惠券」一个动作；新版多了「券码兑换」和
-   每张券的「删除」，这里只给它们排位置，视觉数值沿用旧版页头的字号与间距。 */
-.mp-coupon-list .coupon-actions {
+/* 优惠券页分页：旧版 List.vue 用 .el-pagination.is-background，口径与订单页同源
+   （member.less :deep(.el-pagination.is-background)，数值同上方 .order-list .pagination），
+   在券页作用域内给手写 .pagination 补齐；作用域只限 .mp-coupon-list，不影响订单页。 */
+.mp-coupon-list .pagination {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.mp-coupon-list .coupon-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.mp-coupon-list .coupon-del {
-  align-self: flex-end;
-  padding: 0;
-  border: 0;
-  background: none;
+  gap: 8px;
   font-size: 12px;
-  color: #999;
+}
+
+.mp-coupon-list .pagination button {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 4px;
+  border: 1px solid #dbdce1;
+  border-radius: 4px;
+  background-color: #fff;
+  color: #1a1a1a;
+  font-size: 12px;
+  line-height: 30px;
   cursor: pointer;
+}
+
+.mp-coupon-list .pagination button:disabled {
+  color: #c0c4cc;
+  cursor: not-allowed;
+}
+
+.mp-coupon-list .pagination button.is-active {
+  background-color: #eeeff2;
 }
 
 /* 账户明细 / 充值记录等服务器组件里不能引入 Semi 的 Button（会把整个 barrel 拉进
