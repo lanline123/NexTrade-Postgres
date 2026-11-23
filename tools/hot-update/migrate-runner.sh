@@ -107,8 +107,9 @@ PYEOF
 . "$TMPD/meta.env"
 [ -n "$JOB_ID" ] || { echo "ERROR job file missing jobId" >&2; exit 5; }
 
-psql_q() { # 只读/登记类小查询：-t -A 输出
-  "$PSQL_BIN" -X -q -t -A -v ON_ERROR_STOP=1 -c "$1"
+psql_q() { # 只读/登记类小查询：-t -A 输出，-F 强制 tab 分隔（读取端按 tab 切分；
+  # 缺此项 psql 默认以 | 分隔，登记快照整行落入首列、已登记跳过与 sha 闸门失效）
+  "$PSQL_BIN" -X -q -t -A -F $'\t' -v ON_ERROR_STOP=1 -c "$1"
 }
 
 SKIPPED_FILES=()

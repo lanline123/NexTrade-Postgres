@@ -17,7 +17,8 @@
 #   HU_BACKEND_BIN        二进制路径（默认 /www/wwwroot/rust/nextrade）
 #   HU_BACKEND_UNIT       systemd 单元名（默认 nextrade）
 #   HU_BACKEND_HEALTH_URLS 版本端点候选（空格分隔，任一命中即算通；
-#                         默认本机 18080/18181 的 /api/version——P1 自报端点）
+#                         默认本机 18080/18181 的 /version——后端自报端点
+#                         真实路由无 /api 前缀，/api/version 恒 404）
 #   HU_BACKEND_LEGACY_URLS 回滚后旧版探活候选（旧二进制可能没有 /version
 #                         端点，用存量只读接口探活）
 #   HU_HEALTH_TIMEOUT_SECS 健康检查总超时（默认 90）
@@ -40,7 +41,7 @@
 
 HU_BACKEND_BIN=${HU_BACKEND_BIN:-/www/wwwroot/rust/nextrade}
 HU_BACKEND_UNIT=${HU_BACKEND_UNIT:-nextrade}
-HU_BACKEND_HEALTH_URLS=${HU_BACKEND_HEALTH_URLS:-"http://127.0.0.1:18080/api/version http://127.0.0.1:18181/api/version"}
+HU_BACKEND_HEALTH_URLS=${HU_BACKEND_HEALTH_URLS:-"http://127.0.0.1:18080/version http://127.0.0.1:18181/version"}
 HU_BACKEND_LEGACY_URLS=${HU_BACKEND_LEGACY_URLS:-"http://127.0.0.1:18181/api/common/config/themeSettings http://127.0.0.1:18080/api/home/index"}
 HU_HEALTH_TIMEOUT_SECS=${HU_HEALTH_TIMEOUT_SECS:-90}
 HU_HEALTH_INTERVAL_SECS=${HU_HEALTH_INTERVAL_SECS:-3}
